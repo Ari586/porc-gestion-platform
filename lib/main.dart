@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -718,6 +719,7 @@ class _MainScreenState extends State<MainScreen> {
   String _activeChatConversationId = _teamConversationId;
   bool _chatReadSyncScheduled = false;
   final Map<String, bool> _taskDoneById = <String, bool>{};
+  final Map<String, Uint8List> _imageBytesCache = <String, Uint8List>{};
   final List<AuditLogEntry> _auditLogs = [];
   int _failedLoginAttempts = 0;
   DateTime? _loginLockedUntil;
@@ -1270,6 +1272,9 @@ class _MainScreenState extends State<MainScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth >= 980;
     final contentPadding = screenWidth > 720 ? 24.0 : 12.0;
+    final desktopMaxContentWidth = screenWidth >= 1700
+        ? 1560.0
+        : (screenWidth >= 1320 ? 1440.0 : 1320.0);
 
     return Scaffold(
       key: _scaffoldKey,
@@ -1285,7 +1290,25 @@ class _MainScreenState extends State<MainScreen> {
                   Expanded(
                     child: SingleChildScrollView(
                       padding: EdgeInsets.all(contentPadding),
-                      child: _buildActiveContent(),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 220),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        child: KeyedSubtree(
+                          key: ValueKey<String>(_activeTab),
+                          child: isDesktop
+                              ? Align(
+                                  alignment: Alignment.topCenter,
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: desktopMaxContentWidth,
+                                    ),
+                                    child: _buildActiveContent(),
+                                  ),
+                                )
+                              : _buildActiveContent(),
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -1311,6 +1334,7 @@ class _MainScreenState extends State<MainScreen> {
     _loginController.dispose();
     _passwordController.dispose();
     _chatComposerController.dispose();
+    _imageBytesCache.clear();
     super.dispose();
   }
 
@@ -8243,18 +8267,8 @@ class _MainScreenState extends State<MainScreen> {
       );
     }
 
-    try {
-      final bytes = base64Decode(boar.imageBase64);
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: Image.memory(
-          bytes,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-        ),
-      );
-    } catch (_) {
+    final bytes = _decodeImageBytesCached(boar.imageBase64);
+    if (bytes == null) {
       return Container(
         width: size,
         height: size,
@@ -8269,6 +8283,10 @@ class _MainScreenState extends State<MainScreen> {
         ),
       );
     }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Image.memory(bytes, width: size, height: size, fit: BoxFit.cover),
+    );
   }
 
   Widget _buildSowPhoto(Sow sow, {double size = 52}) {
@@ -8288,18 +8306,8 @@ class _MainScreenState extends State<MainScreen> {
       );
     }
 
-    try {
-      final bytes = base64Decode(sow.imageBase64);
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: Image.memory(
-          bytes,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-        ),
-      );
-    } catch (_) {
+    final bytes = _decodeImageBytesCached(sow.imageBase64);
+    if (bytes == null) {
       return Container(
         width: size,
         height: size,
@@ -8314,6 +8322,10 @@ class _MainScreenState extends State<MainScreen> {
         ),
       );
     }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Image.memory(bytes, width: size, height: size, fit: BoxFit.cover),
+    );
   }
 
   Widget _buildImagePreviewBox(String imageBase64, {double size = 92}) {
@@ -8328,18 +8340,8 @@ class _MainScreenState extends State<MainScreen> {
         child: const Icon(LucideIcons.image, color: Color(0xFF64748B)),
       );
     }
-    try {
-      final bytes = base64Decode(imageBase64);
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.memory(
-          bytes,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-        ),
-      );
-    } catch (_) {
+    final bytes = _decodeImageBytesCached(imageBase64);
+    if (bytes == null) {
       return Container(
         width: size,
         height: size,
@@ -8350,6 +8352,10 @@ class _MainScreenState extends State<MainScreen> {
         child: const Icon(LucideIcons.alertTriangle, color: Color(0xFFB91C1C)),
       );
     }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Image.memory(bytes, width: size, height: size, fit: BoxFit.cover),
+    );
   }
 
   Widget _buildSowManagement() {
@@ -9362,18 +9368,8 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildNewsPostImage(String imageBase64) {
-    try {
-      final bytes = base64Decode(imageBase64);
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.memory(
-          bytes,
-          width: double.infinity,
-          height: 240,
-          fit: BoxFit.cover,
-        ),
-      );
-    } catch (_) {
+    final bytes = _decodeImageBytesCached(imageBase64);
+    if (bytes == null) {
       return Container(
         width: double.infinity,
         height: 200,
@@ -9385,6 +9381,15 @@ class _MainScreenState extends State<MainScreen> {
         child: const Icon(LucideIcons.alertTriangle, color: Color(0xFFB91C1C)),
       );
     }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Image.memory(
+        bytes,
+        width: double.infinity,
+        height: 240,
+        fit: BoxFit.cover,
+      ),
+    );
   }
 
   bool _canManageNewsPost(NewsPost post) {
@@ -9729,8 +9734,8 @@ class _MainScreenState extends State<MainScreen> {
         : Border.all(color: ringColor, width: 3);
 
     if (imageBase64.isNotEmpty) {
-      try {
-        final bytes = base64Decode(imageBase64);
+      final bytes = _decodeImageBytesCached(imageBase64);
+      if (bytes != null) {
         return Container(
           width: size,
           height: size,
@@ -9744,8 +9749,6 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
         );
-      } catch (_) {
-        // Fallback to initials avatar.
       }
     }
 
@@ -9766,8 +9769,8 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildUserCoverPhoto(UserProfile user, {double height = 180}) {
     final imageBase64 = user.coverImageBase64.trim();
     if (imageBase64.isNotEmpty) {
-      try {
-        final bytes = base64Decode(imageBase64);
+      final bytes = _decodeImageBytesCached(imageBase64);
+      if (bytes != null) {
         return ClipRRect(
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(18),
@@ -9780,8 +9783,6 @@ class _MainScreenState extends State<MainScreen> {
             fit: BoxFit.cover,
           ),
         );
-      } catch (_) {
-        // Fallback to gradient cover.
       }
     }
     return Container(
@@ -9815,18 +9816,8 @@ class _MainScreenState extends State<MainScreen> {
         child: const Icon(Icons.landscape_outlined, color: Colors.white),
       );
     }
-    try {
-      final bytes = base64Decode(imageBase64);
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.memory(
-          bytes,
-          height: height,
-          width: double.infinity,
-          fit: BoxFit.cover,
-        ),
-      );
-    } catch (_) {
+    final bytes = _decodeImageBytesCached(imageBase64);
+    if (bytes == null) {
       return Container(
         height: height,
         decoration: BoxDecoration(
@@ -9837,6 +9828,15 @@ class _MainScreenState extends State<MainScreen> {
         child: const Icon(LucideIcons.alertTriangle, color: Color(0xFFB91C1C)),
       );
     }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Image.memory(
+        bytes,
+        height: height,
+        width: double.infinity,
+        fit: BoxFit.cover,
+      ),
+    );
   }
 
   void _showEditMyProfileDialog() {
@@ -10665,35 +10665,37 @@ class _MainScreenState extends State<MainScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final compact = screenWidth < 520;
 
-    return Container(
-      padding: EdgeInsets.all(compact ? 12 : 18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: compact ? 15 : 17,
-              color: Color(0xFF0F172A),
+    return RepaintBoundary(
+      child: Container(
+        padding: EdgeInsets.all(compact ? 12 : 18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: compact ? 15 : 17,
+                color: Color(0xFF0F172A),
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: TextStyle(
-              color: const Color(0xFF64748B),
-              fontSize: compact ? 12 : 13,
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: TextStyle(
+                color: const Color(0xFF64748B),
+                fontSize: compact ? 12 : 13,
+              ),
             ),
-          ),
-          SizedBox(height: compact ? 10 : 14),
-          child,
-        ],
+            SizedBox(height: compact ? 10 : 14),
+            child,
+          ],
+        ),
       ),
     );
   }
@@ -17287,8 +17289,8 @@ class _MainScreenState extends State<MainScreen> {
           ),
         );
       }
-      try {
-        final bytes = base64Decode(message.mediaBase64);
+      final bytes = _decodeImageBytesCached(message.mediaBase64);
+      if (bytes != null) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -17334,16 +17336,15 @@ class _MainScreenState extends State<MainScreen> {
               ),
           ],
         );
-      } catch (_) {
-        return Text(
-          'Image corrompue ou non lisible.',
-          style: TextStyle(
-            color: textColor,
-            height: 1.35,
-            fontWeight: FontWeight.w600,
-          ),
-        );
       }
+      return Text(
+        'Image corrompue ou non lisible.',
+        style: TextStyle(
+          color: textColor,
+          height: 1.35,
+          fontWeight: FontWeight.w600,
+        ),
+      );
     }
 
     if (messageType == 'video' || messageType == 'audio') {
@@ -17490,6 +17491,29 @@ class _MainScreenState extends State<MainScreen> {
     }
     final mb = kb / 1024;
     return '${mb.toStringAsFixed(mb >= 10 ? 1 : 2)} MB';
+  }
+
+  Uint8List? _decodeImageBytesCached(String base64Value) {
+    final normalized = base64Value.trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    final cached = _imageBytesCache[normalized];
+    if (cached != null) {
+      return cached;
+    }
+
+    try {
+      final bytes = base64Decode(normalized);
+      if (_imageBytesCache.length >= 220) {
+        _imageBytesCache.remove(_imageBytesCache.keys.first);
+      }
+      _imageBytesCache[normalized] = bytes;
+      return bytes;
+    } catch (_) {
+      return null;
+    }
   }
 
   String _chatTimeLabel(DateTime dateTime) {
