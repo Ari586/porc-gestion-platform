@@ -1,11 +1,11 @@
 {
-    "name": "porc",
-    "short_name": "porc",
+    "name": "PigIA",
+    "short_name": "PigIA",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "PigIA - Gestion porcine innovante.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

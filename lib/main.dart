@@ -3493,13 +3493,21 @@ class _MainScreenState extends State<MainScreen> {
         borderRadius: BorderRadius.circular(AppSpacing.xxl),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Flexible(
-            child: _buildBrandLogo(
-              height: 118,
-              borderRadius: BorderRadius.circular(AppSpacing.lg),
+          _buildBrandLogo(
+            height: AppSpacing.s58,
+            borderRadius: BorderRadius.circular(AppSpacing.lg),
+          ),
+          const SizedBox(height: AppSpacing.s6),
+          const Text(
+            'PigIA',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+              letterSpacing: -0.2,
             ),
           ),
         ],
@@ -3548,13 +3556,13 @@ class _MainScreenState extends State<MainScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Align(
-              alignment: Alignment.center,
+              alignment: Alignment.topLeft,
               child: _buildBrandLogo(
-                height: 150,
+                height: AppSpacing.s58,
                 borderRadius: BorderRadius.circular(AppSpacing.xl),
               ),
             ),
-            const SizedBox(height: AppSpacing.xs),
+            const SizedBox(height: AppSpacing.md),
             const Text(
               'Connexion Utilisateur',
               style: TextStyle(
