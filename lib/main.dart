@@ -7055,6 +7055,48 @@ class _MainScreenState extends State<MainScreen> {
         tabId: AppTabs.messenger,
       ),
     ];
+    final dashboardHighlights = <_DashboardHighlightCardData>[
+      _DashboardHighlightCardData(
+        title: 'Fertilite IA',
+        value: '$successRate%',
+        caption: successCount > 0
+            ? '$successCount dossier(s) confirme(s)'
+            : 'Aucune IA cloturee',
+        icon: LucideIcons.trendingUp,
+        startColor: const Color(0xFF0F766E),
+        endColor: const Color(0xFF22C55E),
+      ),
+      _DashboardHighlightCardData(
+        title: 'Diagnostics urgents',
+        value: '$overdueDiagnosisCount',
+        caption: overdueDiagnosisCount > 0
+            ? 'Controle terrain a lancer'
+            : 'Aucun retard critique',
+        icon: LucideIcons.alertTriangle,
+        startColor: const Color(0xFFEA580C),
+        endColor: const Color(0xFFFB7185),
+      ),
+      _DashboardHighlightCardData(
+        title: 'Mise-bas proches',
+        value: '$farrowingSoonCount',
+        caption: pendingCount > 0
+            ? '$pendingCount IA encore en attente'
+            : 'Cycle reproduction stable',
+        icon: LucideIcons.piggyBank,
+        startColor: const Color(0xFF7C3AED),
+        endColor: const Color(0xFFEC4899),
+      ),
+      _DashboardHighlightCardData(
+        title: 'Ventes 7 jours',
+        value: _formatCompactAmount(weeklyRevenue),
+        caption: stockAlerts > 0
+            ? '$stockAlerts alerte(s) stock'
+            : 'Flux commercial stable',
+        icon: Icons.payments_outlined,
+        startColor: const Color(0xFF2563EB),
+        endColor: const Color(0xFF06B6D4),
+      ),
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -7068,6 +7110,7 @@ class _MainScreenState extends State<MainScreen> {
           humidityPercent: humidityPercent,
           weeklyRevenue: weeklyRevenue,
           quickModules: quickModules,
+          highlights: dashboardHighlights,
         ),
         const SizedBox(height: AppSpacing.s16),
         _buildInseminationOutcomeCharts(
@@ -7132,320 +7175,616 @@ class _MainScreenState extends State<MainScreen> {
     required int humidityPercent,
     required double weeklyRevenue,
     required List<_DashboardModuleTileData> quickModules,
+    required List<_DashboardHighlightCardData> highlights,
   }) {
+    final todayLabel = DateFormat('EEE d MMM', 'fr_FR').format(DateTime.now());
+    final performanceLabel = _dashboardPerformanceLabel(successRate);
+    final performanceColor = _dashboardPerformanceColor(successRate);
+    final semenStatus = avgSemenTemperature <= 18
+        ? 'Chaine froide conforme'
+        : 'Refroidissement a surveiller';
+    final humidityStatus = humidityPercent <= 70
+        ? 'Ambiance correcte'
+        : 'Ventilation a renforcer';
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.s16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFE9E8FF), Color(0xFFF1F5FF)],
+          colors: [Color(0xFFF7F6FF), Color(0xFFE8F6FF), Color(0xFFFFF4EC)],
         ),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFFD8DDF7)),
-        boxShadow: const [
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: const Color(0xFFDCE7F9)),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x1F334155),
-            blurRadius: 26,
-            offset: Offset(0, 12),
+            color: const Color(0xFF312E81).withValues(alpha: 0.08),
+            blurRadius: 34,
+            offset: const Offset(0, 18),
           ),
         ],
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth > 1080;
-          final leftColumn = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                height: 44,
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(32),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -90,
+              right: -40,
+              child: Container(
+                width: 220,
+                height: 220,
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFDCE4EE)),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.search, color: Color(0xFF94A3B8), size: 18),
-                    SizedBox(width: AppSpacing.s8),
-                    Expanded(
-                      child: Text(
-                        'Recherche module, lot, truie, verrat...',
-                        style: TextStyle(
-                          color: Color(0xFF94A3B8),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ],
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF818CF8).withValues(alpha: 0.18),
                 ),
               ),
-              const SizedBox(height: AppSpacing.s12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(AppSpacing.s16),
+            ),
+            Positioned(
+              bottom: -85,
+              left: -45,
+              child: Container(
+                width: 210,
+                height: 210,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFFFCD34D), Color(0xFFF59E0B)],
-                  ),
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x33F59E0B),
-                      blurRadius: 16,
-                      offset: Offset(0, 8),
-                    ),
-                  ],
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF06B6D4).withValues(alpha: 0.14),
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.s16),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth > 1120;
+                  final leftColumn = Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: AppSpacing.s8,
+                        runSpacing: AppSpacing.s8,
                         children: [
-                          Text(
-                            'Bonjour, ${_firstName(_currentUser.name)}',
-                            style: const TextStyle(
-                              color: Color(0xFF1E293B),
-                              fontWeight: FontWeight.w900,
-                              fontSize: 24,
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.s12,
+                              vertical: AppSpacing.s7,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF312E81), Color(0xFF7C3AED)],
+                              ),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: const Text(
+                              'Cockpit PigIA',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11,
+                                letterSpacing: 0.3,
+                              ),
                             ),
                           ),
-                          const SizedBox(height: AppSpacing.s6),
-                          const Text(
-                            'Pilotage visuel du tableau de bord porcin avec un focus '
-                            'sur reproduction, santé et alertes terrain.',
-                            style: TextStyle(
-                              color: Color(0xFF475569),
-                              fontWeight: FontWeight.w600,
-                              height: 1.35,
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.s12,
+                              vertical: AppSpacing.s7,
                             ),
-                          ),
-                          const SizedBox(height: AppSpacing.s10),
-                          Wrap(
-                            spacing: AppSpacing.s8,
-                            runSpacing: AppSpacing.s6,
-                            children: [
-                              _buildDashboardQuickTag(
-                                icon: LucideIcons.syringe,
-                                label: '$pendingCount IA en attente',
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.78),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: const Color(0xFFD7E2F3),
                               ),
-                              _buildDashboardQuickTag(
-                                icon: LucideIcons.piggyBank,
-                                label: '$farrowingSoonCount mise-bas <= 14j',
+                            ),
+                            child: Text(
+                              'Mis a jour $todayLabel',
+                              style: const TextStyle(
+                                color: Color(0xFF475569),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 11,
                               ),
-                              _buildDashboardQuickTag(
-                                icon: LucideIcons.alertTriangle,
-                                label:
-                                    '$overdueDiagnosisCount diagnostics en retard',
-                              ),
-                            ],
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(width: AppSpacing.s10),
-                    Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.35),
-                        borderRadius: BorderRadius.circular(20),
+                      const SizedBox(height: AppSpacing.s12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(AppSpacing.s18),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Color(0xFF0F766E),
+                              Color(0xFF2563EB),
+                              Color(0xFF7C3AED),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(
+                                0xFF312E81,
+                              ).withValues(alpha: 0.22),
+                              blurRadius: 22,
+                              offset: const Offset(0, 12),
+                            ),
+                          ],
+                        ),
+                        child: Stack(
+                          children: [
+                            Positioned(
+                              top: -20,
+                              right: -10,
+                              child: Container(
+                                width: 120,
+                                height: 120,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white.withValues(alpha: 0.12),
+                                ),
+                              ),
+                            ),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: AppSpacing.s10,
+                                          vertical: AppSpacing.s6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.16,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            999,
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          'Tableau de bord colore',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: AppSpacing.s10),
+                                      Text(
+                                        'Bonjour, ${_firstName(_currentUser.name)}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 28,
+                                          letterSpacing: -0.6,
+                                        ),
+                                      ),
+                                      const SizedBox(height: AppSpacing.s6),
+                                      const Text(
+                                        'Un pilotage plus vivant avec des codes couleurs forts '
+                                        'pour la reproduction, la sante et les alertes terrain.',
+                                        style: TextStyle(
+                                          color: Color(0xFFE2E8F0),
+                                          fontWeight: FontWeight.w600,
+                                          height: 1.35,
+                                        ),
+                                      ),
+                                      const SizedBox(height: AppSpacing.s12),
+                                      Wrap(
+                                        spacing: AppSpacing.s8,
+                                        runSpacing: AppSpacing.s8,
+                                        children: [
+                                          _buildDashboardQuickTag(
+                                            icon: LucideIcons.syringe,
+                                            label: '$pendingCount IA en attente',
+                                            backgroundColor: Colors.white
+                                                .withValues(alpha: 0.14),
+                                            borderColor: Colors.white
+                                                .withValues(alpha: 0.18),
+                                            foregroundColor: Colors.white,
+                                          ),
+                                          _buildDashboardQuickTag(
+                                            icon: LucideIcons.piggyBank,
+                                            label:
+                                                '$farrowingSoonCount mise-bas <= 14j',
+                                            backgroundColor: Colors.white
+                                                .withValues(alpha: 0.14),
+                                            borderColor: Colors.white
+                                                .withValues(alpha: 0.18),
+                                            foregroundColor: Colors.white,
+                                          ),
+                                          _buildDashboardQuickTag(
+                                            icon: LucideIcons.alertTriangle,
+                                            label:
+                                                '$overdueDiagnosisCount diagnostic(s) en retard',
+                                            backgroundColor: Colors.white
+                                                .withValues(alpha: 0.14),
+                                            borderColor: Colors.white
+                                                .withValues(alpha: 0.18),
+                                            foregroundColor: Colors.white,
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.s10),
+                                Container(
+                                  width: 84,
+                                  height: 84,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.14),
+                                    borderRadius: BorderRadius.circular(24),
+                                    border: Border.all(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.12,
+                                      ),
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    LucideIcons.piggyBank,
+                                    color: Colors.white,
+                                    size: 40,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                      child: const Icon(
-                        LucideIcons.piggyBank,
-                        color: Color(0xFF4338CA),
-                        size: 36,
+                      const SizedBox(height: AppSpacing.s12),
+                      LayoutBuilder(
+                        builder: (context, childConstraints) {
+                          final crossAxisCount = childConstraints.maxWidth > 760
+                              ? 4
+                              : childConstraints.maxWidth > 480
+                              ? 2
+                              : 1;
+                          final aspectRatio = childConstraints.maxWidth > 760
+                              ? 1.55
+                              : 1.8;
+                          return GridView.count(
+                            crossAxisCount: crossAxisCount,
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            crossAxisSpacing: AppSpacing.s10,
+                            mainAxisSpacing: AppSpacing.s10,
+                            childAspectRatio: aspectRatio,
+                            children: highlights
+                                .map(
+                                  (highlight) =>
+                                      _buildDashboardHighlightCard(highlight),
+                                )
+                                .toList(),
+                          );
+                        },
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppSpacing.s12),
-              LayoutBuilder(
-                builder: (context, childConstraints) {
-                  final canSplit = childConstraints.maxWidth > 780;
-                  final gaugeCard = _buildDashboardGaugeCard(successRate);
-                  final metricsCard = Column(
-                    children: [
-                      _buildDashboardMetricCard(
-                        title: 'Température semence',
-                        value: '${avgSemenTemperature.toStringAsFixed(1)}°C',
-                        icon: Icons.thermostat_outlined,
-                        color: const Color(0xFFEF4444),
-                      ),
-                      const SizedBox(height: AppSpacing.s10),
-                      _buildDashboardMetricCard(
-                        title: 'Humidité bâtiment',
-                        value: '$humidityPercent%',
-                        icon: Icons.water_drop_outlined,
-                        color: const Color(0xFF3B82F6),
+                      const SizedBox(height: AppSpacing.s12),
+                      LayoutBuilder(
+                        builder: (context, childConstraints) {
+                          final canSplit = childConstraints.maxWidth > 780;
+                          final gaugeCard = _buildDashboardGaugeCard(
+                            successRate,
+                          );
+                          final metricsCard = Column(
+                            children: [
+                              _buildDashboardMetricCard(
+                                title: 'Temperature semence',
+                                value:
+                                    '${avgSemenTemperature.toStringAsFixed(1)}°C',
+                                subtitle: semenStatus,
+                                icon: Icons.thermostat_outlined,
+                                color: const Color(0xFFEF4444),
+                              ),
+                              const SizedBox(height: AppSpacing.s10),
+                              _buildDashboardMetricCard(
+                                title: 'Humidite batiment',
+                                value: '$humidityPercent%',
+                                subtitle: humidityStatus,
+                                icon: Icons.water_drop_outlined,
+                                color: const Color(0xFF3B82F6),
+                              ),
+                            ],
+                          );
+
+                          if (canSplit) {
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(flex: 3, child: gaugeCard),
+                                const SizedBox(width: AppSpacing.s10),
+                                Expanded(flex: 2, child: metricsCard),
+                              ],
+                            );
+                          }
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              gaugeCard,
+                              const SizedBox(height: AppSpacing.s10),
+                              metricsCard,
+                            ],
+                          );
+                        },
                       ),
                     ],
                   );
 
-                  if (canSplit) {
+                  final rightPanel = Container(
+                    width: isWide ? 310 : double.infinity,
+                    padding: const EdgeInsets.all(AppSpacing.s14),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF111827), Color(0xFF1E293B)],
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.12),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(
+                            0xFF0F172A,
+                          ).withValues(alpha: 0.16),
+                          blurRadius: 18,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: performanceColor.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Icon(
+                                Icons.auto_graph_rounded,
+                                color: performanceColor,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.s10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Vue express',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  Text(
+                                    performanceLabel,
+                                    style: TextStyle(
+                                      color: performanceColor,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.s12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(AppSpacing.s12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.1),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'CA 7 jours',
+                                style: TextStyle(
+                                  color: Color(0xFFCBD5E1),
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 11,
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.s4),
+                              Text(
+                                _formatCompactAmount(weeklyRevenue),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 28,
+                                  height: 1.05,
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.s4),
+                              const Text(
+                                'Lecture rapide de la tendance commerciale',
+                                style: TextStyle(
+                                  color: Color(0xFF94A3B8),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.s12),
+                        const Text(
+                          'Modules rapides',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.s10),
+                        GridView.count(
+                          crossAxisCount: 2,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          childAspectRatio: 1.25,
+                          crossAxisSpacing: AppSpacing.s8,
+                          mainAxisSpacing: AppSpacing.s8,
+                          children: quickModules
+                              .map((module) => _buildDashboardModuleTile(module))
+                              .toList(),
+                        ),
+                        const SizedBox(height: AppSpacing.s12),
+                        const Text(
+                          'Equipe active',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.s8),
+                        Wrap(
+                          spacing: AppSpacing.s8,
+                          runSpacing: AppSpacing.s8,
+                          children: [
+                            ..._users
+                                .take(4)
+                                .map(
+                                  (user) => Container(
+                                    padding: const EdgeInsets.all(
+                                      AppSpacing.s2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.1,
+                                      ),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: _buildUserAvatar(user, radius: 16),
+                                  ),
+                                ),
+                            if (_users.length > 4)
+                              Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '+${_users.length - 4}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.s12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(AppSpacing.s12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.1),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Statistiques semaine',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.s8),
+                              SizedBox(
+                                height: 126,
+                                width: double.infinity,
+                                child: CustomPaint(
+                                  painter: _DashboardSparkPainter(
+                                    firstPeak: successRate
+                                        .clamp(15, 95)
+                                        .toDouble(),
+                                    secondPeak: (pendingCount * 14)
+                                        .clamp(8, 85)
+                                        .toDouble(),
+                                    thirdPeak: (overdueDiagnosisCount * 16)
+                                        .clamp(8, 85)
+                                        .toDouble(),
+                                    axisColor: Colors.white.withValues(
+                                      alpha: 0.38,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.s6),
+                              Text(
+                                'Ventes 7 jours: ${_formatAmount(weeklyRevenue)}',
+                                style: const TextStyle(
+                                  color: Color(0xFFCBD5E1),
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+
+                  if (isWide) {
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(flex: 3, child: gaugeCard),
-                        const SizedBox(width: AppSpacing.s10),
-                        Expanded(flex: 2, child: metricsCard),
+                        Expanded(child: leftColumn),
+                        const SizedBox(width: AppSpacing.s12),
+                        rightPanel,
                       ],
                     );
                   }
-
                   return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      gaugeCard,
-                      const SizedBox(height: AppSpacing.s10),
-                      metricsCard,
+                      leftColumn,
+                      const SizedBox(height: AppSpacing.s12),
+                      rightPanel,
                     ],
                   );
                 },
               ),
-            ],
-          );
-
-          final rightPanel = Container(
-            width: isWide ? 290 : double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.s12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xFFDCE4EE)),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Modules rapides',
-                  style: TextStyle(
-                    color: Color(0xFF0F172A),
-                    fontWeight: FontWeight.w900,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.s10),
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  childAspectRatio: 1.3,
-                  crossAxisSpacing: AppSpacing.s8,
-                  mainAxisSpacing: AppSpacing.s8,
-                  children: quickModules
-                      .map((module) => _buildDashboardModuleTile(module))
-                      .toList(),
-                ),
-                const SizedBox(height: AppSpacing.s12),
-                const Text(
-                  'Équipe active',
-                  style: TextStyle(
-                    color: Color(0xFF0F172A),
-                    fontWeight: FontWeight.w900,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.s8),
-                Wrap(
-                  spacing: AppSpacing.s8,
-                  runSpacing: AppSpacing.s8,
-                  children: [
-                    ..._users
-                        .take(4)
-                        .map(
-                          (user) => Container(
-                            padding: const EdgeInsets.all(AppSpacing.s2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE2E8F0),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: _buildUserAvatar(user, radius: 16),
-                          ),
-                        ),
-                    if (_users.length > 4)
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE2E8F0),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '+${_users.length - 4}',
-                            style: const TextStyle(
-                              color: Color(0xFF334155),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.s12),
-                const Text(
-                  'Statistiques semaine',
-                  style: TextStyle(
-                    color: Color(0xFF0F172A),
-                    fontWeight: FontWeight.w900,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.s8),
-                SizedBox(
-                  height: 126,
-                  width: double.infinity,
-                  child: CustomPaint(
-                    painter: _DashboardSparkPainter(
-                      firstPeak: successRate.clamp(15, 95).toDouble(),
-                      secondPeak: (pendingCount * 14).clamp(8, 85).toDouble(),
-                      thirdPeak: (overdueDiagnosisCount * 16)
-                          .clamp(8, 85)
-                          .toDouble(),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.s6),
-                Text(
-                  'Ventes 7 jours: ${_formatAmount(weeklyRevenue)}',
-                  style: const TextStyle(
-                    color: Color(0xFF475569),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          );
-
-          if (isWide) {
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: leftColumn),
-                const SizedBox(width: AppSpacing.s12),
-                rightPanel,
-              ],
-            );
-          }
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              leftColumn,
-              const SizedBox(height: AppSpacing.s12),
-              rightPanel,
-            ],
-          );
-        },
+          ],
+        ),
       ),
     );
   }
@@ -7453,6 +7792,9 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildDashboardQuickTag({
     required IconData icon,
     required String label,
+    Color backgroundColor = const Color(0x66FFFFFF),
+    Color borderColor = const Color(0x73FFFFFF),
+    Color foregroundColor = const Color(0xFF334155),
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -7460,19 +7802,19 @@ class _MainScreenState extends State<MainScreen> {
         vertical: AppSpacing.s6,
       ),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.4),
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
+        border: Border.all(color: borderColor),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: const Color(0xFF334155)),
+          Icon(icon, size: 14, color: foregroundColor),
           const SizedBox(width: AppSpacing.s6),
           Text(
             label,
-            style: const TextStyle(
-              color: Color(0xFF334155),
+            style: TextStyle(
+              color: foregroundColor,
               fontWeight: FontWeight.w700,
               fontSize: 11,
             ),
@@ -7483,60 +7825,175 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildDashboardGaugeCard(int successRate) {
+    final performanceLabel = _dashboardPerformanceLabel(successRate);
+    final accentColor = _dashboardPerformanceColor(successRate);
+
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.s12),
+      padding: const EdgeInsets.all(AppSpacing.s14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFDCE4EE)),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFFFFF), Color(0xFFF6F1FF)],
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFDADAF8)),
+        boxShadow: [
+          BoxShadow(
+            color: accentColor.withValues(alpha: 0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Taux de réussite IA',
-            style: TextStyle(
-              color: Color(0xFF0F172A),
-              fontWeight: FontWeight.w800,
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.s8),
-          SizedBox(
-            width: 170,
-            height: 170,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                CustomPaint(
-                  size: const Size.square(170),
-                  painter: _DashboardGaugePainter(
-                    progress: (successRate / 100).clamp(0.0, 1.0),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Taux de reussite IA',
+                  style: TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
                   ),
                 ),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.s10,
+                  vertical: AppSpacing.s6,
+                ),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  performanceLabel,
+                  style: TextStyle(
+                    color: accentColor,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.s8),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final canSplit = constraints.maxWidth > 420;
+              final gauge = SizedBox(
+                width: 170,
+                height: 170,
+                child: Stack(
+                  alignment: Alignment.center,
                   children: [
-                    Text(
-                      '$successRate%',
-                      style: const TextStyle(
-                        color: Color(0xFF0F172A),
-                        fontWeight: FontWeight.w900,
-                        fontSize: 42,
+                    CustomPaint(
+                      size: const Size.square(170),
+                      painter: _DashboardGaugePainter(
+                        progress: (successRate / 100).clamp(0.0, 1.0),
                       ),
                     ),
-                    const Text(
-                      'Performance',
-                      style: TextStyle(
-                        color: Color(0xFF64748B),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11,
-                      ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '$successRate%',
+                          style: const TextStyle(
+                            color: Color(0xFF0F172A),
+                            fontWeight: FontWeight.w900,
+                            fontSize: 42,
+                          ),
+                        ),
+                        const Text(
+                          'Performance',
+                          style: TextStyle(
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              );
+              final details = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Objectif recommande: > 85%',
+                    style: TextStyle(
+                      color: accentColor,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.s8),
+                  const Text(
+                    'La jauge met en avant la fertilite globale et aide a reperer '
+                    'rapidement les baisses de rendement sur les IA cloturees.',
+                    style: TextStyle(
+                      color: Color(0xFF475569),
+                      fontWeight: FontWeight.w600,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.s12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(AppSpacing.s12),
+                    decoration: BoxDecoration(
+                      color: accentColor.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.bolt_rounded,
+                          size: 18,
+                          color: accentColor,
+                        ),
+                        const SizedBox(width: AppSpacing.s8),
+                        const Expanded(
+                          child: Text(
+                            'Lecture immediate pour prioriser les fermes a risque.',
+                            style: TextStyle(
+                              color: Color(0xFF334155),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+
+              if (canSplit) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    gauge,
+                    const SizedBox(width: AppSpacing.s14),
+                    Expanded(child: details),
+                  ],
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  gauge,
+                  const SizedBox(height: AppSpacing.s12),
+                  details,
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -7546,27 +8003,41 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildDashboardMetricCard({
     required String title,
     required String value,
+    required String subtitle,
     required IconData icon,
     required Color color,
   }) {
+    final softColor = Color.lerp(color, Colors.white, 0.8) ?? Colors.white;
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.s12),
+      padding: const EdgeInsets.all(AppSpacing.s14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFDCE4EE)),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [softColor, Colors.white],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.1),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(icon, color: color, size: 20),
+            child: Icon(icon, color: color, size: 22),
           ),
           const SizedBox(width: AppSpacing.s10),
           Expanded(
@@ -7587,7 +8058,15 @@ class _MainScreenState extends State<MainScreen> {
                     color: Color(0xFF0F172A),
                     fontWeight: FontWeight.w900,
                     fontSize: 34,
-                    height: 1.1,
+                    height: 1.08,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: Color(0xFF475569),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
                   ),
                 ),
               ],
@@ -7598,38 +8077,162 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  Widget _buildDashboardHighlightCard(_DashboardHighlightCardData highlight) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.s14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [highlight.startColor, highlight.endColor],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: highlight.endColor.withValues(alpha: 0.22),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -14,
+            top: -10,
+            child: Container(
+              width: 78,
+              height: 78,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.1),
+              ),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(highlight.icon, color: Colors.white, size: 20),
+              ),
+              const Spacer(),
+              Text(
+                highlight.title,
+                style: const TextStyle(
+                  color: Color(0xFFE2E8F0),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.s4),
+              Text(
+                highlight.value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 25,
+                  height: 1.05,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.s4),
+              Text(
+                highlight.caption,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFFE2E8F0),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDashboardModuleTile(_DashboardModuleTileData module) {
+    final endColor =
+        Color.lerp(module.color, const Color(0xFF0F172A), 0.34) ??
+        module.color;
+
     return InkWell(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(16),
       onTap: () => _setActiveTabFromHeader(module.tabId),
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.s10),
         decoration: BoxDecoration(
-          color: module.color,
-          borderRadius: BorderRadius.circular(14),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [module.color, endColor],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: module.color.withValues(alpha: 0.22),
+              blurRadius: 14,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Stack(
           children: [
-            Icon(module.icon, color: Colors.white, size: 18),
-            Text(
-              module.label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 11,
+            Positioned(
+              right: -6,
+              top: -6,
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.1),
+                ),
               ),
             ),
-            Text(
-              module.value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w900,
-                fontSize: 12,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(module.icon, color: Colors.white, size: 18),
+                    const Spacer(),
+                    const Icon(
+                      Icons.arrow_outward_rounded,
+                      color: Colors.white70,
+                      size: 16,
+                    ),
+                  ],
+                ),
+                Text(
+                  module.label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                  ),
+                ),
+                Text(
+                  module.value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -20611,6 +21214,18 @@ class _MainScreenState extends State<MainScreen> {
     ).format(amount);
   }
 
+  String _formatCompactAmount(double amount) {
+    if (amount.abs() >= 1000000) {
+      final millions = amount / 1000000;
+      final digits = millions.abs() >= 10 ? 0 : 1;
+      return '${millions.toStringAsFixed(digits)} M Ar';
+    }
+    if (amount.abs() >= 1000) {
+      return '${(amount / 1000).round()} k Ar';
+    }
+    return _formatAmount(amount);
+  }
+
   String _newId(String prefix) {
     return '$prefix-${DateTime.now().microsecondsSinceEpoch}';
   }
@@ -23519,6 +24134,32 @@ class _MainScreenState extends State<MainScreen> {
     return parts.first;
   }
 
+  String _dashboardPerformanceLabel(int successRate) {
+    if (successRate >= 85) {
+      return 'Excellent';
+    }
+    if (successRate >= 70) {
+      return 'Solide';
+    }
+    if (successRate >= 55) {
+      return 'A corriger';
+    }
+    return 'Critique';
+  }
+
+  Color _dashboardPerformanceColor(int successRate) {
+    if (successRate >= 85) {
+      return const Color(0xFF22C55E);
+    }
+    if (successRate >= 70) {
+      return const Color(0xFF38BDF8);
+    }
+    if (successRate >= 55) {
+      return const Color(0xFFF59E0B);
+    }
+    return const Color(0xFFFB7185);
+  }
+
   double _dialogWidth(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     return screenWidth > 620 ? 540 : screenWidth * 0.9;
@@ -23614,6 +24255,24 @@ class _DashboardModuleTileData {
   });
 }
 
+class _DashboardHighlightCardData {
+  final String title;
+  final String value;
+  final String caption;
+  final IconData icon;
+  final Color startColor;
+  final Color endColor;
+
+  const _DashboardHighlightCardData({
+    required this.title,
+    required this.value,
+    required this.caption,
+    required this.icon,
+    required this.startColor,
+    required this.endColor,
+  });
+}
+
 class _DashboardGaugePainter extends CustomPainter {
   final double progress;
 
@@ -23688,18 +24347,20 @@ class _DashboardSparkPainter extends CustomPainter {
   final double firstPeak;
   final double secondPeak;
   final double thirdPeak;
+  final Color axisColor;
 
   const _DashboardSparkPainter({
     required this.firstPeak,
     required this.secondPeak,
     required this.thirdPeak,
+    this.axisColor = const Color(0xFF94A3B8),
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     const axisInset = 10.0;
     final axisPaint = Paint()
-      ..color = const Color(0xFF94A3B8)
+      ..color = axisColor
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 
@@ -23750,7 +24411,8 @@ class _DashboardSparkPainter extends CustomPainter {
   bool shouldRepaint(covariant _DashboardSparkPainter oldDelegate) {
     return oldDelegate.firstPeak != firstPeak ||
         oldDelegate.secondPeak != secondPeak ||
-        oldDelegate.thirdPeak != thirdPeak;
+        oldDelegate.thirdPeak != thirdPeak ||
+        oldDelegate.axisColor != axisColor;
   }
 }
 
