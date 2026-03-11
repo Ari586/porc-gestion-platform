@@ -848,12 +848,19 @@ class _MainScreenState extends State<MainScreen> {
       'porc_piglet_selected_date_v1';
   static const String _prefsChatMessagesKey = 'porc_chat_messages_v1';
   static const String _prefsNewsPostsKey = 'porc_news_posts_v1';
+  static const String _prefsGeminiApiKeyKey = 'porc_gemini_api_key_v1';
   static const String _prefsActiveConversationKey =
       'porc_active_conversation_v1';
   static const String _cloudSyncCollection = 'porc_realtime_sync';
-  static const String _cloudSyncDocumentId = 'chat_news_v1';
+  static const String _cloudUsersSyncDocumentId = 'users_v2';
+  static const String _cloudLivestockSyncDocumentId = 'livestock_v2';
+  static const String _cloudCommercialSyncDocumentId = 'commercial_v2';
+  static const String _cloudOperationsSyncDocumentId = 'operations_v2';
+  static const String _cloudChatSyncDocumentId = 'chat_v2';
+  static const String _cloudNewsSyncDocumentId = 'news_v2';
   static const int _cloudChatSyncLimit = 180;
   static const int _cloudNewsSyncLimit = 80;
+  static const int _cloudAuditSyncLimit = 240;
   static const int _cloudInlineMediaBase64MaxLength = 48000;
   static const int _incomingCallMaxAgeMinutes = 2;
   static const String _callRingingStatus = 'En sonnerie';
@@ -898,6 +905,7 @@ class _MainScreenState extends State<MainScreen> {
   String _newsFeedFilter = 'Tous';
   bool _isAiAssistantOpen = false;
   bool _isAiAssistantLoading = false;
+  String _geminiApiKey = '';
   final List<_AIAssistantMessage> _aiAssistantMessages = [
     const _AIAssistantMessage(
       role: 'model',
@@ -915,10 +923,11 @@ class _MainScreenState extends State<MainScreen> {
   bool _stateLoading = true;
   final String _cloudClientId =
       'CLIENT-${DateTime.now().microsecondsSinceEpoch}';
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
-  _cloudSyncSubscription;
+  final List<StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>>
+  _cloudSyncSubscriptions =
+      <StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>>[];
   Timer? _cloudSyncDebounceTimer;
-  int _lastCloudVersionSeen = 0;
+  final Map<String, int> _lastCloudVersionSeenByDocument = <String, int>{};
   bool _cloudSyncActive = false;
   bool _cloudApplyingSnapshot = false;
   _IncomingCallOffer? _incomingCallOffer;
@@ -1553,13 +1562,18 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ],
             ),
-            Positioned(
-              right: isMobile ? AppSpacing.s10 : AppSpacing.s16,
-              bottom: _canAddForTab(_activeTab)
-                  ? (isMobile ? 90 : 92)
-                  : (isMobile ? 24 : 20),
-              child: _buildAIAssistantOverlay(isMobile: isMobile),
-            ),
+            if (_isAiAssistantOpen)
+              Positioned.fill(
+                child: _buildAIAssistantFullscreenOverlay(isMobile: isMobile),
+              ),
+            if (!_isAiAssistantOpen)
+              Positioned(
+                right: isMobile ? AppSpacing.s10 : AppSpacing.s16,
+                bottom: _canAddForTab(_activeTab)
+                    ? (isMobile ? 90 : 92)
+                    : (isMobile ? 24 : 20),
+                child: _buildAIAssistantOverlay(),
+              ),
           ],
         ),
       ),
@@ -1604,7 +1618,10 @@ class _MainScreenState extends State<MainScreen> {
     _aiAssistantInputController.dispose();
     _aiAssistantScrollController.dispose();
     _cloudSyncDebounceTimer?.cancel();
-    _cloudSyncSubscription?.cancel();
+    for (final subscription in _cloudSyncSubscriptions) {
+      subscription.cancel();
+    }
+    _cloudSyncSubscriptions.clear();
     _stopIncomingCallRingtone();
     _imageBytesCache.clear();
     super.dispose();
@@ -1846,6 +1863,10 @@ class _MainScreenState extends State<MainScreen> {
             );
         }
 
+        _geminiApiKey = _readString(
+          prefs.getString(_prefsGeminiApiKeyKey),
+        ).trim();
+
         final savedUserId = _readString(
           prefs.getString(_prefsCurrentUserIdKey),
         );
@@ -1948,7 +1969,10 @@ class _MainScreenState extends State<MainScreen> {
     _startCloudRealtimeSync();
   }
 
-  Future<void> _persistState({bool pushCloud = true}) async {
+  Future<void> _persistState({
+    bool pushCloud = true,
+    bool immediateCloudPush = false,
+  }) async {
     if (_stateLoading) {
       return;
     }
@@ -2031,6 +2055,11 @@ class _MainScreenState extends State<MainScreen> {
         jsonEncode(_newsPosts.map(_newsPostToJson).toList()),
       );
       await prefs.setString(_prefsTaskDoneKey, jsonEncode(_taskDoneById));
+      if (_geminiApiKey.trim().isEmpty) {
+        await prefs.remove(_prefsGeminiApiKeyKey);
+      } else {
+        await prefs.setString(_prefsGeminiApiKeyKey, _geminiApiKey.trim());
+      }
       if (_preferredBoarCode == null || _preferredBoarCode!.trim().isEmpty) {
         await prefs.remove(_prefsPreferredBoarCodeKey);
       } else {
@@ -2077,7 +2106,11 @@ class _MainScreenState extends State<MainScreen> {
         );
       }
       if (pushCloud) {
-        _scheduleCloudSyncPush();
+        if (immediateCloudPush) {
+          _flushCloudSyncNow();
+        } else {
+          _scheduleCloudSyncPush();
+        }
       }
     } catch (_) {
       // Keep UI responsive even if local persistence fails.
@@ -2088,31 +2121,181 @@ class _MainScreenState extends State<MainScreen> {
     return Firebase.apps.isNotEmpty;
   }
 
-  DocumentReference<Map<String, dynamic>> get _cloudSyncDocRef {
-    return FirebaseFirestore.instance
-        .collection(_cloudSyncCollection)
-        .doc(_cloudSyncDocumentId);
+  List<String> get _cloudSyncDocumentIds => const [
+    _cloudUsersSyncDocumentId,
+    _cloudLivestockSyncDocumentId,
+    _cloudCommercialSyncDocumentId,
+    _cloudOperationsSyncDocumentId,
+    _cloudChatSyncDocumentId,
+    _cloudNewsSyncDocumentId,
+  ];
+
+  CollectionReference<Map<String, dynamic>> get _cloudSyncCollectionRef {
+    return FirebaseFirestore.instance.collection(_cloudSyncCollection);
+  }
+
+  DocumentReference<Map<String, dynamic>> _cloudSyncDocRef(String documentId) {
+    return _cloudSyncCollectionRef.doc(documentId);
+  }
+
+  int _cloudVersionSeenForDocument(String documentId) {
+    return _lastCloudVersionSeenByDocument[documentId] ?? 0;
+  }
+
+  void _markCloudVersionSeen(String documentId, int version) {
+    _lastCloudVersionSeenByDocument[documentId] = math.max(
+      _cloudVersionSeenForDocument(documentId),
+      version,
+    );
+  }
+
+  int _readCloudVersion(Map<String, dynamic> data) {
+    var remoteVersion = _readInt(data['version']);
+    if (remoteVersion <= 0) {
+      remoteVersion = _readInt(data['updatedAtMsClient']);
+    }
+    if (remoteVersion <= 0) {
+      final rawUpdatedAt = data['updatedAt'];
+      if (rawUpdatedAt is Timestamp) {
+        remoteVersion = rawUpdatedAt.millisecondsSinceEpoch;
+      } else {
+        final parsed = _parseDateTimeFromString(_readString(rawUpdatedAt));
+        remoteVersion = parsed?.millisecondsSinceEpoch ?? 0;
+      }
+    }
+    return remoteVersion;
+  }
+
+  Map<String, dynamic> _cloudPayloadEnvelope({
+    required int version,
+    required Map<String, dynamic> data,
+  }) {
+    return <String, dynamic>{
+      'version': version,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedAtMsClient': version,
+      'updatedByUserId': _currentUser.id,
+      'updatedByClientId': _cloudClientId,
+      ...data,
+    };
+  }
+
+  Map<String, dynamic> _buildCloudPayloadForDocument(
+    String documentId,
+    int version,
+  ) {
+    switch (documentId) {
+      case _cloudUsersSyncDocumentId:
+        return _cloudPayloadEnvelope(
+          version: version,
+          data: {'users': _buildCloudObjectList(_users, _userToCloudJson)},
+        );
+      case _cloudLivestockSyncDocumentId:
+        return _cloudPayloadEnvelope(
+          version: version,
+          data: {
+            'boars': _buildCloudObjectList(_boars, _boarToCloudJson),
+            'sows': _buildCloudObjectList(_sows, _sowToCloudJson),
+            'inseminations': _buildCloudObjectList(
+              _inseminations,
+              _inseminationToJson,
+            ),
+            'healthRecords': _buildCloudObjectList(
+              _healthRecords,
+              _healthToJson,
+            ),
+            'semenQualityRecords': _buildCloudObjectList(
+              _semenQualityRecords,
+              _semenQualityToJson,
+            ),
+          },
+        );
+      case _cloudCommercialSyncDocumentId:
+        return _cloudPayloadEnvelope(
+          version: version,
+          data: {
+            'clients': _buildCloudObjectList(_clients, _clientToJson),
+            'suppliers': _buildCloudObjectList(_suppliers, _supplierToJson),
+            'salesRecords': _buildCloudObjectList(_salesRecords, _saleToJson),
+            'animalSaleListings': _buildCloudObjectList(
+              _animalSaleListings,
+              _animalSaleListingToCloudJson,
+            ),
+            'supplyRecords': _buildCloudObjectList(
+              _supplyRecords,
+              _supplyToJson,
+            ),
+          },
+        );
+      case _cloudOperationsSyncDocumentId:
+        final sortedAuditLogs = List<AuditLogEntry>.from(_auditLogs)
+          ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        return _cloudPayloadEnvelope(
+          version: version,
+          data: {
+            'buildings': _buildCloudObjectList(_buildings, _buildingToJson),
+            'batchRecords': _buildCloudObjectList(_batchRecords, _batchToJson),
+            'growthRecords': _buildCloudObjectList(
+              _growthRecords,
+              _growthToJson,
+            ),
+            'pigletCareRecords': _buildCloudObjectList(
+              _pigletCareRecords,
+              _pigletCareToJson,
+            ),
+            'farrowingRecords': _buildCloudObjectList(
+              _farrowingRecords,
+              _farrowingToJson,
+            ),
+            'auditLogs': _buildCloudObjectList(
+              sortedAuditLogs.take(_cloudAuditSyncLimit).toList(),
+              _auditLogToJson,
+            ),
+            'taskDoneById': Map<String, bool>.from(_taskDoneById),
+          },
+        );
+      case _cloudChatSyncDocumentId:
+        return _cloudPayloadEnvelope(
+          version: version,
+          data: {'chatMessages': _buildCloudChatPayload()},
+        );
+      case _cloudNewsSyncDocumentId:
+        return _cloudPayloadEnvelope(
+          version: version,
+          data: {'newsPosts': _buildCloudNewsPayload()},
+        );
+    }
+    return _cloudPayloadEnvelope(version: version, data: const {});
   }
 
   Future<void> _startCloudRealtimeSync() async {
     if (!mounted || _cloudSyncActive || !_isCloudSyncAvailable()) {
       return;
     }
-    try {
-      final initialSnapshot = await _cloudSyncDocRef.get();
-      _applyCloudSnapshot(initialSnapshot.data());
-      _cloudSyncSubscription = _cloudSyncDocRef.snapshots().listen(
-        (snapshot) {
-          _applyCloudSnapshot(snapshot.data());
-        },
-        onError: (_) {
-          // Keep local mode if realtime stream fails.
-        },
-      );
-      _cloudSyncActive = true;
+    var connected = false;
+    for (final documentId in _cloudSyncDocumentIds) {
+      try {
+        final ref = _cloudSyncDocRef(documentId);
+        final initialSnapshot = await ref.get();
+        _applyCloudSnapshot(documentId, initialSnapshot.data());
+        _cloudSyncSubscriptions.add(
+          ref.snapshots().listen(
+            (snapshot) {
+              _applyCloudSnapshot(documentId, snapshot.data());
+            },
+            onError: (_) {
+              // Keep local mode if realtime stream fails.
+            },
+          ),
+        );
+        connected = true;
+      } catch (_) {
+        // Keep local mode if one sync stream fails to initialize.
+      }
+    }
+    _cloudSyncActive = connected;
+    if (connected) {
       _scheduleCloudSyncPush();
-    } catch (_) {
-      _cloudSyncActive = false;
     }
   }
 
@@ -2130,6 +2313,18 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
+  void _flushCloudSyncNow() {
+    if (!mounted ||
+        !_cloudSyncActive ||
+        !_isCloudSyncAvailable() ||
+        _cloudApplyingSnapshot ||
+        _stateLoading) {
+      return;
+    }
+    _cloudSyncDebounceTimer?.cancel();
+    unawaited(_pushCloudSnapshotNow());
+  }
+
   Future<void> _pushCloudSnapshotNow() async {
     if (!mounted ||
         !_cloudSyncActive ||
@@ -2140,93 +2335,242 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     final version = DateTime.now().millisecondsSinceEpoch;
-    final payload = <String, dynamic>{
-      'version': version,
-      'updatedAt': FieldValue.serverTimestamp(),
-      'updatedAtMsClient': version,
-      'updatedByUserId': _currentUser.id,
-      'updatedByClientId': _cloudClientId,
-      'chatMessages': _buildCloudChatPayload(),
-      'newsPosts': _buildCloudNewsPayload(),
-    };
-
+    final pushJobs = <Future<void>>[];
+    for (final documentId in _cloudSyncDocumentIds) {
+      final payload = _buildCloudPayloadForDocument(documentId, version);
+      pushJobs.add(
+        _cloudSyncDocRef(documentId)
+            .set(payload, SetOptions(merge: true))
+            .then((_) {
+              _markCloudVersionSeen(documentId, version);
+            })
+            .catchError((_) {
+              // Keep app usable offline or when backend is unavailable.
+            }),
+      );
+    }
     try {
-      await _cloudSyncDocRef.set(payload, SetOptions(merge: true));
-      _lastCloudVersionSeen = math.max(_lastCloudVersionSeen, version);
+      await Future.wait(pushJobs);
     } catch (_) {
-      // Keep app usable offline or when backend is unavailable.
+      // Defensive catch in case one of the jobs escapes local error handling.
     }
   }
 
-  void _applyCloudSnapshot(Map<String, dynamic>? data) {
+  void _applyCloudSnapshot(String documentId, Map<String, dynamic>? data) {
     if (!mounted || data == null || data.isEmpty) {
       return;
     }
 
-    var remoteVersion = _readInt(data['version']);
-    if (remoteVersion <= 0) {
-      remoteVersion = _readInt(data['updatedAtMsClient']);
-    }
-    if (remoteVersion <= 0) {
-      final rawUpdatedAt = data['updatedAt'];
-      if (rawUpdatedAt is Timestamp) {
-        remoteVersion = rawUpdatedAt.millisecondsSinceEpoch;
-      } else {
-        final parsed = _parseDateTimeFromString(_readString(rawUpdatedAt));
-        remoteVersion = parsed?.millisecondsSinceEpoch ?? 0;
-      }
-    }
-    if (remoteVersion <= _lastCloudVersionSeen) {
+    final remoteVersion = _readCloudVersion(data);
+    if (remoteVersion <= _cloudVersionSeenForDocument(documentId)) {
       return;
-    }
-
-    final hasChat = data.containsKey('chatMessages');
-    final hasNews = data.containsKey('newsPosts');
-    if (!hasChat && !hasNews) {
-      _lastCloudVersionSeen = remoteVersion;
-      return;
-    }
-
-    final remoteChat = hasChat
-        ? _readObjectMapList(
-            data['chatMessages'],
-          ).map(_chatMessageFromJson).whereType<ChatMessage>().toList()
-        : const <ChatMessage>[];
-    final remoteNews = hasNews
-        ? _readObjectMapList(
-            data['newsPosts'],
-          ).map(_newsPostFromJson).whereType<NewsPost>().toList()
-        : const <NewsPost>[];
-
-    final sortedChat = List<ChatMessage>.from(remoteChat)
-      ..sort((a, b) => a.sentAt.compareTo(b.sentAt));
-    final sortedNews = List<NewsPost>.from(remoteNews)
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-    if (sortedChat.length > 2500) {
-      sortedChat.removeRange(0, sortedChat.length - 2500);
-    }
-    if (sortedNews.length > 400) {
-      sortedNews.removeRange(400, sortedNews.length);
     }
 
     _cloudApplyingSnapshot = true;
     setState(() {
-      if (hasChat) {
-        _chatMessages
-          ..clear()
-          ..addAll(sortedChat);
+      switch (documentId) {
+        case _cloudUsersSyncDocumentId:
+          if (data.containsKey('users')) {
+            final remoteUsers = _readCloudModelList(
+              data['users'],
+              _userFromJson,
+            );
+            _users
+              ..clear()
+              ..addAll(remoteUsers.isNotEmpty ? remoteUsers : initialUsers);
+            _currentUser =
+                _findUserById(_currentUser.id) ??
+                (_users.isNotEmpty ? _users.first : _currentUser);
+          }
+          break;
+        case _cloudLivestockSyncDocumentId:
+          if (data.containsKey('boars')) {
+            _boars
+              ..clear()
+              ..addAll(_readCloudModelList(data['boars'], _boarFromJson));
+          }
+          if (data.containsKey('sows')) {
+            _sows
+              ..clear()
+              ..addAll(_readCloudModelList(data['sows'], _sowFromJson));
+          }
+          if (data.containsKey('inseminations')) {
+            _inseminations
+              ..clear()
+              ..addAll(
+                _readCloudModelList(
+                  data['inseminations'],
+                  _inseminationFromJson,
+                ),
+              );
+          }
+          if (data.containsKey('healthRecords')) {
+            _healthRecords
+              ..clear()
+              ..addAll(
+                _readCloudModelList(data['healthRecords'], _healthFromJson),
+              );
+          }
+          if (data.containsKey('semenQualityRecords')) {
+            _semenQualityRecords
+              ..clear()
+              ..addAll(
+                _readCloudModelList(
+                  data['semenQualityRecords'],
+                  _semenQualityFromJson,
+                ),
+              );
+          }
+          break;
+        case _cloudCommercialSyncDocumentId:
+          if (data.containsKey('clients')) {
+            _clients
+              ..clear()
+              ..addAll(_readCloudModelList(data['clients'], _clientFromJson));
+          }
+          if (data.containsKey('suppliers')) {
+            _suppliers
+              ..clear()
+              ..addAll(
+                _readCloudModelList(data['suppliers'], _supplierFromJson),
+              );
+          }
+          if (data.containsKey('salesRecords')) {
+            _salesRecords
+              ..clear()
+              ..addAll(
+                _readCloudModelList(data['salesRecords'], _saleFromJson),
+              );
+          }
+          if (data.containsKey('animalSaleListings')) {
+            _animalSaleListings
+              ..clear()
+              ..addAll(
+                _readCloudModelList(
+                  data['animalSaleListings'],
+                  _animalSaleListingFromJson,
+                ),
+              );
+          }
+          if (data.containsKey('supplyRecords')) {
+            _supplyRecords
+              ..clear()
+              ..addAll(
+                _readCloudModelList(data['supplyRecords'], _supplyFromJson),
+              );
+          }
+          break;
+        case _cloudOperationsSyncDocumentId:
+          if (data.containsKey('buildings')) {
+            _buildings
+              ..clear()
+              ..addAll(
+                _readCloudModelList(data['buildings'], _buildingFromJson),
+              );
+          }
+          if (data.containsKey('batchRecords')) {
+            _batchRecords
+              ..clear()
+              ..addAll(
+                _readCloudModelList(data['batchRecords'], _batchFromJson),
+              );
+          }
+          if (data.containsKey('growthRecords')) {
+            _growthRecords
+              ..clear()
+              ..addAll(
+                _readCloudModelList(data['growthRecords'], _growthFromJson),
+              );
+          }
+          if (data.containsKey('pigletCareRecords')) {
+            _pigletCareRecords
+              ..clear()
+              ..addAll(
+                _readCloudModelList(
+                  data['pigletCareRecords'],
+                  _pigletCareFromJson,
+                ),
+              );
+          }
+          if (data.containsKey('farrowingRecords')) {
+            _farrowingRecords
+              ..clear()
+              ..addAll(
+                _readCloudModelList(
+                  data['farrowingRecords'],
+                  _farrowingFromJson,
+                ),
+              );
+          }
+          if (data.containsKey('auditLogs')) {
+            final auditLogs = _readCloudModelList(
+              data['auditLogs'],
+              _auditLogFromJson,
+            )..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+            _auditLogs
+              ..clear()
+              ..addAll(auditLogs);
+          }
+          if (data.containsKey('taskDoneById')) {
+            _taskDoneById
+              ..clear()
+              ..addAll(
+                _readObjectMap(data['taskDoneById']).map(
+                  (key, value) =>
+                      MapEntry(key, value.toString().toLowerCase() == 'true'),
+                ),
+              );
+          }
+          break;
+        case _cloudChatSyncDocumentId:
+          if (data.containsKey('chatMessages')) {
+            final sortedChat = _readCloudModelList(
+              data['chatMessages'],
+              _chatMessageFromJson,
+            )..sort((a, b) => a.sentAt.compareTo(b.sentAt));
+            if (sortedChat.length > 2500) {
+              sortedChat.removeRange(0, sortedChat.length - 2500);
+            }
+            _chatMessages
+              ..clear()
+              ..addAll(sortedChat);
+          }
+          break;
+        case _cloudNewsSyncDocumentId:
+          if (data.containsKey('newsPosts')) {
+            final sortedNews = _readCloudModelList(
+              data['newsPosts'],
+              _newsPostFromJson,
+            )..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            if (sortedNews.length > 400) {
+              sortedNews.removeRange(400, sortedNews.length);
+            }
+            _newsPosts
+              ..clear()
+              ..addAll(sortedNews);
+          }
+          break;
       }
-      if (hasNews) {
-        _newsPosts
-          ..clear()
-          ..addAll(sortedNews);
+      _preferredBoarCode = _resolvePreferredBoarCode(_preferredBoarCode);
+      _selectedPedigreeAnimalCode = _resolveSelectedPedigreeCode(
+        _selectedPedigreeAnimalCode,
+        _allPedigreeNodes(),
+      );
+      if (!_canAccessTab(_activeTab)) {
+        _activeTab = _defaultTabForCurrentUser();
       }
-      _lastCloudVersionSeen = remoteVersion;
     });
     _cloudApplyingSnapshot = false;
+    _markCloudVersionSeen(documentId, remoteVersion);
     _syncIncomingCallOffer();
     _persistState(pushCloud: false);
+  }
+
+  Map<String, dynamic> _readObjectMap(dynamic value) {
+    if (value is! Map) {
+      return const {};
+    }
+    return Map<String, dynamic>.from(value);
   }
 
   List<Map<String, dynamic>> _readObjectMapList(dynamic value) {
@@ -2240,6 +2584,54 @@ class _MainScreenState extends State<MainScreen> {
       }
     }
     return items;
+  }
+
+  List<T> _readCloudModelList<T>(
+    dynamic value,
+    T? Function(Map<String, dynamic>) fromJson,
+  ) {
+    return _readObjectMapList(value).map(fromJson).whereType<T>().toList();
+  }
+
+  List<Map<String, dynamic>> _buildCloudObjectList<T>(
+    List<T> items,
+    Map<String, dynamic> Function(T item) toJson,
+  ) {
+    return items.map(toJson).toList();
+  }
+
+  Map<String, dynamic> _trimCloudBase64Fields(
+    Map<String, dynamic> json,
+    Iterable<String> fields,
+  ) {
+    final sanitized = Map<String, dynamic>.from(json);
+    for (final field in fields) {
+      sanitized[field] = _cloudTrimBase64(_readString(sanitized[field]));
+    }
+    return sanitized;
+  }
+
+  Map<String, dynamic> _userToCloudJson(UserProfile user) {
+    return _trimCloudBase64Fields(_userToJson(user), [
+      'profileImageBase64',
+      'coverImageBase64',
+    ]);
+  }
+
+  Map<String, dynamic> _boarToCloudJson(Boar boar) {
+    return _trimCloudBase64Fields(_boarToJson(boar), ['imageBase64']);
+  }
+
+  Map<String, dynamic> _sowToCloudJson(Sow sow) {
+    return _trimCloudBase64Fields(_sowToJson(sow), ['imageBase64']);
+  }
+
+  Map<String, dynamic> _animalSaleListingToCloudJson(
+    AnimalSaleListing listing,
+  ) {
+    return _trimCloudBase64Fields(_animalSaleListingToJson(listing), [
+      'imageBase64',
+    ]);
   }
 
   List<Map<String, dynamic>> _buildCloudChatPayload() {
@@ -4296,60 +4688,77 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildAIAssistantOverlay({required bool isMobile}) {
-    final screenSize = MediaQuery.of(context).size;
-    final panelWidth = isMobile
-        ? math.max(300.0, math.min(screenSize.width - 20, 420.0))
-        : 400.0;
-    final panelHeight = isMobile
-        ? math.max(430.0, math.min(screenSize.height * 0.68, 560.0))
-        : 600.0;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        if (_isAiAssistantOpen)
-          _buildAIAssistantPanel(
-            width: panelWidth,
-            height: panelHeight,
-            isMobile: isMobile,
-          ),
-        if (_isAiAssistantOpen) const SizedBox(height: AppSpacing.s10),
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
+  Widget _buildAIAssistantOverlay() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () {
+          setState(() => _isAiAssistantOpen = !_isAiAssistantOpen);
+          if (!_isAiAssistantOpen) {
+            return;
+          }
+          _scrollAIAssistantToBottom(jumpOnly: true);
+        },
+        child: Container(
+          width: 62,
+          height: 62,
+          decoration: BoxDecoration(
+            color: _durocChatHeader,
             borderRadius: BorderRadius.circular(20),
-            onTap: () {
-              setState(() => _isAiAssistantOpen = !_isAiAssistantOpen);
-              if (!_isAiAssistantOpen) {
-                return;
-              }
-              _scrollAIAssistantToBottom(jumpOnly: true);
-            },
-            child: Container(
-              width: 62,
-              height: 62,
-              decoration: BoxDecoration(
-                color: _durocChatHeader,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: _durocChatHeader.withValues(alpha: 0.35),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
+            boxShadow: [
+              BoxShadow(
+                color: _durocChatHeader.withValues(alpha: 0.35),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
               ),
-              child: Icon(
-                _isAiAssistantOpen ? Icons.close_rounded : Icons.smart_toy,
-                color: Colors.white,
-                size: 30,
+            ],
+          ),
+          child: Icon(
+            _isAiAssistantOpen ? Icons.close_rounded : Icons.smart_toy,
+            color: Colors.white,
+            size: 30,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAIAssistantFullscreenOverlay({required bool isMobile}) {
+    final screenSize = MediaQuery.of(context).size;
+    final horizontalMargin = isMobile ? AppSpacing.s8 : AppSpacing.s24;
+    final verticalMargin = isMobile ? AppSpacing.s8 : AppSpacing.s20;
+    final panelWidth = math.min(
+      screenSize.width - (horizontalMargin * 2),
+      isMobile ? screenSize.width - AppSpacing.s16 : 980.0,
+    );
+    final panelHeight = math.max(
+      460.0,
+      screenSize.height - (verticalMargin * 2),
+    );
+
+    return Material(
+      color: Colors.black.withValues(alpha: 0.18),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => _isAiAssistantOpen = false),
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: horizontalMargin,
+              vertical: verticalMargin,
+            ),
+            child: GestureDetector(
+              onTap: () {},
+              child: _buildAIAssistantPanel(
+                width: panelWidth,
+                height: panelHeight,
+                isMobile: isMobile,
               ),
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -4427,6 +4836,16 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ),
                 IconButton(
+                  tooltip: 'Configurer la clé API',
+                  onPressed: _showGeminiApiKeyDialog,
+                  icon: Icon(
+                    Icons.key_outlined,
+                    color: _isAIAssistantConfigured
+                        ? Colors.white
+                        : const Color(0xFFFDE68A),
+                  ),
+                ),
+                IconButton(
                   tooltip: 'Fermer',
                   onPressed: () => setState(() => _isAiAssistantOpen = false),
                   icon: const Icon(Icons.close, color: Colors.white),
@@ -4434,6 +4853,64 @@ class _MainScreenState extends State<MainScreen> {
               ],
             ),
           ),
+          if (!_isAIAssistantConfigured)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s12,
+                vertical: AppSpacing.s10,
+              ),
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFF7ED),
+                border: Border(bottom: BorderSide(color: Color(0xFFFED7AA))),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.key_outlined,
+                    color: Color(0xFFB45309),
+                    size: 18,
+                  ),
+                  const SizedBox(width: AppSpacing.s8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Clé API Gemini requise',
+                          style: TextStyle(
+                            color: Color(0xFF9A3412),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.s2),
+                        const Text(
+                          'Ajoutez une clé API pour activer les réponses IA sur cet appareil.',
+                          style: TextStyle(
+                            color: Color(0xFF9A3412),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.s6),
+                        TextButton.icon(
+                          onPressed: _showGeminiApiKeyDialog,
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            foregroundColor: const Color(0xFFB45309),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            minimumSize: const Size(0, 0),
+                          ),
+                          icon: const Icon(Icons.tune, size: 15),
+                          label: const Text('Configurer maintenant'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: Container(
               width: double.infinity,
@@ -4603,6 +5080,11 @@ class _MainScreenState extends State<MainScreen> {
     if (message.isEmpty || _isAiAssistantLoading) {
       return;
     }
+    if (!_isAIAssistantConfigured) {
+      _showError('Ajoutez une clé API Gemini pour activer l’assistant.');
+      _showGeminiApiKeyDialog();
+      return;
+    }
 
     _aiAssistantInputController.clear();
     setState(() {
@@ -4645,12 +5127,111 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+  String _effectiveGeminiApiKey() {
+    const apiKeyFromEnv = String.fromEnvironment('GEMINI_API_KEY');
+    final envValue = apiKeyFromEnv.trim();
+    if (envValue.isNotEmpty) {
+      return envValue;
+    }
+    return _geminiApiKey.trim();
+  }
+
+  bool get _isAIAssistantConfigured => _effectiveGeminiApiKey().isNotEmpty;
+
+  Future<void> _showGeminiApiKeyDialog() async {
+    final controller = TextEditingController(text: _geminiApiKey);
+    final hasEnvKey = const String.fromEnvironment(
+      'GEMINI_API_KEY',
+    ).trim().isNotEmpty;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Configurer Gemini'),
+          content: SizedBox(
+            width: _dialogWidth(dialogContext),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Renseignez une clé API Gemini pour activer les messages IA.',
+                  style: TextStyle(
+                    color: Color(0xFF334155),
+                    fontWeight: FontWeight.w600,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.s12),
+                TextField(
+                  controller: controller,
+                  obscureText: true,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  textInputAction: TextInputAction.done,
+                  decoration: const InputDecoration(
+                    labelText: 'Clé API Gemini',
+                    hintText: 'AIza...',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.key_outlined),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.s10),
+                Text(
+                  hasEnvKey
+                      ? 'Une clé injectée au lancement est déjà active et reste prioritaire sur la clé locale.'
+                      : 'Cette clé reste stockée localement sur cet appareil et n’est pas synchronisée dans le cloud.',
+                  style: const TextStyle(
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Annuler'),
+            ),
+            if (_geminiApiKey.trim().isNotEmpty)
+              TextButton(
+                onPressed: () {
+                  setState(() => _geminiApiKey = '');
+                  Navigator.of(dialogContext).pop();
+                  _persistState(pushCloud: false);
+                  _showInfo('Clé API locale supprimée.');
+                },
+                child: const Text('Supprimer'),
+              ),
+            FilledButton(
+              onPressed: () {
+                final value = controller.text.trim();
+                if (value.isEmpty) {
+                  _showError('Saisissez une clé API Gemini valide.');
+                  return;
+                }
+                setState(() => _geminiApiKey = value);
+                Navigator.of(dialogContext).pop();
+                _persistState(pushCloud: false);
+                _showInfo('Clé API Gemini enregistrée localement.');
+              },
+              child: const Text('Enregistrer'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+  }
+
   Future<String> _generateAIAssistantResponse(String userMessage) async {
-    const apiKey = String.fromEnvironment('GEMINI_API_KEY');
-    final normalizedApiKey = apiKey.trim();
+    final normalizedApiKey = _effectiveGeminiApiKey();
     if (normalizedApiKey.isEmpty) {
-      return 'Assistant IA non configuré. Ajoutez votre clé Gemini avec '
-          '`--dart-define=GEMINI_API_KEY=...` puis relancez l’application.';
+      return 'Assistant IA non configuré. Ajoutez une clé Gemini dans '
+          'le panneau de configuration de l’assistant.';
     }
 
     final model = GenerativeModel(
@@ -7385,7 +7966,8 @@ class _MainScreenState extends State<MainScreen> {
                                         children: [
                                           _buildDashboardQuickTag(
                                             icon: LucideIcons.syringe,
-                                            label: '$pendingCount IA en attente',
+                                            label:
+                                                '$pendingCount IA en attente',
                                             backgroundColor: Colors.white
                                                 .withValues(alpha: 0.14),
                                             borderColor: Colors.white
@@ -7649,7 +8231,9 @@ class _MainScreenState extends State<MainScreen> {
                           crossAxisSpacing: AppSpacing.s8,
                           mainAxisSpacing: AppSpacing.s8,
                           children: quickModules
-                              .map((module) => _buildDashboardModuleTile(module))
+                              .map(
+                                (module) => _buildDashboardModuleTile(module),
+                              )
                               .toList(),
                         ),
                         const SizedBox(height: AppSpacing.s12),
@@ -7952,11 +8536,7 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          Icons.bolt_rounded,
-                          size: 18,
-                          color: accentColor,
-                        ),
+                        Icon(Icons.bolt_rounded, size: 18, color: accentColor),
                         const SizedBox(width: AppSpacing.s8),
                         const Expanded(
                           child: Text(
@@ -8162,8 +8742,7 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildDashboardModuleTile(_DashboardModuleTileData module) {
     final endColor =
-        Color.lerp(module.color, const Color(0xFF0F172A), 0.34) ??
-        module.color;
+        Color.lerp(module.color, const Color(0xFF0F172A), 0.34) ?? module.color;
 
     return InkWell(
       borderRadius: BorderRadius.circular(16),
@@ -13739,7 +14318,7 @@ class _MainScreenState extends State<MainScreen> {
                         detail:
                             'Publication modifiée ${updated.id} par ${_currentUser.code}',
                       );
-                      _persistState();
+                      _persistState(immediateCloudPush: true);
                       Navigator.of(dialogContext).pop();
                       _showInfo('Publication mise à jour.');
                       return;
@@ -13763,7 +14342,7 @@ class _MainScreenState extends State<MainScreen> {
                       action: 'CREATE_POST',
                       detail: 'Publication créée ${newPost.id}',
                     );
-                    _persistState();
+                    _persistState(immediateCloudPush: true);
                     Navigator.of(dialogContext).pop();
                     _showInfo('Publication publiée.');
                   },
@@ -13856,7 +14435,7 @@ class _MainScreenState extends State<MainScreen> {
       comments: comments,
     );
     setState(() => _newsPosts[index] = updated);
-    _persistState();
+    _persistState(immediateCloudPush: true);
     _showInfo('Commentaire publié.');
   }
 
@@ -13885,7 +14464,7 @@ class _MainScreenState extends State<MainScreen> {
       comments: target.comments,
     );
     setState(() => _newsPosts[index] = updated);
-    _persistState();
+    _persistState(immediateCloudPush: true);
   }
 
   Future<void> _deleteNewsPost(String postId) async {
@@ -13911,7 +14490,7 @@ class _MainScreenState extends State<MainScreen> {
       action: 'DELETE_POST',
       detail: 'Publication supprimée ${target.id}',
     );
-    _persistState();
+    _persistState(immediateCloudPush: true);
     _showInfo('Publication supprimée.');
   }
 
@@ -22224,7 +22803,7 @@ class _MainScreenState extends State<MainScreen> {
           ? 'Appel $callLabel manqué (${offer.callerName})'
           : 'Appel $callLabel terminé (${offer.callerName}, ${_formatDuration(durationSeconds)})',
     );
-    _persistState();
+    _persistState(immediateCloudPush: true);
     _syncIncomingCallOffer();
   }
 
@@ -22260,7 +22839,7 @@ class _MainScreenState extends State<MainScreen> {
       action: 'REJECT_CALL',
       detail: 'Appel $callLabel refusé (${offer.callerName})',
     );
-    _persistState();
+    _persistState(immediateCloudPush: true);
   }
 
   bool _isTeamConversationRoleAllowed(String role) {
@@ -22521,7 +23100,7 @@ class _MainScreenState extends State<MainScreen> {
       detail:
           'Message envoyé (${targetConversationId == _teamConversationId ? 'Canal équipe' : 'conversation directe'})',
     );
-    _persistState();
+    _persistState(immediateCloudPush: true);
   }
 
   String _resolveChatConversationId(String conversationId) {
@@ -22553,7 +23132,7 @@ class _MainScreenState extends State<MainScreen> {
       _chatComposerController.clear();
     }
     _syncIncomingCallOffer();
-    _persistState();
+    _persistState(immediateCloudPush: true);
   }
 
   Future<void> _pickAndSendChatAttachment(
@@ -22738,7 +23317,7 @@ class _MainScreenState extends State<MainScreen> {
       detail:
           '$label envoyé (${targetConversationId == _teamConversationId ? 'Canal équipe' : 'conversation directe'})',
     );
-    _persistState();
+    _persistState(immediateCloudPush: true);
     _showInfo('$label envoyé.');
   }
 
@@ -22777,7 +23356,7 @@ class _MainScreenState extends State<MainScreen> {
       action: 'START_CALL',
       detail: 'Appel $callLabel en sonnerie ($title)',
     );
-    _persistState();
+    _persistState(immediateCloudPush: true);
     _showInfo(
       'Appel $callLabel en sonnerie. Le destinataire peut accepter ou refuser.',
     );
