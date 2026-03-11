@@ -48,6 +48,7 @@ class Roles {
 
 class AppTabs {
   static const String dashboard = 'dashboard';
+  static const String profile = 'profile';
   static const String administration = 'administration';
   static const String messenger = 'messenger';
   static const String services = 'services';
@@ -74,6 +75,9 @@ class UserProfile {
   final String commune;
   final String district;
   final String region;
+  final String bio;
+  final String profileImageBase64;
+  final String coverImageBase64;
   final String login;
   final String password;
 
@@ -89,6 +93,9 @@ class UserProfile {
     this.commune = '',
     this.district = '',
     this.region = '',
+    this.bio = '',
+    this.profileImageBase64 = '',
+    this.coverImageBase64 = '',
     required this.login,
     required this.password,
   });
@@ -1667,6 +1674,9 @@ class _MainScreenState extends State<MainScreen> {
       'commune': user.commune,
       'district': user.district,
       'region': user.region,
+      'bio': user.bio,
+      'profileImageBase64': user.profileImageBase64,
+      'coverImageBase64': user.coverImageBase64,
       'login': user.login,
       'password': user.password,
     };
@@ -1684,6 +1694,9 @@ class _MainScreenState extends State<MainScreen> {
     var commune = _readString(json['commune']).trim();
     var district = _readString(json['district']).trim();
     var region = _readString(json['region']).trim();
+    var bio = _readString(json['bio']).trim();
+    var profileImageBase64 = _readString(json['profileImageBase64']).trim();
+    var coverImageBase64 = _readString(json['coverImageBase64']).trim();
     final login = _readString(json['login']).trim();
     final password = _readString(json['password']);
     if (id.isEmpty ||
@@ -1723,6 +1736,15 @@ class _MainScreenState extends State<MainScreen> {
     if (region.isEmpty && fallbackUser != null) {
       region = fallbackUser.region;
     }
+    if (bio.isEmpty && fallbackUser != null) {
+      bio = fallbackUser.bio;
+    }
+    if (profileImageBase64.isEmpty && fallbackUser != null) {
+      profileImageBase64 = fallbackUser.profileImageBase64;
+    }
+    if (coverImageBase64.isEmpty && fallbackUser != null) {
+      coverImageBase64 = fallbackUser.coverImageBase64;
+    }
 
     return UserProfile(
       id: id,
@@ -1736,6 +1758,9 @@ class _MainScreenState extends State<MainScreen> {
       commune: commune,
       district: district,
       region: region,
+      bio: bio,
+      profileImageBase64: profileImageBase64,
+      coverImageBase64: coverImageBase64,
       login: login,
       password: password,
     );
@@ -2434,6 +2459,12 @@ class _MainScreenState extends State<MainScreen> {
               label: 'Tableau de bord',
               tabId: AppTabs.dashboard,
             ),
+          if (_canAccessTab(AppTabs.profile))
+            _buildNavItem(
+              icon: Icons.account_circle_outlined,
+              label: 'Mon Profil',
+              tabId: AppTabs.profile,
+            ),
           if (_canAccessTab(AppTabs.messenger))
             _buildNavItem(
               icon: Icons.forum_outlined,
@@ -2721,17 +2752,7 @@ class _MainScreenState extends State<MainScreen> {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: const Color(0xFF14B8A6),
-                child: Text(
-                  _currentUser.avatar,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
+              _buildUserAvatar(_currentUser, radius: 18),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -2870,18 +2891,7 @@ class _MainScreenState extends State<MainScreen> {
               ),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 12,
-                    backgroundColor: const Color(0xFF14B8A6),
-                    child: Text(
-                      _currentUser.avatar,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ),
+                  _buildUserAvatar(_currentUser, radius: 12),
                   const SizedBox(width: 8),
                   Text(
                     'Login: ${_currentUser.login}',
@@ -2895,6 +2905,24 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ),
           const SizedBox(width: 8),
+          if (showLoginBadge)
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF0F766E),
+                side: const BorderSide(color: Color(0xFFA7F3D0)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+              ),
+              onPressed: () {
+                setState(() => _activeTab = AppTabs.profile);
+                _persistState();
+              },
+              icon: const Icon(Icons.account_circle_outlined, size: 16),
+              label: const Text('Profil'),
+            ),
+          if (showLoginBadge) const SizedBox(width: 8),
           if (showLoginBadge)
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
@@ -2950,6 +2978,8 @@ class _MainScreenState extends State<MainScreen> {
     switch (_activeTab) {
       case AppTabs.dashboard:
         return _buildDashboard();
+      case AppTabs.profile:
+        return _buildProfileHub();
       case AppTabs.messenger:
         return _buildMessengerHub();
       case AppTabs.administration:
@@ -7806,6 +7836,565 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  Widget _buildProfileHub() {
+    final user = _currentUser;
+    final activity = _auditLogs
+        .where(
+          (entry) =>
+              entry.actorCode.toLowerCase() == user.code.toLowerCase() ||
+              entry.actorName.toLowerCase() == user.name.toLowerCase(),
+        )
+        .take(8)
+        .toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  _buildUserCoverPhoto(user, height: 210),
+                  Positioned(
+                    left: 24,
+                    bottom: -44,
+                    child: _buildUserAvatar(
+                      user,
+                      radius: 44,
+                      ringColor: Colors.white,
+                    ),
+                  ),
+                  Positioned(
+                    right: 16,
+                    top: 16,
+                    child: FilledButton.icon(
+                      onPressed: _showEditMyProfileDialog,
+                      icon: const Icon(Icons.edit_outlined, size: 16),
+                      label: const Text('Modifier profil'),
+                    ),
+                  ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 58, 24, 22),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.name,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${user.role} • ${user.code} • @${user.login}',
+                      style: const TextStyle(
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      user.bio.trim().isEmpty
+                          ? 'Ajoutez une bio pour décrire votre rôle terrain et vos objectifs.'
+                          : user.bio.trim(),
+                      style: const TextStyle(
+                        color: Color(0xFF334155),
+                        fontWeight: FontWeight.w600,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildProfileChip(
+                          icon: Icons.home_outlined,
+                          text: user.address.isEmpty
+                              ? 'Adresse non renseignée'
+                              : user.address,
+                        ),
+                        _buildProfileChip(
+                          icon: Icons.call_outlined,
+                          text: user.contact.isEmpty
+                              ? 'Contact non renseigné'
+                              : user.contact,
+                        ),
+                        _buildProfileChip(
+                          icon: Icons.location_on_outlined,
+                          text: _territoryLabel(user),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildSectionCard(
+          title: 'Infos Profil',
+          subtitle: 'Informations personnelles et zone d\'intervention',
+          child: Column(
+            children: [
+              _buildProfileRow('Nom complet', user.name),
+              _buildProfileRow('Rôle', user.role),
+              _buildProfileRow('Code utilisateur', user.code),
+              _buildProfileRow('Login', user.login),
+              _buildProfileRow(
+                'Contact',
+                user.contact.isEmpty ? '-' : user.contact,
+              ),
+              _buildProfileRow(
+                'Adresse',
+                user.address.isEmpty ? '-' : user.address,
+              ),
+              _buildProfileRow(
+                'Zone terrain',
+                _territoryLabel(user),
+                withDivider: false,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildSectionCard(
+          title: 'Activité récente',
+          subtitle: 'Historique des dernières actions sur la plateforme',
+          child: activity.isEmpty
+              ? _buildEmptyState('Aucune activité enregistrée.')
+              : ListView.separated(
+                  itemCount: activity.length,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  separatorBuilder: (_, index) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final entry = activity[index];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        backgroundColor: const Color(0xFFE0F2FE),
+                        child: Icon(
+                          Icons.bolt_outlined,
+                          color: const Color(0xFF0284C7),
+                        ),
+                      ),
+                      title: Text(
+                        '${entry.module} • ${entry.action}',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: Text(
+                        '${entry.detail}\n${_formatDateTime(entry.timestamp)}',
+                      ),
+                      isThreeLine: true,
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProfileChip({required IconData icon, required String text}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: const Color(0xFF334155)),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: const TextStyle(
+              color: Color(0xFF334155),
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileRow(
+    String label,
+    String value, {
+    bool withDivider = true,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        border: withDivider
+            ? const Border(bottom: BorderSide(color: Color(0xFFE2E8F0)))
+            : null,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 150,
+            child: Text(
+              label.toUpperCase(),
+              style: const TextStyle(
+                color: Color(0xFF94A3B8),
+                fontWeight: FontWeight.w800,
+                fontSize: 11,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Color(0xFF0F172A),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUserAvatar(
+    UserProfile user, {
+    double radius = 18,
+    Color ringColor = Colors.transparent,
+  }) {
+    final size = radius * 2;
+    final imageBase64 = user.profileImageBase64.trim();
+    final border = ringColor == Colors.transparent
+        ? null
+        : Border.all(color: ringColor, width: 3);
+
+    if (imageBase64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(imageBase64);
+        return Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(shape: BoxShape.circle, border: border),
+          child: ClipOval(
+            child: Image.memory(
+              bytes,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+            ),
+          ),
+        );
+      } catch (_) {
+        // Fallback to initials avatar.
+      }
+    }
+
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: const Color(0xFF14B8A6),
+      child: Text(
+        user.avatar,
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w800,
+          fontSize: math.max(11, radius * 0.55),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUserCoverPhoto(UserProfile user, {double height = 180}) {
+    final imageBase64 = user.coverImageBase64.trim();
+    if (imageBase64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(imageBase64);
+        return ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(18),
+            topRight: Radius.circular(18),
+          ),
+          child: Image.memory(
+            bytes,
+            height: height,
+            width: double.infinity,
+            fit: BoxFit.cover,
+          ),
+        );
+      } catch (_) {
+        // Fallback to gradient cover.
+      }
+    }
+    return Container(
+      height: height,
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(18),
+          topRight: Radius.circular(18),
+        ),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF0F766E), Color(0xFF1D4ED8)],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCoverPreviewBox(String imageBase64, {double height = 100}) {
+    if (imageBase64.trim().isEmpty) {
+      return Container(
+        height: height,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF0F766E), Color(0xFF1D4ED8)],
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        alignment: Alignment.center,
+        child: const Icon(Icons.landscape_outlined, color: Colors.white),
+      );
+    }
+    try {
+      final bytes = base64Decode(imageBase64);
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.memory(
+          bytes,
+          height: height,
+          width: double.infinity,
+          fit: BoxFit.cover,
+        ),
+      );
+    } catch (_) {
+      return Container(
+        height: height,
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEE2E2),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        alignment: Alignment.center,
+        child: const Icon(LucideIcons.alertTriangle, color: Color(0xFFB91C1C)),
+      );
+    }
+  }
+
+  void _showEditMyProfileDialog() {
+    final user = _currentUser;
+    final nameCtrl = TextEditingController(text: user.name);
+    final bioCtrl = TextEditingController(text: user.bio);
+    final addressCtrl = TextEditingController(text: user.address);
+    final contactCtrl = TextEditingController(text: user.contact);
+    final fokontanyCtrl = TextEditingController(text: user.fokontany);
+    final communeCtrl = TextEditingController(text: user.commune);
+    final districtCtrl = TextEditingController(text: user.district);
+    final regionCtrl = TextEditingController(text: user.region);
+    String profileImageBase64 = user.profileImageBase64;
+    String coverImageBase64 = user.coverImageBase64;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: const Text('Modifier mon profil'),
+              content: SizedBox(
+                width: _dialogWidth(dialogContext),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildCoverPreviewBox(coverImageBase64, height: 104),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              final image = await _pickImageAsBase64();
+                              if (image == null) {
+                                return;
+                              }
+                              setModalState(() => coverImageBase64 = image);
+                            },
+                            icon: const Icon(Icons.image_outlined, size: 16),
+                            label: const Text('Photo couverture'),
+                          ),
+                          if (coverImageBase64.trim().isNotEmpty)
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                setModalState(() => coverImageBase64 = '');
+                              },
+                              icon: const Icon(Icons.delete_outline, size: 16),
+                              label: const Text('Retirer'),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildImagePreviewBox(profileImageBase64, size: 84),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final image = await _pickImageAsBase64();
+                                    if (image == null) {
+                                      return;
+                                    }
+                                    setModalState(
+                                      () => profileImageBase64 = image,
+                                    );
+                                  },
+                                  icon: const Icon(
+                                    Icons.account_circle_outlined,
+                                    size: 16,
+                                  ),
+                                  label: const Text('Photo profil'),
+                                ),
+                                if (profileImageBase64.trim().isNotEmpty)
+                                  OutlinedButton.icon(
+                                    onPressed: () {
+                                      setModalState(
+                                        () => profileImageBase64 = '',
+                                      );
+                                    },
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      size: 16,
+                                    ),
+                                    label: const Text('Retirer'),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _dialogField(nameCtrl, 'Nom complet *'),
+                      _dialogField(bioCtrl, 'Bio', maxLines: 3),
+                      _dialogField(addressCtrl, 'Adresse *'),
+                      _dialogField(contactCtrl, 'Contact *'),
+                      _dialogField(fokontanyCtrl, 'Fokontany *'),
+                      _dialogField(communeCtrl, 'Commune *'),
+                      _dialogField(districtCtrl, 'District *'),
+                      _dialogField(regionCtrl, 'Région *'),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Annuler'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final name = nameCtrl.text.trim();
+                    final address = addressCtrl.text.trim();
+                    final contact = contactCtrl.text.trim();
+                    final fokontany = fokontanyCtrl.text.trim();
+                    final commune = communeCtrl.text.trim();
+                    final district = districtCtrl.text.trim();
+                    final region = regionCtrl.text.trim();
+
+                    if (name.isEmpty ||
+                        address.isEmpty ||
+                        contact.isEmpty ||
+                        fokontany.isEmpty ||
+                        commune.isEmpty ||
+                        district.isEmpty ||
+                        region.isEmpty) {
+                      _showError(
+                        'Nom, adresse, contact et zone terrain sont obligatoires.',
+                      );
+                      return;
+                    }
+
+                    final updated = UserProfile(
+                      id: user.id,
+                      code: user.code,
+                      name: name,
+                      role: user.role,
+                      avatar: _avatarFromName(name),
+                      address: address,
+                      contact: contact,
+                      fokontany: fokontany,
+                      commune: commune,
+                      district: district,
+                      region: region,
+                      bio: bioCtrl.text.trim(),
+                      profileImageBase64: profileImageBase64,
+                      coverImageBase64: coverImageBase64,
+                      login: user.login,
+                      password: user.password,
+                    );
+
+                    final index = _users.indexWhere(
+                      (item) => item.id == user.id,
+                    );
+                    if (index < 0) {
+                      _showError('Profil utilisateur introuvable.');
+                      return;
+                    }
+
+                    setState(() {
+                      _users[index] = updated;
+                      _currentUser = updated;
+                    });
+                    _addAuditLog(
+                      module: 'PROFILE',
+                      action: 'UPDATE_PROFILE',
+                      detail: 'Profil mis à jour (${updated.code})',
+                    );
+                    _persistState();
+                    Navigator.of(dialogContext).pop();
+                    _showInfo('Profil mis à jour.');
+                  },
+                  child: const Text('Enregistrer'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then(
+      (_) => _disposeControllers([
+        nameCtrl,
+        bioCtrl,
+        addressCtrl,
+        contactCtrl,
+        fokontanyCtrl,
+        communeCtrl,
+        districtCtrl,
+        regionCtrl,
+      ]),
+    );
+  }
+
   Widget _buildMessengerHub() {
     final conversations = _buildChatConversationSummaries();
     if (conversations.isEmpty) {
@@ -8223,6 +8812,7 @@ class _MainScreenState extends State<MainScreen> {
         .map(
           (user) => DataRow(
             cells: [
+              DataCell(_buildUserAvatar(user, radius: 16)),
               DataCell(Text(user.code)),
               DataCell(Text(user.name)),
               DataCell(Text(user.address.isEmpty ? '-' : user.address)),
@@ -8354,6 +8944,7 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ],
           columns: const [
+            DataColumn(label: Text('PHOTO')),
             DataColumn(label: Text('CODE')),
             DataColumn(label: Text('NOM')),
             DataColumn(label: Text('ADRESSE')),
@@ -8471,6 +9062,7 @@ class _MainScreenState extends State<MainScreen> {
       case Roles.inseminator:
         return const [
           AppTabs.dashboard,
+          AppTabs.profile,
           AppTabs.messenger,
           AppTabs.administration,
           AppTabs.services,
@@ -8487,6 +9079,7 @@ class _MainScreenState extends State<MainScreen> {
       case Roles.breeder:
         return const [
           AppTabs.dashboard,
+          AppTabs.profile,
           AppTabs.messenger,
           AppTabs.elevage,
           AppTabs.boars,
@@ -8494,9 +9087,14 @@ class _MainScreenState extends State<MainScreen> {
           AppTabs.pedigree,
         ];
       case Roles.vet:
-        return const [AppTabs.dashboard, AppTabs.messenger, AppTabs.health];
+        return const [
+          AppTabs.dashboard,
+          AppTabs.profile,
+          AppTabs.messenger,
+          AppTabs.health,
+        ];
       default:
-        return const [AppTabs.dashboard, AppTabs.messenger];
+        return const [AppTabs.dashboard, AppTabs.profile, AppTabs.messenger];
     }
   }
 
@@ -8527,6 +9125,8 @@ class _MainScreenState extends State<MainScreen> {
     switch (tabId) {
       case AppTabs.dashboard:
         return 'TABLEAU DE BORD REPRODUCTION PORCINE';
+      case AppTabs.profile:
+        return 'PROFIL UTILISATEUR';
       case AppTabs.messenger:
         return 'MESSAGERIE INTERNE ÉLEVAGE';
       case AppTabs.administration:
@@ -8563,6 +9163,7 @@ class _MainScreenState extends State<MainScreen> {
     return !const {
       AppTabs.users,
       AppTabs.administration,
+      AppTabs.profile,
       AppTabs.messenger,
       AppTabs.services,
       AppTabs.commercial,
@@ -11928,6 +12529,7 @@ class _MainScreenState extends State<MainScreen> {
   void _showAddUserDialog() {
     final codeCtrl = TextEditingController();
     final nameCtrl = TextEditingController();
+    final bioCtrl = TextEditingController();
     final addressCtrl = TextEditingController();
     final contactCtrl = TextEditingController();
     final fokontanyCtrl = TextEditingController();
@@ -11937,6 +12539,8 @@ class _MainScreenState extends State<MainScreen> {
     final loginCtrl = TextEditingController();
     final passwordCtrl = TextEditingController();
     String selectedRole = Roles.breeder;
+    String profileImageBase64 = '';
+    String coverImageBase64 = '';
     bool hidePassword = true;
 
     showDialog<void>(
@@ -11952,12 +12556,86 @@ class _MainScreenState extends State<MainScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      _buildCoverPreviewBox(coverImageBase64, height: 96),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              final image = await _pickImageAsBase64();
+                              if (image == null) {
+                                return;
+                              }
+                              setModalState(() => coverImageBase64 = image);
+                            },
+                            icon: const Icon(Icons.image_outlined, size: 16),
+                            label: const Text('Couverture'),
+                          ),
+                          if (coverImageBase64.trim().isNotEmpty)
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                setModalState(() => coverImageBase64 = '');
+                              },
+                              icon: const Icon(Icons.delete_outline, size: 16),
+                              label: const Text('Retirer'),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildImagePreviewBox(profileImageBase64, size: 84),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final image = await _pickImageAsBase64();
+                                    if (image == null) {
+                                      return;
+                                    }
+                                    setModalState(
+                                      () => profileImageBase64 = image,
+                                    );
+                                  },
+                                  icon: const Icon(
+                                    Icons.account_circle_outlined,
+                                    size: 16,
+                                  ),
+                                  label: const Text('Photo profil'),
+                                ),
+                                if (profileImageBase64.trim().isNotEmpty)
+                                  OutlinedButton.icon(
+                                    onPressed: () {
+                                      setModalState(
+                                        () => profileImageBase64 = '',
+                                      );
+                                    },
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      size: 16,
+                                    ),
+                                    label: const Text('Retirer'),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
                       _dialogField(
                         codeCtrl,
                         'Code utilisateur *',
                         hint: 'USR-01',
                       ),
                       _dialogField(nameCtrl, 'Nom complet *'),
+                      _dialogField(bioCtrl, 'Bio', maxLines: 3),
                       _dialogField(addressCtrl, 'Adresse *'),
                       _dialogField(contactCtrl, 'Contact *'),
                       _dialogField(fokontanyCtrl, 'Fokontany *'),
@@ -12091,6 +12769,9 @@ class _MainScreenState extends State<MainScreen> {
                       commune: commune,
                       district: district,
                       region: region,
+                      bio: bioCtrl.text.trim(),
+                      profileImageBase64: profileImageBase64,
+                      coverImageBase64: coverImageBase64,
                       login: login,
                       password: _hashPassword(password),
                     );
@@ -12117,6 +12798,7 @@ class _MainScreenState extends State<MainScreen> {
       (_) => _disposeControllers([
         codeCtrl,
         nameCtrl,
+        bioCtrl,
         addressCtrl,
         contactCtrl,
         fokontanyCtrl,
@@ -12132,6 +12814,7 @@ class _MainScreenState extends State<MainScreen> {
   void _showEditUserDialog(UserProfile user) {
     final codeCtrl = TextEditingController(text: user.code);
     final nameCtrl = TextEditingController(text: user.name);
+    final bioCtrl = TextEditingController(text: user.bio);
     final addressCtrl = TextEditingController(text: user.address);
     final contactCtrl = TextEditingController(text: user.contact);
     final fokontanyCtrl = TextEditingController(text: user.fokontany);
@@ -12140,6 +12823,8 @@ class _MainScreenState extends State<MainScreen> {
     final regionCtrl = TextEditingController(text: user.region);
     final loginCtrl = TextEditingController(text: user.login);
     String selectedRole = user.role;
+    String profileImageBase64 = user.profileImageBase64;
+    String coverImageBase64 = user.coverImageBase64;
 
     showDialog<void>(
       context: context,
@@ -12154,8 +12839,82 @@ class _MainScreenState extends State<MainScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      _buildCoverPreviewBox(coverImageBase64, height: 96),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              final image = await _pickImageAsBase64();
+                              if (image == null) {
+                                return;
+                              }
+                              setModalState(() => coverImageBase64 = image);
+                            },
+                            icon: const Icon(Icons.image_outlined, size: 16),
+                            label: const Text('Couverture'),
+                          ),
+                          if (coverImageBase64.trim().isNotEmpty)
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                setModalState(() => coverImageBase64 = '');
+                              },
+                              icon: const Icon(Icons.delete_outline, size: 16),
+                              label: const Text('Retirer'),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildImagePreviewBox(profileImageBase64, size: 84),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final image = await _pickImageAsBase64();
+                                    if (image == null) {
+                                      return;
+                                    }
+                                    setModalState(
+                                      () => profileImageBase64 = image,
+                                    );
+                                  },
+                                  icon: const Icon(
+                                    Icons.account_circle_outlined,
+                                    size: 16,
+                                  ),
+                                  label: const Text('Photo profil'),
+                                ),
+                                if (profileImageBase64.trim().isNotEmpty)
+                                  OutlinedButton.icon(
+                                    onPressed: () {
+                                      setModalState(
+                                        () => profileImageBase64 = '',
+                                      );
+                                    },
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      size: 16,
+                                    ),
+                                    label: const Text('Retirer'),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
                       _dialogField(codeCtrl, 'Code utilisateur *'),
                       _dialogField(nameCtrl, 'Nom complet *'),
+                      _dialogField(bioCtrl, 'Bio', maxLines: 3),
                       _dialogField(addressCtrl, 'Adresse *'),
                       _dialogField(contactCtrl, 'Contact *'),
                       _dialogField(fokontanyCtrl, 'Fokontany *'),
@@ -12262,6 +13021,9 @@ class _MainScreenState extends State<MainScreen> {
                       commune: commune,
                       district: district,
                       region: region,
+                      bio: bioCtrl.text.trim(),
+                      profileImageBase64: profileImageBase64,
+                      coverImageBase64: coverImageBase64,
                       login: login,
                       password: user.password,
                     );
@@ -12301,6 +13063,7 @@ class _MainScreenState extends State<MainScreen> {
       (_) => _disposeControllers([
         codeCtrl,
         nameCtrl,
+        bioCtrl,
         addressCtrl,
         contactCtrl,
         fokontanyCtrl,
@@ -12410,6 +13173,9 @@ class _MainScreenState extends State<MainScreen> {
                       commune: user.commune,
                       district: user.district,
                       region: user.region,
+                      bio: user.bio,
+                      profileImageBase64: user.profileImageBase64,
+                      coverImageBase64: user.coverImageBase64,
                       login: user.login,
                       password: _hashPassword(password),
                     );
@@ -13379,6 +14145,9 @@ class _MainScreenState extends State<MainScreen> {
         commune: user.commune,
         district: user.district,
         region: user.region,
+        bio: user.bio,
+        profileImageBase64: user.profileImageBase64,
+        coverImageBase64: user.coverImageBase64,
         login: user.login,
         password: _hashPassword(user.password),
       );
