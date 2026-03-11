@@ -7360,139 +7360,171 @@ class _MainScreenState extends State<MainScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            children: weekDays
-                .map(
-                  (dayName) => Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        vertical: compactCalendar ? 4 : 6,
-                      ),
-                      child: Text(
-                        dayName,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Color(0xFF64748B),
-                          fontWeight: FontWeight.w800,
-                          fontSize: tinyCalendar
-                              ? 10
-                              : (compactCalendar ? 11 : 12),
-                        ),
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: rowCount * 7,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
-              childAspectRatio: tinyCalendar
-                  ? 1.75
-                  : (compactCalendar ? 1.45 : 1.2),
-              crossAxisSpacing: tinyCalendar ? 3 : (compactCalendar ? 4 : 6),
-              mainAxisSpacing: tinyCalendar ? 3 : (compactCalendar ? 4 : 6),
-            ),
-            itemBuilder: (context, index) {
-              final dayNumber = index - leadingEmptyCells + 1;
-              if (dayNumber < 1 || dayNumber > daysInMonth) {
-                return Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                );
-              }
-
-              final dayDate = DateTime(
-                monthStart.year,
-                monthStart.month,
-                dayNumber,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final gap = tinyCalendar ? 3.0 : (compactCalendar ? 4.0 : 6.0);
+              final availableWidth = math.max(220.0, constraints.maxWidth);
+              final cellWidth = (availableWidth - (gap * 6)) / 7;
+              final targetCellHeight = tinyCalendar
+                  ? 42.0
+                  : (compactCalendar ? 50.0 : 62.0);
+              final childAspectRatio = (cellWidth / targetCellHeight).clamp(
+                1.35,
+                3.5,
               );
-              final normalizedDay = _normalizeDate(dayDate);
-              final dayEvents =
-                  eventsByDay[normalizedDay] ??
-                  const <_GestationCalendarEvent>[];
-              final isSelected = _isSameDate(normalizedDay, selectedDate);
-              final isToday = _isSameDate(normalizedDay, _currentDate());
 
-              return InkWell(
-                borderRadius: BorderRadius.circular(10),
-                onTap: () {
-                  setState(() => _selectedGestationDate = normalizedDay);
-                  _persistState();
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  padding: EdgeInsets.all(
-                    tinyCalendar ? 3 : (compactCalendar ? 4 : 6),
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? const Color(0xFFDCFCE7)
-                        : const Color(0xFFFFFFFF),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: isSelected
-                          ? const Color(0xFF16A34A)
-                          : const Color(0xFFE2E8F0),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '$dayNumber',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                color: isToday
-                                    ? const Color(0xFF0F766E)
-                                    : const Color(0xFF0F172A),
-                              ),
-                            ),
-                          ),
-                          if (dayEvents.isNotEmpty)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 1,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0F172A),
-                                borderRadius: BorderRadius.circular(999),
+              return Column(
+                children: [
+                  Row(
+                    children: weekDays
+                        .map(
+                          (dayName) => Expanded(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                vertical: compactCalendar ? 4 : 6,
                               ),
                               child: Text(
-                                '${dayEvents.length}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
+                                dayName,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Color(0xFF64748B),
                                   fontWeight: FontWeight.w800,
+                                  fontSize: tinyCalendar
+                                      ? 10
+                                      : (compactCalendar ? 11 : 12),
                                 ),
                               ),
                             ),
-                        ],
-                      ),
-                      const Spacer(),
-                      if (dayEvents.isNotEmpty)
-                        Wrap(
-                          spacing: 4,
-                          runSpacing: 4,
-                          children: dayEvents
-                              .take(
-                                tinyCalendar ? 2 : (compactCalendar ? 3 : 4),
-                              )
-                              .map((event) => _buildDayMarker(event.color))
-                              .toList(),
-                        ),
-                    ],
+                          ),
+                        )
+                        .toList(),
                   ),
-                ),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: rowCount * 7,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 7,
+                      childAspectRatio: childAspectRatio,
+                      crossAxisSpacing: gap,
+                      mainAxisSpacing: gap,
+                    ),
+                    itemBuilder: (context, index) {
+                      final dayNumber = index - leadingEmptyCells + 1;
+                      if (dayNumber < 1 || dayNumber > daysInMonth) {
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        );
+                      }
+
+                      final dayDate = DateTime(
+                        monthStart.year,
+                        monthStart.month,
+                        dayNumber,
+                      );
+                      final normalizedDay = _normalizeDate(dayDate);
+                      final dayEvents =
+                          eventsByDay[normalizedDay] ??
+                          const <_GestationCalendarEvent>[];
+                      final isSelected = _isSameDate(
+                        normalizedDay,
+                        selectedDate,
+                      );
+                      final isToday = _isSameDate(
+                        normalizedDay,
+                        _currentDate(),
+                      );
+
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () {
+                          setState(
+                            () => _selectedGestationDate = normalizedDay,
+                          );
+                          _persistState();
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          padding: EdgeInsets.all(
+                            tinyCalendar ? 3 : (compactCalendar ? 4 : 6),
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? const Color(0xFFDCFCE7)
+                                : const Color(0xFFFFFFFF),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isSelected
+                                  ? const Color(0xFF16A34A)
+                                  : const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '$dayNumber',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: tinyCalendar ? 11 : 12,
+                                        color: isToday
+                                            ? const Color(0xFF0F766E)
+                                            : const Color(0xFF0F172A),
+                                      ),
+                                    ),
+                                  ),
+                                  if (dayEvents.isNotEmpty)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 1,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF0F172A),
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        '${dayEvents.length}',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: tinyCalendar ? 8 : 9,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const Spacer(),
+                              if (dayEvents.isNotEmpty)
+                                Wrap(
+                                  spacing: 3,
+                                  runSpacing: 3,
+                                  children: dayEvents
+                                      .take(
+                                        tinyCalendar
+                                            ? 2
+                                            : (compactCalendar ? 3 : 4),
+                                      )
+                                      .map(
+                                        (event) => _buildDayMarker(event.color),
+                                      )
+                                      .toList(),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
               );
             },
           ),
@@ -7647,139 +7679,169 @@ class _MainScreenState extends State<MainScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            children: weekDays
-                .map(
-                  (dayName) => Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        vertical: compactCalendar ? 4 : 6,
-                      ),
-                      child: Text(
-                        dayName,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Color(0xFF64748B),
-                          fontWeight: FontWeight.w800,
-                          fontSize: tinyCalendar
-                              ? 10
-                              : (compactCalendar ? 11 : 12),
-                        ),
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: rowCount * 7,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
-              childAspectRatio: tinyCalendar
-                  ? 1.75
-                  : (compactCalendar ? 1.45 : 1.2),
-              crossAxisSpacing: tinyCalendar ? 3 : (compactCalendar ? 4 : 6),
-              mainAxisSpacing: tinyCalendar ? 3 : (compactCalendar ? 4 : 6),
-            ),
-            itemBuilder: (context, index) {
-              final dayNumber = index - leadingEmptyCells + 1;
-              if (dayNumber < 1 || dayNumber > daysInMonth) {
-                return Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                );
-              }
-
-              final dayDate = DateTime(
-                monthStart.year,
-                monthStart.month,
-                dayNumber,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final gap = tinyCalendar ? 3.0 : (compactCalendar ? 4.0 : 6.0);
+              final availableWidth = math.max(220.0, constraints.maxWidth);
+              final cellWidth = (availableWidth - (gap * 6)) / 7;
+              final targetCellHeight = tinyCalendar
+                  ? 42.0
+                  : (compactCalendar ? 50.0 : 62.0);
+              final childAspectRatio = (cellWidth / targetCellHeight).clamp(
+                1.35,
+                3.5,
               );
-              final normalizedDay = _normalizeDate(dayDate);
-              final dayEvents =
-                  eventsByDay[normalizedDay] ??
-                  const <_GestationCalendarEvent>[];
-              final isSelected = _isSameDate(normalizedDay, selectedDate);
-              final isToday = _isSameDate(normalizedDay, _currentDate());
 
-              return InkWell(
-                borderRadius: BorderRadius.circular(10),
-                onTap: () {
-                  setState(() => _selectedPigletDate = normalizedDay);
-                  _persistState();
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  padding: EdgeInsets.all(
-                    tinyCalendar ? 3 : (compactCalendar ? 4 : 6),
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? const Color(0xFFFFF7ED)
-                        : const Color(0xFFFFFFFF),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: isSelected
-                          ? const Color(0xFFEA580C)
-                          : const Color(0xFFE2E8F0),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '$dayNumber',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                color: isToday
-                                    ? const Color(0xFFEA580C)
-                                    : const Color(0xFF0F172A),
-                              ),
-                            ),
-                          ),
-                          if (dayEvents.isNotEmpty)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 1,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF7C2D12),
-                                borderRadius: BorderRadius.circular(999),
+              return Column(
+                children: [
+                  Row(
+                    children: weekDays
+                        .map(
+                          (dayName) => Expanded(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                vertical: compactCalendar ? 4 : 6,
                               ),
                               child: Text(
-                                '${dayEvents.length}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
+                                dayName,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Color(0xFF64748B),
                                   fontWeight: FontWeight.w800,
+                                  fontSize: tinyCalendar
+                                      ? 10
+                                      : (compactCalendar ? 11 : 12),
                                 ),
                               ),
                             ),
-                        ],
-                      ),
-                      const Spacer(),
-                      if (dayEvents.isNotEmpty)
-                        Wrap(
-                          spacing: 4,
-                          runSpacing: 4,
-                          children: dayEvents
-                              .take(
-                                tinyCalendar ? 2 : (compactCalendar ? 3 : 4),
-                              )
-                              .map((event) => _buildDayMarker(event.color))
-                              .toList(),
-                        ),
-                    ],
+                          ),
+                        )
+                        .toList(),
                   ),
-                ),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: rowCount * 7,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 7,
+                      childAspectRatio: childAspectRatio,
+                      crossAxisSpacing: gap,
+                      mainAxisSpacing: gap,
+                    ),
+                    itemBuilder: (context, index) {
+                      final dayNumber = index - leadingEmptyCells + 1;
+                      if (dayNumber < 1 || dayNumber > daysInMonth) {
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        );
+                      }
+
+                      final dayDate = DateTime(
+                        monthStart.year,
+                        monthStart.month,
+                        dayNumber,
+                      );
+                      final normalizedDay = _normalizeDate(dayDate);
+                      final dayEvents =
+                          eventsByDay[normalizedDay] ??
+                          const <_GestationCalendarEvent>[];
+                      final isSelected = _isSameDate(
+                        normalizedDay,
+                        selectedDate,
+                      );
+                      final isToday = _isSameDate(
+                        normalizedDay,
+                        _currentDate(),
+                      );
+
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () {
+                          setState(() => _selectedPigletDate = normalizedDay);
+                          _persistState();
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          padding: EdgeInsets.all(
+                            tinyCalendar ? 3 : (compactCalendar ? 4 : 6),
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? const Color(0xFFFFF7ED)
+                                : const Color(0xFFFFFFFF),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isSelected
+                                  ? const Color(0xFFEA580C)
+                                  : const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '$dayNumber',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: tinyCalendar ? 11 : 12,
+                                        color: isToday
+                                            ? const Color(0xFFEA580C)
+                                            : const Color(0xFF0F172A),
+                                      ),
+                                    ),
+                                  ),
+                                  if (dayEvents.isNotEmpty)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 1,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF7C2D12),
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        '${dayEvents.length}',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: tinyCalendar ? 8 : 9,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const Spacer(),
+                              if (dayEvents.isNotEmpty)
+                                Wrap(
+                                  spacing: 3,
+                                  runSpacing: 3,
+                                  children: dayEvents
+                                      .take(
+                                        tinyCalendar
+                                            ? 2
+                                            : (compactCalendar ? 3 : 4),
+                                      )
+                                      .map(
+                                        (event) => _buildDayMarker(event.color),
+                                      )
+                                      .toList(),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
               );
             },
           ),
