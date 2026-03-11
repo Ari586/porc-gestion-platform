@@ -68,6 +68,10 @@ class UserProfile {
   final String avatar;
   final String address;
   final String contact;
+  final String fokontany;
+  final String commune;
+  final String district;
+  final String region;
   final String login;
   final String password;
 
@@ -79,6 +83,10 @@ class UserProfile {
     required this.avatar,
     this.address = '',
     this.contact = '',
+    this.fokontany = '',
+    this.commune = '',
+    this.district = '',
+    this.region = '',
     required this.login,
     required this.password,
   });
@@ -333,6 +341,10 @@ const List<UserProfile> initialUsers = [
     avatar: 'J',
     address: 'Lot A12 Antananarivo',
     contact: '+261 34 00 01 000',
+    fokontany: 'Antanetibe',
+    commune: 'Antananarivo',
+    district: 'Antananarivo I',
+    region: 'Analamanga',
     login: 'admin',
     password: 'Admin@2026',
   ),
@@ -344,6 +356,10 @@ const List<UserProfile> initialUsers = [
     avatar: 'M',
     address: 'Ferme Andoharanofotsy',
     contact: '+261 34 00 01 002',
+    fokontany: 'Ambohimanarina',
+    commune: 'Andoharanofotsy',
+    district: 'Antananarivo Atsimondrano',
+    region: 'Analamanga',
     login: 'eleveur',
     password: 'Elevage@2026',
   ),
@@ -355,6 +371,10 @@ const List<UserProfile> initialUsers = [
     avatar: 'P',
     address: 'Zone rurale Itaosy',
     contact: '+261 34 00 01 003',
+    fokontany: 'Itaosy Avaratra',
+    commune: 'Itaosy',
+    district: 'Antananarivo Atsimondrano',
+    region: 'Analamanga',
     login: 'insemination',
     password: 'Insem@2026',
   ),
@@ -366,6 +386,10 @@ const List<UserProfile> initialUsers = [
     avatar: 'L',
     address: 'Clinique Vet Ambatobe',
     contact: '+261 34 00 01 004',
+    fokontany: 'Ambatobe',
+    commune: 'Antananarivo',
+    district: 'Antananarivo II',
+    region: 'Analamanga',
     login: 'veto',
     password: 'Sante@2026',
   ),
@@ -1120,6 +1144,10 @@ class _MainScreenState extends State<MainScreen> {
       'avatar': user.avatar,
       'address': user.address,
       'contact': user.contact,
+      'fokontany': user.fokontany,
+      'commune': user.commune,
+      'district': user.district,
+      'region': user.region,
       'login': user.login,
       'password': user.password,
     };
@@ -1133,6 +1161,10 @@ class _MainScreenState extends State<MainScreen> {
     final avatar = _readString(json['avatar']).trim();
     var address = _readString(json['address']).trim();
     var contact = _readString(json['contact']).trim();
+    var fokontany = _readString(json['fokontany']).trim();
+    var commune = _readString(json['commune']).trim();
+    var district = _readString(json['district']).trim();
+    var region = _readString(json['region']).trim();
     final login = _readString(json['login']).trim();
     final password = _readString(json['password']);
     if (id.isEmpty ||
@@ -1160,6 +1192,18 @@ class _MainScreenState extends State<MainScreen> {
     if (contact.isEmpty && fallbackUser != null) {
       contact = fallbackUser.contact;
     }
+    if (fokontany.isEmpty && fallbackUser != null) {
+      fokontany = fallbackUser.fokontany;
+    }
+    if (commune.isEmpty && fallbackUser != null) {
+      commune = fallbackUser.commune;
+    }
+    if (district.isEmpty && fallbackUser != null) {
+      district = fallbackUser.district;
+    }
+    if (region.isEmpty && fallbackUser != null) {
+      region = fallbackUser.region;
+    }
 
     return UserProfile(
       id: id,
@@ -1169,6 +1213,10 @@ class _MainScreenState extends State<MainScreen> {
       avatar: avatar,
       address: address,
       contact: contact,
+      fokontany: fokontany,
+      commune: commune,
+      district: district,
+      region: region,
       login: login,
       password: password,
     );
@@ -1998,6 +2046,7 @@ class _MainScreenState extends State<MainScreen> {
     );
     final inseminatorRecaps = _computeInseminatorRecaps();
     final breederIaRecaps = _computeBreederIaRecaps();
+    final breederControlRecaps = _computeBreederControlRecaps();
 
     final clientRows = _clients
         .map(
@@ -2055,6 +2104,18 @@ class _MainScreenState extends State<MainScreen> {
               DataCell(
                 Text(recap.user.contact.isEmpty ? '-' : recap.user.contact),
               ),
+              DataCell(
+                Text(recap.user.fokontany.isEmpty ? '-' : recap.user.fokontany),
+              ),
+              DataCell(
+                Text(recap.user.commune.isEmpty ? '-' : recap.user.commune),
+              ),
+              DataCell(
+                Text(recap.user.district.isEmpty ? '-' : recap.user.district),
+              ),
+              DataCell(
+                Text(recap.user.region.isEmpty ? '-' : recap.user.region),
+              ),
               DataCell(Text('${recap.totalIa}')),
               DataCell(
                 Text(
@@ -2085,11 +2146,42 @@ class _MainScreenState extends State<MainScreen> {
               DataCell(
                 Text(recap.user.contact.isEmpty ? '-' : recap.user.contact),
               ),
+              DataCell(Text(_territoryLabel(recap.user))),
               DataCell(Text('${recap.sowsToInseminate}')),
               DataCell(
                 Text(
                   '${recap.successRate}%',
                   style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+        )
+        .toList();
+
+    final breederControlRows = breederControlRecaps
+        .map(
+          (recap) => DataRow(
+            cells: [
+              DataCell(Text(recap.user.code)),
+              DataCell(Text(recap.user.name)),
+              DataCell(Text(_territoryLabel(recap.user))),
+              DataCell(Text('${recap.totalPigs}')),
+              DataCell(Text('${recap.sowCount}')),
+              DataCell(Text('${recap.iaCount}')),
+              DataCell(Text('${recap.overdueIaDiagnosis}')),
+              DataCell(Text('${recap.overdueHealthActions}')),
+              DataCell(
+                Text(
+                  recap.riskLabel,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: recap.riskScore >= 4
+                        ? const Color(0xFFB91C1C)
+                        : recap.riskScore >= 2
+                        ? const Color(0xFFB45309)
+                        : const Color(0xFF15803D),
+                  ),
                 ),
               ),
             ],
@@ -2162,14 +2254,18 @@ class _MainScreenState extends State<MainScreen> {
         _buildDataTableSection(
           title: 'Récapitulation suivi inséminateurs',
           subtitle:
-              'Code, coordonnées, nombre IA, taux de réussite et coût total IA',
+              'Code, coordonnées terrain, nombre IA vita, taux de réussite et coût total IA',
           emptyMessage: 'Aucun inséminateur disponible.',
           columns: const [
             DataColumn(label: Text('CODE INSÉMINATEUR')),
             DataColumn(label: Text('NOM')),
             DataColumn(label: Text('ADRESSE')),
             DataColumn(label: Text('CONTACT')),
-            DataColumn(label: Text('NOMBRE IA')),
+            DataColumn(label: Text('FOKONTANY')),
+            DataColumn(label: Text('COMMUNE')),
+            DataColumn(label: Text('DISTRICT')),
+            DataColumn(label: Text('RÉGION')),
+            DataColumn(label: Text('NOMBRE IA VITA')),
             DataColumn(label: Text('TAUX RÉUSSITE IA')),
             DataColumn(label: Text('COÛT IA')),
           ],
@@ -2186,10 +2282,30 @@ class _MainScreenState extends State<MainScreen> {
             DataColumn(label: Text('NOM')),
             DataColumn(label: Text('ADRESSE')),
             DataColumn(label: Text('CONTACT')),
+            DataColumn(label: Text('LOCALISATION')),
             DataColumn(label: Text('TRUIES À FAIRE IA')),
             DataColumn(label: Text('TAUX RÉUSSITE IA')),
           ],
           rows: breederIaRows,
+        ),
+        const SizedBox(height: 16),
+        _buildDataTableSection(
+          title: 'Contrôle éleveurs et porcs',
+          subtitle:
+              'Surveillance terrain: effectif porcin, retards IA/santé et niveau de risque',
+          emptyMessage: 'Aucun éleveur à contrôler.',
+          columns: const [
+            DataColumn(label: Text('CODE ÉLEVEUR')),
+            DataColumn(label: Text('NOM')),
+            DataColumn(label: Text('LOCALISATION')),
+            DataColumn(label: Text('TOTAL PORCS')),
+            DataColumn(label: Text('TRUIES')),
+            DataColumn(label: Text('IA RÉALISÉES')),
+            DataColumn(label: Text('RETARD DIAG IA')),
+            DataColumn(label: Text('RETARD SANTÉ')),
+            DataColumn(label: Text('NIVEAU CONTRÔLE')),
+          ],
+          rows: breederControlRows,
         ),
         const SizedBox(height: 16),
         _buildDataTableSection(
@@ -4139,6 +4255,110 @@ class _MainScreenState extends State<MainScreen> {
     return recaps;
   }
 
+  List<_BreederControlRecap> _computeBreederControlRecaps() {
+    final breeders = _users
+        .where((user) => user.role == Roles.breeder)
+        .toList();
+    final today = _currentDate();
+    final controlRows = <_BreederControlRecap>[];
+
+    for (final breeder in breeders) {
+      final boars = _boars
+          .where((boar) => boar.breederId.trim() == breeder.id.trim())
+          .toList();
+      final sows = _sows
+          .where((sow) => sow.breederId.trim() == breeder.id.trim())
+          .toList();
+      final sowCodes = sows.map((sow) => _normalizeLookup(sow.code)).toSet();
+      final breederIaRecords = _inseminations
+          .where(
+            (record) => sowCodes.contains(_normalizeLookup(record.sowCode)),
+          )
+          .toList();
+
+      final overdueIaDiagnosis = breederIaRecords.where((record) {
+        if (_isSuccessfulStatus(record.status) ||
+            _isFailedStatus(record.status)) {
+          return false;
+        }
+        final dueDate = _expectedPregnancyCheckDate(
+          record,
+        ).add(const Duration(days: 7));
+        return today.isAfter(dueDate);
+      }).length;
+
+      final overdueHealthActions = _healthRecords.where((record) {
+        if (record.nextDate == null) {
+          return false;
+        }
+        final breederId = _breederIdForAnimal(
+          animalType: record.animalType,
+          animalCode: record.animalCode,
+        );
+        if (breederId != breeder.id) {
+          return false;
+        }
+        return today.isAfter(record.nextDate!);
+      }).length;
+
+      controlRows.add(
+        _BreederControlRecap(
+          user: breeder,
+          boarCount: boars.length,
+          sowCount: sows.length,
+          iaCount: breederIaRecords.length,
+          overdueIaDiagnosis: overdueIaDiagnosis,
+          overdueHealthActions: overdueHealthActions,
+        ),
+      );
+    }
+
+    controlRows.sort((a, b) {
+      final byRisk = b.riskScore.compareTo(a.riskScore);
+      if (byRisk != 0) {
+        return byRisk;
+      }
+      return a.user.name.compareTo(b.user.name);
+    });
+
+    return controlRows;
+  }
+
+  String _territoryLabel(UserProfile user) {
+    final parts = <String>[
+      user.fokontany.trim(),
+      user.commune.trim(),
+      user.district.trim(),
+      user.region.trim(),
+    ].where((part) => part.isNotEmpty).toList();
+    if (parts.isEmpty) {
+      return '-';
+    }
+    return parts.join(' / ');
+  }
+
+  String _breederIdForAnimal({
+    required String animalType,
+    required String animalCode,
+  }) {
+    final normalizedCode = _normalizeLookup(animalCode);
+    final isSowType = _normalizeLookup(animalType).contains('truie');
+    if (isSowType) {
+      for (final sow in _sows) {
+        if (_normalizeLookup(sow.code) == normalizedCode) {
+          return sow.breederId.trim();
+        }
+      }
+      return '';
+    }
+    for (final boar in _boars) {
+      if (_normalizeLookup(boar.code) == normalizedCode) {
+        return boar.breederId.trim();
+      }
+    }
+    return '';
+  }
+
   bool _recordMatchesInseminator(
     InseminationRecord record,
     UserProfile inseminator,
@@ -4188,6 +4408,129 @@ class _MainScreenState extends State<MainScreen> {
     return latest;
   }
 
+  List<_SemenLotRecap> _computeSemenLotRecaps() {
+    final byLot = <String, _SemenLotRecapBuilder>{};
+
+    for (final record in _inseminations) {
+      final lot = record.semenLot.trim().isEmpty
+          ? 'LOT-UNKNOWN'
+          : record.semenLot.trim();
+      final key = '${lot.toLowerCase()}::${record.boarCode.toLowerCase()}';
+      final builder = byLot.putIfAbsent(
+        key,
+        () => _SemenLotRecapBuilder(
+          lot: lot,
+          boarCode: record.boarCode,
+          boarBreed: _findBoar(record.boarCode)?.breed ?? 'Race inconnue',
+        ),
+      );
+      builder.totalIa += 1;
+      builder.totalDoses += record.dose2Date == null ? 1 : 2;
+      if (_isSuccessfulStatus(record.status)) {
+        builder.successIa += 1;
+      } else if (_isFailedStatus(record.status)) {
+        builder.failedIa += 1;
+      }
+    }
+
+    final recaps = byLot.values
+        .map(
+          (item) => _SemenLotRecap(
+            lot: item.lot,
+            boarCode: item.boarCode,
+            boarBreed: item.boarBreed,
+            totalIa: item.totalIa,
+            totalDoses: item.totalDoses,
+            successIa: item.successIa,
+            failedIa: item.failedIa,
+          ),
+        )
+        .toList();
+
+    recaps.sort((a, b) {
+      final byIa = b.totalIa.compareTo(a.totalIa);
+      if (byIa != 0) {
+        return byIa;
+      }
+      return a.lot.compareTo(b.lot);
+    });
+
+    return recaps;
+  }
+
+  List<_SowIaFollowUp> _computeSowIaFollowUps() {
+    final followUps = <_SowIaFollowUp>[];
+
+    for (final sow in _sows) {
+      final latest = _latestInseminationForSow(sow.code);
+      if (latest == null) {
+        followUps.add(
+          _SowIaFollowUp(
+            sow: sow,
+            lastInseminationDateLabel: '-',
+            statusLabel: 'À programmer',
+            statusColor: const Color(0xFFB45309),
+            nextAction: 'Planifier IA',
+            nextDateLabel: 'Dès que chaleur détectée',
+          ),
+        );
+        continue;
+      }
+
+      if (_isFailedStatus(latest.status)) {
+        final retryDate = _expectedHeatReturnDate(latest);
+        followUps.add(
+          _SowIaFollowUp(
+            sow: sow,
+            lastInseminationDateLabel: _formatDate(latest.dose1Date),
+            statusLabel: 'Échec / ré-IA',
+            statusColor: const Color(0xFFB91C1C),
+            nextAction: 'Reprogrammer insémination',
+            nextDateLabel: _formatDate(retryDate),
+          ),
+        );
+        continue;
+      }
+
+      if (_isSuccessfulStatus(latest.status)) {
+        final farrowingDate = _expectedFarrowingDate(latest);
+        followUps.add(
+          _SowIaFollowUp(
+            sow: sow,
+            lastInseminationDateLabel: _formatDate(latest.dose1Date),
+            statusLabel: 'Gestante confirmée',
+            statusColor: const Color(0xFF15803D),
+            nextAction: 'Préparer mise-bas',
+            nextDateLabel: _formatDate(farrowingDate),
+          ),
+        );
+        continue;
+      }
+
+      final diagnosisDate = _expectedPregnancyCheckDate(latest);
+      followUps.add(
+        _SowIaFollowUp(
+          sow: sow,
+          lastInseminationDateLabel: _formatDate(latest.dose1Date),
+          statusLabel: 'En attente diagnostic',
+          statusColor: const Color(0xFF0F766E),
+          nextAction: 'Diagnostic gestation J28',
+          nextDateLabel: _formatDate(diagnosisDate),
+        ),
+      );
+    }
+
+    followUps.sort((a, b) {
+      final byStatus = a.statusLabel.compareTo(b.statusLabel);
+      if (byStatus != 0) {
+        return byStatus;
+      }
+      return a.sow.code.compareTo(b.sow.code);
+    });
+
+    return followUps;
+  }
+
   Widget _buildMiniIndicator({
     required String label,
     required String value,
@@ -4225,6 +4568,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildInseminationManagement() {
+    final semenLotRecaps = _computeSemenLotRecaps();
     final rows = _inseminations.map((record) {
       final boar = _findBoar(record.boarCode);
       final expectedHeatReturn = _expectedHeatReturnDate(record);
@@ -4263,11 +4607,62 @@ class _MainScreenState extends State<MainScreen> {
         ],
       );
     }).toList();
+    final semenRows = semenLotRecaps
+        .map(
+          (recap) => DataRow(
+            cells: [
+              DataCell(Text(recap.lot)),
+              DataCell(Text(recap.boarCode)),
+              DataCell(Text(recap.boarBreed)),
+              DataCell(Text('${recap.totalDoses}')),
+              DataCell(Text('${recap.totalIa}')),
+              DataCell(Text('${recap.successIa}')),
+              DataCell(Text('${recap.failedIa}')),
+              DataCell(
+                Text(
+                  '${recap.successRate}%',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              DataCell(
+                Text(
+                  recap.qualityLabel,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: recap.qualityLabel == 'Surveiller'
+                        ? const Color(0xFFB45309)
+                        : const Color(0xFF15803D),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        )
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildGestationCalendarSection(),
+        const SizedBox(height: 16),
+        _buildDataTableSection(
+          title: 'Suivi semence (lots IA)',
+          subtitle:
+              'Traçabilité des doses par lot, performance et qualité d\'utilisation',
+          emptyMessage: 'Aucun lot semence utilisé.',
+          columns: const [
+            DataColumn(label: Text('LOT SEMENCE')),
+            DataColumn(label: Text('VERRAT')),
+            DataColumn(label: Text('RACE')),
+            DataColumn(label: Text('DOSES UTILISÉES')),
+            DataColumn(label: Text('IA RÉALISÉES')),
+            DataColumn(label: Text('IA RÉUSSIES')),
+            DataColumn(label: Text('IA ÉCHECS')),
+            DataColumn(label: Text('TAUX RÉUSSITE')),
+            DataColumn(label: Text('STATUT QUALITÉ')),
+          ],
+          rows: semenRows,
+        ),
         const SizedBox(height: 16),
         _buildDataTableSection(
           title: 'Gestion des inséminations',
@@ -4949,22 +5344,68 @@ class _MainScreenState extends State<MainScreen> {
           ),
         )
         .toList();
+    final sowFollowUps = _computeSowIaFollowUps();
+    final followUpRows = sowFollowUps
+        .map(
+          (item) => DataRow(
+            cells: [
+              DataCell(Text(item.sow.code)),
+              DataCell(Text(item.sow.name)),
+              DataCell(Text(_breederNameForId(item.sow.breederId))),
+              DataCell(Text(item.lastInseminationDateLabel)),
+              DataCell(
+                Text(
+                  item.statusLabel,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: item.statusColor,
+                  ),
+                ),
+              ),
+              DataCell(Text(item.nextAction)),
+              DataCell(Text(item.nextDateLabel)),
+            ],
+          ),
+        )
+        .toList();
 
-    return _buildDataTableSection(
-      title: 'Gestion des truies',
-      subtitle: 'Suivi reproductrices, parité et informations de lignée',
-      emptyMessage: 'Aucune truie enregistrée.',
-      columns: const [
-        DataColumn(label: Text('CODE')),
-        DataColumn(label: Text('NOM')),
-        DataColumn(label: Text('RACE')),
-        DataColumn(label: Text('NAISSANCE')),
-        DataColumn(label: Text('PARITÉ')),
-        DataColumn(label: Text('PÈRE')),
-        DataColumn(label: Text('MÈRE')),
-        DataColumn(label: Text('ACTIONS')),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildDataTableSection(
+          title: 'Suivi truies pour IA',
+          subtitle:
+              'Pilotage des reproductrices: dernière IA, statut et prochaine action',
+          emptyMessage: 'Aucune truie suivie pour IA.',
+          columns: const [
+            DataColumn(label: Text('CODE')),
+            DataColumn(label: Text('NOM')),
+            DataColumn(label: Text('ÉLEVEUR')),
+            DataColumn(label: Text('DERNIÈRE IA')),
+            DataColumn(label: Text('STATUT IA')),
+            DataColumn(label: Text('PROCHAINE ACTION')),
+            DataColumn(label: Text('DATE CIBLE')),
+          ],
+          rows: followUpRows,
+        ),
+        const SizedBox(height: 16),
+        _buildDataTableSection(
+          title: 'Gestion des truies',
+          subtitle: 'Suivi reproductrices, parité et informations de lignée',
+          emptyMessage: 'Aucune truie enregistrée.',
+          columns: const [
+            DataColumn(label: Text('CODE')),
+            DataColumn(label: Text('NOM')),
+            DataColumn(label: Text('RACE')),
+            DataColumn(label: Text('NAISSANCE')),
+            DataColumn(label: Text('PARITÉ')),
+            DataColumn(label: Text('PÈRE')),
+            DataColumn(label: Text('MÈRE')),
+            DataColumn(label: Text('ACTIONS')),
+          ],
+          rows: rows,
+        ),
       ],
-      rows: rows,
     );
   }
 
@@ -4997,6 +5438,58 @@ class _MainScreenState extends State<MainScreen> {
         ),
       ),
     ];
+    var riskyPairings = 0;
+    var safePairings = 0;
+    for (final sow in _sows) {
+      for (final boar in _boars) {
+        final issue = _consanguinityIssue(sow.code, boar.code);
+        if (issue == null) {
+          safePairings++;
+        } else {
+          riskyPairings++;
+        }
+      }
+    }
+
+    final consanguinityAlerts = <_ConsanguinityAlert>[];
+    for (final record in _inseminations) {
+      final issue = _consanguinityIssue(record.sowCode, record.boarCode);
+      if (issue == null) {
+        continue;
+      }
+      consanguinityAlerts.add(
+        _ConsanguinityAlert(
+          date: record.dose1Date,
+          sowCode: record.sowCode,
+          boarCode: record.boarCode,
+          status: record.status,
+          issue: issue,
+        ),
+      );
+    }
+    consanguinityAlerts.sort((a, b) => b.date.compareTo(a.date));
+
+    final alertRows = consanguinityAlerts
+        .map(
+          (alert) => DataRow(
+            cells: [
+              DataCell(Text(_formatDate(alert.date))),
+              DataCell(Text(alert.sowCode)),
+              DataCell(Text(alert.boarCode)),
+              DataCell(Text(alert.status)),
+              DataCell(
+                Text(
+                  alert.issue,
+                  style: const TextStyle(
+                    color: Color(0xFFB91C1C),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        )
+        .toList();
 
     return Column(
       children: [
@@ -5017,6 +5510,56 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ),
         const SizedBox(height: 16),
+        _buildSectionCard(
+          title: 'Amélioration descendance & anti-consanguinité',
+          subtitle:
+              'Sécurisation génétique des accouplements et amélioration continue de la lignée porcine',
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 860;
+              final indicators = [
+                _buildMiniIndicator(
+                  label: 'Couplages sécurisés',
+                  value: '$safePairings',
+                  color: const Color(0xFF15803D),
+                ),
+                _buildMiniIndicator(
+                  label: 'Couplages à risque',
+                  value: '$riskyPairings',
+                  color: const Color(0xFFB91C1C),
+                ),
+                _buildMiniIndicator(
+                  label: 'Alertes actives',
+                  value: '${consanguinityAlerts.length}',
+                  color: const Color(0xFFB45309),
+                ),
+              ];
+
+              if (isWide) {
+                return Row(
+                  children: [
+                    Expanded(child: indicators[0]),
+                    const SizedBox(width: 12),
+                    Expanded(child: indicators[1]),
+                    const SizedBox(width: 12),
+                    Expanded(child: indicators[2]),
+                  ],
+                );
+              }
+
+              return Column(
+                children: [
+                  indicators[0],
+                  const SizedBox(height: 10),
+                  indicators[1],
+                  const SizedBox(height: 10),
+                  indicators[2],
+                ],
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
         _buildDataTableSection(
           title: 'Registre de filiation',
           subtitle: 'Consolidé verrats et truies',
@@ -5031,6 +5574,21 @@ class _MainScreenState extends State<MainScreen> {
             DataColumn(label: Text('ORIGINE')),
           ],
           rows: rows,
+        ),
+        const SizedBox(height: 16),
+        _buildDataTableSection(
+          title: 'Alertes consanguinité',
+          subtitle:
+              'Contrôle des IA réalisées pour éviter les croisements à risque',
+          emptyMessage: 'Aucune alerte consanguinité détectée.',
+          columns: const [
+            DataColumn(label: Text('DATE IA')),
+            DataColumn(label: Text('TRUIE')),
+            DataColumn(label: Text('VERRAT')),
+            DataColumn(label: Text('STATUT IA')),
+            DataColumn(label: Text('MOTIF')),
+          ],
+          rows: alertRows,
         ),
       ],
     );
@@ -5097,6 +5655,7 @@ class _MainScreenState extends State<MainScreen> {
               DataCell(Text(user.name)),
               DataCell(Text(user.address.isEmpty ? '-' : user.address)),
               DataCell(Text(user.contact.isEmpty ? '-' : user.contact)),
+              DataCell(Text(_territoryLabel(user))),
               DataCell(Text(user.role)),
               DataCell(Text(user.login)),
               const DataCell(Text('********')),
@@ -5216,6 +5775,7 @@ class _MainScreenState extends State<MainScreen> {
             DataColumn(label: Text('NOM')),
             DataColumn(label: Text('ADRESSE')),
             DataColumn(label: Text('CONTACT')),
+            DataColumn(label: Text('ZONE TERRAIN')),
             DataColumn(label: Text('RÔLE')),
             DataColumn(label: Text('LOGIN')),
             DataColumn(label: Text('MOT DE PASSE')),
@@ -6113,6 +6673,17 @@ class _MainScreenState extends State<MainScreen> {
                       }
                     }
 
+                    final consanguinityIssue = _consanguinityIssue(
+                      selectedSowCode,
+                      selectedBoarCode,
+                    );
+                    if (consanguinityIssue != null) {
+                      _showError(
+                        'IA bloquée (consanguinité): $consanguinityIssue.',
+                      );
+                      return;
+                    }
+
                     setState(() {
                       _inseminations.insert(
                         0,
@@ -6786,6 +7357,10 @@ class _MainScreenState extends State<MainScreen> {
     final nameCtrl = TextEditingController();
     final addressCtrl = TextEditingController();
     final contactCtrl = TextEditingController();
+    final fokontanyCtrl = TextEditingController();
+    final communeCtrl = TextEditingController();
+    final districtCtrl = TextEditingController();
+    final regionCtrl = TextEditingController();
     final loginCtrl = TextEditingController();
     final passwordCtrl = TextEditingController();
     String selectedRole = Roles.breeder;
@@ -6812,6 +7387,10 @@ class _MainScreenState extends State<MainScreen> {
                       _dialogField(nameCtrl, 'Nom complet *'),
                       _dialogField(addressCtrl, 'Adresse *'),
                       _dialogField(contactCtrl, 'Contact *'),
+                      _dialogField(fokontanyCtrl, 'Fokontany *'),
+                      _dialogField(communeCtrl, 'Commune *'),
+                      _dialogField(districtCtrl, 'District *'),
+                      _dialogField(regionCtrl, 'Région *'),
                       DropdownButtonFormField<String>(
                         initialValue: selectedRole,
                         decoration: const InputDecoration(
@@ -6889,6 +7468,10 @@ class _MainScreenState extends State<MainScreen> {
                     final name = nameCtrl.text.trim();
                     final address = addressCtrl.text.trim();
                     final contact = contactCtrl.text.trim();
+                    final fokontany = fokontanyCtrl.text.trim();
+                    final commune = communeCtrl.text.trim();
+                    final district = districtCtrl.text.trim();
+                    final region = regionCtrl.text.trim();
                     final login = loginCtrl.text.trim().toLowerCase();
                     final password = passwordCtrl.text;
 
@@ -6896,10 +7479,14 @@ class _MainScreenState extends State<MainScreen> {
                         name.isEmpty ||
                         address.isEmpty ||
                         contact.isEmpty ||
+                        fokontany.isEmpty ||
+                        commune.isEmpty ||
+                        district.isEmpty ||
+                        region.isEmpty ||
                         login.isEmpty ||
                         password.isEmpty) {
                       _showError(
-                        'Veuillez remplir code, nom, adresse, contact, rôle, login et mot de passe.',
+                        'Veuillez remplir code, nom, adresse, contact, fokontany, commune, district, région, rôle, login et mot de passe.',
                       );
                       return;
                     }
@@ -6927,6 +7514,10 @@ class _MainScreenState extends State<MainScreen> {
                       avatar: avatar,
                       address: address,
                       contact: contact,
+                      fokontany: fokontany,
+                      commune: commune,
+                      district: district,
+                      region: region,
                       login: login,
                       password: password,
                     );
@@ -6949,6 +7540,10 @@ class _MainScreenState extends State<MainScreen> {
         nameCtrl,
         addressCtrl,
         contactCtrl,
+        fokontanyCtrl,
+        communeCtrl,
+        districtCtrl,
+        regionCtrl,
         loginCtrl,
         passwordCtrl,
       ]),
@@ -6960,6 +7555,10 @@ class _MainScreenState extends State<MainScreen> {
     final nameCtrl = TextEditingController(text: user.name);
     final addressCtrl = TextEditingController(text: user.address);
     final contactCtrl = TextEditingController(text: user.contact);
+    final fokontanyCtrl = TextEditingController(text: user.fokontany);
+    final communeCtrl = TextEditingController(text: user.commune);
+    final districtCtrl = TextEditingController(text: user.district);
+    final regionCtrl = TextEditingController(text: user.region);
     final loginCtrl = TextEditingController(text: user.login);
     String selectedRole = user.role;
 
@@ -6980,6 +7579,10 @@ class _MainScreenState extends State<MainScreen> {
                       _dialogField(nameCtrl, 'Nom complet *'),
                       _dialogField(addressCtrl, 'Adresse *'),
                       _dialogField(contactCtrl, 'Contact *'),
+                      _dialogField(fokontanyCtrl, 'Fokontany *'),
+                      _dialogField(communeCtrl, 'Commune *'),
+                      _dialogField(districtCtrl, 'District *'),
+                      _dialogField(regionCtrl, 'Région *'),
                       DropdownButtonFormField<String>(
                         initialValue: selectedRole,
                         decoration: const InputDecoration(
@@ -7028,15 +7631,23 @@ class _MainScreenState extends State<MainScreen> {
                     final name = nameCtrl.text.trim();
                     final address = addressCtrl.text.trim();
                     final contact = contactCtrl.text.trim();
+                    final fokontany = fokontanyCtrl.text.trim();
+                    final commune = communeCtrl.text.trim();
+                    final district = districtCtrl.text.trim();
+                    final region = regionCtrl.text.trim();
                     final login = loginCtrl.text.trim().toLowerCase();
 
                     if (code.isEmpty ||
                         name.isEmpty ||
                         address.isEmpty ||
                         contact.isEmpty ||
+                        fokontany.isEmpty ||
+                        commune.isEmpty ||
+                        district.isEmpty ||
+                        region.isEmpty ||
                         login.isEmpty) {
                       _showError(
-                        'Code, nom, adresse, contact et login sont obligatoires.',
+                        'Code, nom, adresse, contact, fokontany, commune, district, région et login sont obligatoires.',
                       );
                       return;
                     }
@@ -7068,6 +7679,10 @@ class _MainScreenState extends State<MainScreen> {
                       avatar: _avatarFromName(name),
                       address: address,
                       contact: contact,
+                      fokontany: fokontany,
+                      commune: commune,
+                      district: district,
+                      region: region,
                       login: login,
                       password: user.password,
                     );
@@ -7104,6 +7719,10 @@ class _MainScreenState extends State<MainScreen> {
         nameCtrl,
         addressCtrl,
         contactCtrl,
+        fokontanyCtrl,
+        communeCtrl,
+        districtCtrl,
+        regionCtrl,
         loginCtrl,
       ]),
     );
@@ -7203,6 +7822,10 @@ class _MainScreenState extends State<MainScreen> {
                       avatar: user.avatar,
                       address: user.address,
                       contact: user.contact,
+                      fokontany: user.fokontany,
+                      commune: user.commune,
+                      district: user.district,
+                      region: user.region,
                       login: user.login,
                       password: password,
                     );
@@ -7922,6 +8545,50 @@ class _MainScreenState extends State<MainScreen> {
     return null;
   }
 
+  Sow? _findSow(String code) {
+    for (final sow in _sows) {
+      if (sow.code.toLowerCase() == code.toLowerCase()) {
+        return sow;
+      }
+    }
+    return null;
+  }
+
+  String? _consanguinityIssue(String sowCode, String boarCode) {
+    final sow = _findSow(sowCode);
+    final boar = _findBoar(boarCode);
+    if (sow == null || boar == null) {
+      return null;
+    }
+
+    final boarCodeNormalized = _normalizeLookup(boar.code);
+    final sowCodeNormalized = _normalizeLookup(sow.code);
+    final sowSire = _normalizeLookup(sow.sireCode);
+    final sowDam = _normalizeLookup(sow.damCode);
+    final boarSire = _normalizeLookup(boar.sireCode);
+    final boarDam = _normalizeLookup(boar.damCode);
+
+    if (boarCodeNormalized == sowSire && sowSire.isNotEmpty) {
+      return 'le verrat sélectionné est le père direct de la truie';
+    }
+    if (boarCodeNormalized == sowDam && sowDam.isNotEmpty) {
+      return 'le verrat sélectionné est lié à la mère de la truie';
+    }
+    if (boarSire == sowSire && boarSire.isNotEmpty) {
+      return 'la truie et le verrat partagent le même père (${sow.sireCode})';
+    }
+    if (boarDam == sowDam && boarDam.isNotEmpty) {
+      return 'la truie et le verrat partagent la même mère (${sow.damCode})';
+    }
+    if (boarSire == sowCodeNormalized && boarSire.isNotEmpty) {
+      return 'la truie est ascendant direct du verrat (père du verrat)';
+    }
+    if (boarDam == sowCodeNormalized && boarDam.isNotEmpty) {
+      return 'la truie est ascendant direct du verrat (mère du verrat)';
+    }
+    return null;
+  }
+
   List<UserProfile> get _breeders =>
       _users.where((user) => user.role == Roles.breeder).toList();
 
@@ -8517,6 +9184,123 @@ class _BreederIaRecap {
     }
     return ((successIa / decided) * 100).round();
   }
+}
+
+class _BreederControlRecap {
+  final UserProfile user;
+  final int boarCount;
+  final int sowCount;
+  final int iaCount;
+  final int overdueIaDiagnosis;
+  final int overdueHealthActions;
+
+  const _BreederControlRecap({
+    required this.user,
+    required this.boarCount,
+    required this.sowCount,
+    required this.iaCount,
+    required this.overdueIaDiagnosis,
+    required this.overdueHealthActions,
+  });
+
+  int get totalPigs => boarCount + sowCount;
+
+  int get riskScore => overdueIaDiagnosis * 2 + overdueHealthActions;
+
+  String get riskLabel {
+    if (riskScore >= 4) {
+      return 'Risque élevé';
+    }
+    if (riskScore >= 2) {
+      return 'Risque modéré';
+    }
+    return 'Sous contrôle';
+  }
+}
+
+class _SemenLotRecap {
+  final String lot;
+  final String boarCode;
+  final String boarBreed;
+  final int totalIa;
+  final int totalDoses;
+  final int successIa;
+  final int failedIa;
+
+  const _SemenLotRecap({
+    required this.lot,
+    required this.boarCode,
+    required this.boarBreed,
+    required this.totalIa,
+    required this.totalDoses,
+    required this.successIa,
+    required this.failedIa,
+  });
+
+  int get successRate {
+    final decided = successIa + failedIa;
+    if (decided == 0) {
+      return 0;
+    }
+    return ((successIa / decided) * 100).round();
+  }
+
+  String get qualityLabel {
+    if (failedIa > successIa) {
+      return 'Surveiller';
+    }
+    return 'Conforme';
+  }
+}
+
+class _SemenLotRecapBuilder {
+  final String lot;
+  final String boarCode;
+  final String boarBreed;
+  int totalIa = 0;
+  int totalDoses = 0;
+  int successIa = 0;
+  int failedIa = 0;
+
+  _SemenLotRecapBuilder({
+    required this.lot,
+    required this.boarCode,
+    required this.boarBreed,
+  });
+}
+
+class _SowIaFollowUp {
+  final Sow sow;
+  final String lastInseminationDateLabel;
+  final String statusLabel;
+  final Color statusColor;
+  final String nextAction;
+  final String nextDateLabel;
+
+  const _SowIaFollowUp({
+    required this.sow,
+    required this.lastInseminationDateLabel,
+    required this.statusLabel,
+    required this.statusColor,
+    required this.nextAction,
+    required this.nextDateLabel,
+  });
+}
+
+class _ConsanguinityAlert {
+  final DateTime date;
+  final String sowCode;
+  final String boarCode;
+  final String status;
+  final String issue;
+
+  const _ConsanguinityAlert({
+    required this.date,
+    required this.sowCode,
+    required this.boarCode,
+    required this.status,
+    required this.issue,
+  });
 }
 
 class _BreederAnimalStat {
