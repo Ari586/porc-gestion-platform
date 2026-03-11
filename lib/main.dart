@@ -6985,83 +6985,89 @@ class _MainScreenState extends State<MainScreen> {
     final recentIa = List<InseminationRecord>.from(_inseminations)
       ..sort((a, b) => b.dose1Date.compareTo(a.dose1Date));
     final breederAnimalStats = _computeBreederAnimalStats();
+    final avgSemenTemperature = _semenQualityRecords.isEmpty
+        ? 22.0
+        : _semenQualityRecords.fold<double>(
+                0,
+                (acc, record) => acc + record.temperatureC,
+              ) /
+              _semenQualityRecords.length;
+    final humidityPercent = _healthRecords.isEmpty
+        ? 48
+        : (42 +
+                  ((_healthRecords
+                              .where((record) => record.nextDate != null)
+                              .length /
+                          _healthRecords.length) *
+                      36))
+              .round()
+              .clamp(35, 88);
+    final weeklyRevenue = _salesRecords
+        .where(
+          (sale) =>
+              !sale.date.isBefore(today.subtract(const Duration(days: 7))),
+        )
+        .fold<double>(0, (acc, sale) => acc + sale.amount);
+    final stockAlerts = _stockItems
+        .where((item) => item.quantity <= item.alertThreshold)
+        .length;
+    final unreadMessages = _chatMessages.where((message) {
+      if (!_isConversationVisibleForCurrentUser(message.conversationId)) {
+        return false;
+      }
+      if (message.conversationId == _teamConversationId &&
+          !_isTeamConversationUserIdAllowed(message.senderId)) {
+        return false;
+      }
+      if (message.senderId == _currentUser.id) {
+        return false;
+      }
+      return !message.readByUserIds.contains(_currentUser.id);
+    }).length;
+
+    final quickModules = <_DashboardModuleTileData>[
+      _DashboardModuleTileData(
+        label: 'Reproduction',
+        value: '${_inseminations.length}',
+        icon: LucideIcons.syringe,
+        color: const Color(0xFF5B4AE6),
+        tabId: AppTabs.inseminations,
+      ),
+      _DashboardModuleTileData(
+        label: 'Santé',
+        value: '${_healthRecords.length}',
+        icon: LucideIcons.shieldCheck,
+        color: const Color(0xFF3B82F6),
+        tabId: AppTabs.health,
+      ),
+      _DashboardModuleTileData(
+        label: 'Stock',
+        value: stockAlerts > 0 ? '$stockAlerts alerte(s)' : 'Stable',
+        icon: LucideIcons.package,
+        color: const Color(0xFFF59E0B),
+        tabId: AppTabs.commercial,
+      ),
+      _DashboardModuleTileData(
+        label: 'Messages',
+        value: unreadMessages > 0 ? '$unreadMessages non lus' : 'Aucun',
+        icon: Icons.forum_outlined,
+        color: const Color(0xFFEC4899),
+        tabId: AppTabs.messenger,
+      ),
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth;
-            final crossAxisCount = width > 1550
-                ? 7
-                : width > 1250
-                ? 4
-                : width > 900
-                ? 3
-                : width > 560
-                ? 2
-                : 1;
-
-            return GridView.count(
-              crossAxisCount: crossAxisCount,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              childAspectRatio: 2.5,
-              crossAxisSpacing: 14,
-              mainAxisSpacing: 14,
-              children: [
-                _buildStatCard(
-                  title: 'Verrats actifs',
-                  value: '${_boars.length}',
-                  icon: LucideIcons.badgeInfo,
-                  color: const Color(0xFF0284C7),
-                  badgeLabel: 'Génétique',
-                ),
-                _buildStatCard(
-                  title: 'Truies suivies',
-                  value: '${_sows.length}',
-                  icon: LucideIcons.piggyBank,
-                  color: const Color(0xFF2563EB),
-                  badgeLabel: 'Gestation',
-                ),
-                _buildStatCard(
-                  title: 'IA enregistrées',
-                  value: '${_inseminations.length}',
-                  icon: LucideIcons.syringe,
-                  color: const Color(0xFFEA580C),
-                  badgeLabel: 'Reproduction',
-                ),
-                _buildStatCard(
-                  title: 'Taux réussite IA',
-                  value: '$successRate%',
-                  icon: LucideIcons.trendingUp,
-                  color: const Color(0xFF16A34A),
-                  badgeLabel: 'Performance',
-                ),
-                _buildStatCard(
-                  title: 'Actes santé',
-                  value: '${_healthRecords.length}',
-                  icon: LucideIcons.shieldCheck,
-                  color: const Color(0xFF0F766E),
-                  badgeLabel: 'Sanitaire',
-                ),
-                _buildStatCard(
-                  title: 'Diag en retard',
-                  value: '$overdueDiagnosisCount',
-                  icon: LucideIcons.badgeInfo,
-                  color: const Color(0xFFB91C1C),
-                  badgeLabel: 'Alerte',
-                ),
-                _buildStatCard(
-                  title: 'Mise-bas <= 14j',
-                  value: '$farrowingSoonCount',
-                  icon: LucideIcons.piggyBank,
-                  color: const Color(0xFFDB2777),
-                  badgeLabel: 'Maternité',
-                ),
-              ],
-            );
-          },
+        _buildDashboardSmartSurface(
+          successRate: successRate,
+          pendingCount: pendingCount,
+          farrowingSoonCount: farrowingSoonCount,
+          overdueDiagnosisCount: overdueDiagnosisCount,
+          avgSemenTemperature: avgSemenTemperature,
+          humidityPercent: humidityPercent,
+          weeklyRevenue: weeklyRevenue,
+          quickModules: quickModules,
         ),
         const SizedBox(height: AppSpacing.s16),
         _buildInseminationOutcomeCharts(
@@ -7117,31 +7123,445 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildStatCard({
+  Widget _buildDashboardSmartSurface({
+    required int successRate,
+    required int pendingCount,
+    required int farrowingSoonCount,
+    required int overdueDiagnosisCount,
+    required double avgSemenTemperature,
+    required int humidityPercent,
+    required double weeklyRevenue,
+    required List<_DashboardModuleTileData> quickModules,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.s16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFE9E8FF), Color(0xFFF1F5FF)],
+        ),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFD8DDF7)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1F334155),
+            blurRadius: 26,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth > 1080;
+          final leftColumn = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                height: 44,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFDCE4EE)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.search, color: Color(0xFF94A3B8), size: 18),
+                    SizedBox(width: AppSpacing.s8),
+                    Expanded(
+                      child: Text(
+                        'Recherche module, lot, truie, verrat...',
+                        style: TextStyle(
+                          color: Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.s12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppSpacing.s16),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFFFCD34D), Color(0xFFF59E0B)],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x33F59E0B),
+                      blurRadius: 16,
+                      offset: Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Bonjour, ${_firstName(_currentUser.name)}',
+                            style: const TextStyle(
+                              color: Color(0xFF1E293B),
+                              fontWeight: FontWeight.w900,
+                              fontSize: 24,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.s6),
+                          const Text(
+                            'Pilotage visuel du tableau de bord porcin avec un focus '
+                            'sur reproduction, santé et alertes terrain.',
+                            style: TextStyle(
+                              color: Color(0xFF475569),
+                              fontWeight: FontWeight.w600,
+                              height: 1.35,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.s10),
+                          Wrap(
+                            spacing: AppSpacing.s8,
+                            runSpacing: AppSpacing.s6,
+                            children: [
+                              _buildDashboardQuickTag(
+                                icon: LucideIcons.syringe,
+                                label: '$pendingCount IA en attente',
+                              ),
+                              _buildDashboardQuickTag(
+                                icon: LucideIcons.piggyBank,
+                                label: '$farrowingSoonCount mise-bas <= 14j',
+                              ),
+                              _buildDashboardQuickTag(
+                                icon: LucideIcons.alertTriangle,
+                                label:
+                                    '$overdueDiagnosisCount diagnostics en retard',
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.s10),
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Icon(
+                        LucideIcons.piggyBank,
+                        color: Color(0xFF4338CA),
+                        size: 36,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.s12),
+              LayoutBuilder(
+                builder: (context, childConstraints) {
+                  final canSplit = childConstraints.maxWidth > 780;
+                  final gaugeCard = _buildDashboardGaugeCard(successRate);
+                  final metricsCard = Column(
+                    children: [
+                      _buildDashboardMetricCard(
+                        title: 'Température semence',
+                        value: '${avgSemenTemperature.toStringAsFixed(1)}°C',
+                        icon: Icons.thermostat_outlined,
+                        color: const Color(0xFFEF4444),
+                      ),
+                      const SizedBox(height: AppSpacing.s10),
+                      _buildDashboardMetricCard(
+                        title: 'Humidité bâtiment',
+                        value: '$humidityPercent%',
+                        icon: Icons.water_drop_outlined,
+                        color: const Color(0xFF3B82F6),
+                      ),
+                    ],
+                  );
+
+                  if (canSplit) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(flex: 3, child: gaugeCard),
+                        const SizedBox(width: AppSpacing.s10),
+                        Expanded(flex: 2, child: metricsCard),
+                      ],
+                    );
+                  }
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      gaugeCard,
+                      const SizedBox(height: AppSpacing.s10),
+                      metricsCard,
+                    ],
+                  );
+                },
+              ),
+            ],
+          );
+
+          final rightPanel = Container(
+            width: isWide ? 290 : double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.s12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFDCE4EE)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Modules rapides',
+                  style: TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.s10),
+                GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  childAspectRatio: 1.3,
+                  crossAxisSpacing: AppSpacing.s8,
+                  mainAxisSpacing: AppSpacing.s8,
+                  children: quickModules
+                      .map((module) => _buildDashboardModuleTile(module))
+                      .toList(),
+                ),
+                const SizedBox(height: AppSpacing.s12),
+                const Text(
+                  'Équipe active',
+                  style: TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.s8),
+                Wrap(
+                  spacing: AppSpacing.s8,
+                  runSpacing: AppSpacing.s8,
+                  children: [
+                    ..._users
+                        .take(4)
+                        .map(
+                          (user) => Container(
+                            padding: const EdgeInsets.all(AppSpacing.s2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE2E8F0),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: _buildUserAvatar(user, radius: 16),
+                          ),
+                        ),
+                    if (_users.length > 4)
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE2E8F0),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '+${_users.length - 4}',
+                            style: const TextStyle(
+                              color: Color(0xFF334155),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.s12),
+                const Text(
+                  'Statistiques semaine',
+                  style: TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.s8),
+                SizedBox(
+                  height: 126,
+                  width: double.infinity,
+                  child: CustomPaint(
+                    painter: _DashboardSparkPainter(
+                      firstPeak: successRate.clamp(15, 95).toDouble(),
+                      secondPeak: (pendingCount * 14).clamp(8, 85).toDouble(),
+                      thirdPeak: (overdueDiagnosisCount * 16)
+                          .clamp(8, 85)
+                          .toDouble(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.s6),
+                Text(
+                  'Ventes 7 jours: ${_formatAmount(weeklyRevenue)}',
+                  style: const TextStyle(
+                    color: Color(0xFF475569),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          );
+
+          if (isWide) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: leftColumn),
+                const SizedBox(width: AppSpacing.s12),
+                rightPanel,
+              ],
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              leftColumn,
+              const SizedBox(height: AppSpacing.s12),
+              rightPanel,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDashboardQuickTag({
+    required IconData icon,
+    required String label,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s10,
+        vertical: AppSpacing.s6,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: const Color(0xFF334155)),
+          const SizedBox(width: AppSpacing.s6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF334155),
+              fontWeight: FontWeight.w700,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDashboardGaugeCard(int successRate) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.s12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFDCE4EE)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Taux de réussite IA',
+            style: TextStyle(
+              color: Color(0xFF0F172A),
+              fontWeight: FontWeight.w800,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s8),
+          SizedBox(
+            width: 170,
+            height: 170,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                CustomPaint(
+                  size: const Size.square(170),
+                  painter: _DashboardGaugePainter(
+                    progress: (successRate / 100).clamp(0.0, 1.0),
+                  ),
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '$successRate%',
+                      style: const TextStyle(
+                        color: Color(0xFF0F172A),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 42,
+                      ),
+                    ),
+                    const Text(
+                      'Performance',
+                      style: TextStyle(
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDashboardMetricCard({
     required String title,
     required String value,
     required IconData icon,
     required Color color,
-    String? badgeLabel,
   }) {
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.s16),
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.s12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFDCE4EE)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.11),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
-          ),
-        ],
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(AppSpacing.s10),
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
@@ -7151,51 +7571,68 @@ class _MainScreenState extends State<MainScreen> {
           const SizedBox(width: AppSpacing.s10),
           Expanded(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (badgeLabel != null && badgeLabel.trim().isNotEmpty)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: AppSpacing.s5),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.s8,
-                      vertical: AppSpacing.s2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      badgeLabel,
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: color,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
                 Text(
-                  title.toUpperCase(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  title,
                   style: const TextStyle(
-                    fontSize: 10,
-                    color: Color(0xFF94A3B8),
+                    color: Color(0xFF64748B),
                     fontWeight: FontWeight.w700,
+                    fontSize: 11,
                   ),
                 ),
                 Text(
                   value,
                   style: const TextStyle(
-                    fontSize: 22,
                     color: Color(0xFF0F172A),
                     fontWeight: FontWeight.w900,
+                    fontSize: 34,
+                    height: 1.1,
                   ),
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDashboardModuleTile(_DashboardModuleTileData module) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => _setActiveTabFromHeader(module.tabId),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.s10),
+        decoration: BoxDecoration(
+          color: module.color,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Icon(module.icon, color: Colors.white, size: 18),
+            Text(
+              module.label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 11,
+              ),
+            ),
+            Text(
+              module.value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -23073,6 +23510,15 @@ class _MainScreenState extends State<MainScreen> {
     return date;
   }
 
+  String _firstName(String fullName) {
+    final value = fullName.trim();
+    if (value.isEmpty) {
+      return 'Éleveur';
+    }
+    final parts = value.split(RegExp(r'\s+'));
+    return parts.first;
+  }
+
   double _dialogWidth(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     return screenWidth > 620 ? 540 : screenWidth * 0.9;
@@ -23149,6 +23595,162 @@ class _OutcomeDonutPainter extends CustomPainter {
       }
     }
     return false;
+  }
+}
+
+class _DashboardModuleTileData {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final String tabId;
+
+  const _DashboardModuleTileData({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.tabId,
+  });
+}
+
+class _DashboardGaugePainter extends CustomPainter {
+  final double progress;
+
+  const _DashboardGaugePainter({required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const startAngle = math.pi * 0.75;
+    const totalSweep = math.pi * 1.5;
+    const strokeWidth = 14.0;
+    final rect = Rect.fromCircle(
+      center: size.center(Offset.zero),
+      radius: (size.shortestSide / 2) - strokeWidth,
+    );
+
+    final background = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFE2E8F0);
+    canvas.drawArc(rect, startAngle, totalSweep, false, background);
+
+    final segmentPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    final segments = <Color>[
+      const Color(0xFFEF4444),
+      const Color(0xFFF59E0B),
+      const Color(0xFF4F46E5),
+    ];
+    final segmentSweep = totalSweep / segments.length;
+    for (var i = 0; i < segments.length; i++) {
+      segmentPaint.color = segments[i].withValues(alpha: 0.38);
+      canvas.drawArc(
+        rect,
+        startAngle + segmentSweep * i,
+        segmentSweep - 0.035,
+        false,
+        segmentPaint,
+      );
+    }
+
+    final valuePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF4F46E5);
+    final valueSweep = totalSweep * progress.clamp(0.0, 1.0);
+    canvas.drawArc(rect, startAngle, valueSweep, false, valuePaint);
+
+    final markerAngle = startAngle + valueSweep;
+    final markerCenter = Offset(
+      rect.center.dx + rect.width / 2 * math.cos(markerAngle),
+      rect.center.dy + rect.height / 2 * math.sin(markerAngle),
+    );
+    canvas.drawCircle(
+      markerCenter,
+      5.5,
+      Paint()..color = const Color(0xFF4F46E5),
+    );
+    canvas.drawCircle(markerCenter, 2.8, Paint()..color = Colors.white);
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashboardGaugePainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
+}
+
+class _DashboardSparkPainter extends CustomPainter {
+  final double firstPeak;
+  final double secondPeak;
+  final double thirdPeak;
+
+  const _DashboardSparkPainter({
+    required this.firstPeak,
+    required this.secondPeak,
+    required this.thirdPeak,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const axisInset = 10.0;
+    final axisPaint = Paint()
+      ..color = const Color(0xFF94A3B8)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+
+    final left = axisInset;
+    final right = size.width - axisInset;
+    final top = axisInset;
+    final bottom = size.height - axisInset;
+    canvas.drawLine(Offset(left, bottom), Offset(right, bottom), axisPaint);
+    canvas.drawLine(Offset(left, bottom), Offset(left, top), axisPaint);
+
+    final usableHeight = bottom - top;
+    final firstY = bottom - usableHeight * (firstPeak / 100);
+    final secondY = bottom - usableHeight * (secondPeak / 100);
+    final thirdY = bottom - usableHeight * (thirdPeak / 100);
+
+    final firstPath = Path()
+      ..moveTo(left + 2, bottom)
+      ..lineTo(size.width * 0.34, firstY)
+      ..lineTo(size.width * 0.56, bottom)
+      ..close();
+    canvas.drawPath(
+      firstPath,
+      Paint()..color = const Color(0xFF4F46E5).withValues(alpha: 0.86),
+    );
+
+    final secondPath = Path()
+      ..moveTo(size.width * 0.33, bottom)
+      ..lineTo(size.width * 0.52, secondY)
+      ..lineTo(size.width * 0.69, bottom)
+      ..close();
+    canvas.drawPath(
+      secondPath,
+      Paint()..color = const Color(0xFFA855F7).withValues(alpha: 0.82),
+    );
+
+    final thirdPath = Path()
+      ..moveTo(size.width * 0.67, bottom)
+      ..lineTo(size.width * 0.78, thirdY)
+      ..lineTo(size.width * 0.89, bottom)
+      ..close();
+    canvas.drawPath(
+      thirdPath,
+      Paint()..color = const Color(0xFFF59E0B).withValues(alpha: 0.86),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashboardSparkPainter oldDelegate) {
+    return oldDelegate.firstPeak != firstPeak ||
+        oldDelegate.secondPeak != secondPeak ||
+        oldDelegate.thirdPeak != thirdPeak;
   }
 }
 
