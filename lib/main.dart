@@ -49,6 +49,7 @@ class Roles {
 class AppTabs {
   static const String dashboard = 'dashboard';
   static const String administration = 'administration';
+  static const String messenger = 'messenger';
   static const String services = 'services';
   static const String elevage = 'elevage';
   static const String inseminations = 'inseminations';
@@ -437,6 +438,38 @@ class AuditLogEntry {
   });
 }
 
+class ChatMessage {
+  final String id;
+  final String conversationId;
+  final String senderId;
+  final String senderName;
+  final String text;
+  final DateTime sentAt;
+  final List<String> readByUserIds;
+
+  const ChatMessage({
+    required this.id,
+    required this.conversationId,
+    required this.senderId,
+    required this.senderName,
+    required this.text,
+    required this.sentAt,
+    this.readByUserIds = const [],
+  });
+
+  ChatMessage copyWith({List<String>? readByUserIds}) {
+    return ChatMessage(
+      id: id,
+      conversationId: conversationId,
+      senderId: senderId,
+      senderName: senderName,
+      text: text,
+      sentAt: sentAt,
+      readByUserIds: readByUserIds ?? this.readByUserIds,
+    );
+  }
+}
+
 const List<UserProfile> initialUsers = [
   UserProfile(
     id: 'U1',
@@ -510,6 +543,7 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   static const String _passwordHashPrefix = 'sha256:';
   static const int _maxSessionHours = 12;
+  static const String _teamConversationId = 'GROUP_ALL_USERS';
   static const String _prefsUsersKey = 'porc_users_v1';
   static const String _prefsBoarsKey = 'porc_boars_v1';
   static const String _prefsSowsKey = 'porc_sows_v1';
@@ -539,10 +573,14 @@ class _MainScreenState extends State<MainScreen> {
   static const String _prefsPigletMonthKey = 'porc_piglet_month_v1';
   static const String _prefsSelectedPigletDateKey =
       'porc_piglet_selected_date_v1';
+  static const String _prefsChatMessagesKey = 'porc_chat_messages_v1';
+  static const String _prefsActiveConversationKey =
+      'porc_active_conversation_v1';
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _loginController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _chatComposerController = TextEditingController();
   final List<UserProfile> _users = List<UserProfile>.from(initialUsers);
 
   UserProfile _currentUser = initialUsers.first;
@@ -556,6 +594,8 @@ class _MainScreenState extends State<MainScreen> {
   DateTime _pigletCalendarMonth = DateTime.now();
   DateTime? _selectedPigletDate;
   String? _preferredBoarCode;
+  String _activeChatConversationId = _teamConversationId;
+  bool _chatReadSyncScheduled = false;
   final Map<String, bool> _taskDoneById = <String, bool>{};
   final List<AuditLogEntry> _auditLogs = [];
   int _failedLoginAttempts = 0;
@@ -979,6 +1019,39 @@ class _MainScreenState extends State<MainScreen> {
     ),
   ];
 
+  final List<ChatMessage> _chatMessages = [
+    ChatMessage(
+      id: 'MSG1',
+      conversationId: _teamConversationId,
+      senderId: 'U1',
+      senderName: 'Jean Responsable',
+      text:
+          'Bienvenue sur la messagerie interne. Utilisez ce canal pour les infos urgentes de terrain.',
+      sentAt: DateTime.now().subtract(const Duration(hours: 3, minutes: 15)),
+      readByUserIds: ['U1', 'U2', 'U3', 'U4'],
+    ),
+    ChatMessage(
+      id: 'MSG2',
+      conversationId: _teamConversationId,
+      senderId: 'U3',
+      senderName: 'Paul Insem',
+      text:
+          'Tournée IA demain matin: Fokontany Antanetibe puis Commune Antananarivo.',
+      sentAt: DateTime.now().subtract(const Duration(hours: 2, minutes: 10)),
+      readByUserIds: ['U1', 'U3'],
+    ),
+    ChatMessage(
+      id: 'MSG3',
+      conversationId: 'DM|U1|U4',
+      senderId: 'U4',
+      senderName: 'Lucie Véto',
+      text:
+          'Merci de valider le ravitaillement vaccins avant vendredi pour la prophylaxie.',
+      sentAt: DateTime.now().subtract(const Duration(hours: 1, minutes: 35)),
+      readByUserIds: ['U1', 'U4'],
+    ),
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -1040,6 +1113,7 @@ class _MainScreenState extends State<MainScreen> {
   void dispose() {
     _loginController.dispose();
     _passwordController.dispose();
+    _chatComposerController.dispose();
     super.dispose();
   }
 
@@ -1056,6 +1130,7 @@ class _MainScreenState extends State<MainScreen> {
     _selectedGestationDate = today;
     _pigletCalendarMonth = DateTime(today.year, today.month, 1);
     _selectedPigletDate = today;
+    _activeChatConversationId = _teamConversationId;
   }
 
   Future<void> _loadPersistedState() async {
@@ -1100,6 +1175,9 @@ class _MainScreenState extends State<MainScreen> {
       );
       final auditRaw = _decodeObjectListOrNull(
         prefs.getString(_prefsAuditLogsKey),
+      );
+      final chatRaw = _decodeObjectListOrNull(
+        prefs.getString(_prefsChatMessagesKey),
       );
       final taskDoneRaw = _decodeObjectMapOrNull(
         prefs.getString(_prefsTaskDoneKey),
@@ -1230,6 +1308,14 @@ class _MainScreenState extends State<MainScreen> {
             );
         }
 
+        if (chatRaw != null) {
+          _chatMessages
+            ..clear()
+            ..addAll(
+              chatRaw.map(_chatMessageFromJson).whereType<ChatMessage>(),
+            );
+        }
+
         if (taskDoneRaw != null) {
           _taskDoneById
             ..clear()
@@ -1313,6 +1399,12 @@ class _MainScreenState extends State<MainScreen> {
         final savedTab = prefs.getString(_prefsActiveTabKey);
         if (savedTab != null && savedTab.trim().isNotEmpty) {
           _activeTab = savedTab;
+        }
+        final savedConversation = _readString(
+          prefs.getString(_prefsActiveConversationKey),
+        ).trim();
+        if (savedConversation.isNotEmpty) {
+          _activeChatConversationId = savedConversation;
         }
         _ensureActiveTabAccess();
 
@@ -1401,6 +1493,10 @@ class _MainScreenState extends State<MainScreen> {
         _prefsAuditLogsKey,
         jsonEncode(_auditLogs.map(_auditLogToJson).toList()),
       );
+      await prefs.setString(
+        _prefsChatMessagesKey,
+        jsonEncode(_chatMessages.map(_chatMessageToJson).toList()),
+      );
       await prefs.setString(_prefsTaskDoneKey, jsonEncode(_taskDoneById));
       if (_preferredBoarCode == null || _preferredBoarCode!.trim().isEmpty) {
         await prefs.remove(_prefsPreferredBoarCodeKey);
@@ -1410,6 +1506,10 @@ class _MainScreenState extends State<MainScreen> {
       await prefs.setString(_prefsCurrentUserIdKey, _currentUser.id);
       await prefs.setString(_prefsSalesFilterKey, _salesFilter);
       await prefs.setString(_prefsActiveTabKey, _activeTab);
+      await prefs.setString(
+        _prefsActiveConversationKey,
+        _activeChatConversationId,
+      );
       await prefs.setBool(_prefsAuthenticatedKey, _isAuthenticated);
       if (_lastAuthAt == null) {
         await prefs.remove(_prefsLastAuthAtKey);
@@ -1503,6 +1603,21 @@ class _MainScreenState extends State<MainScreen> {
       return value.toDouble();
     }
     return double.tryParse(_readString(value)) ?? 0;
+  }
+
+  List<String> _readStringList(dynamic value) {
+    if (value is! List) {
+      return const [];
+    }
+    final items = <String>[];
+    for (final item in value) {
+      final text = _readString(item).trim();
+      if (text.isEmpty || items.contains(text)) {
+        continue;
+      }
+      items.add(text);
+    }
+    return items;
   }
 
   DateTime? _parseDateFromString(String? raw) {
@@ -2238,6 +2353,48 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  Map<String, dynamic> _chatMessageToJson(ChatMessage message) {
+    return {
+      'id': message.id,
+      'conversationId': message.conversationId,
+      'senderId': message.senderId,
+      'senderName': message.senderName,
+      'text': message.text,
+      'sentAt': message.sentAt.toIso8601String(),
+      'readByUserIds': message.readByUserIds,
+    };
+  }
+
+  ChatMessage? _chatMessageFromJson(Map<String, dynamic> json) {
+    final id = _readString(json['id']).trim();
+    final conversationId = _readString(json['conversationId']).trim();
+    final senderId = _readString(json['senderId']).trim();
+    final senderName = _readString(json['senderName']).trim();
+    final text = _readString(json['text']).trim();
+    final sentAt = _parseDateTimeFromString(_readString(json['sentAt']));
+    if (id.isEmpty ||
+        conversationId.isEmpty ||
+        senderId.isEmpty ||
+        senderName.isEmpty ||
+        text.isEmpty ||
+        sentAt == null) {
+      return null;
+    }
+    var readBy = _readStringList(json['readByUserIds']);
+    if (!readBy.contains(senderId)) {
+      readBy = [...readBy, senderId];
+    }
+    return ChatMessage(
+      id: id,
+      conversationId: conversationId,
+      senderId: senderId,
+      senderName: senderName,
+      text: text,
+      sentAt: sentAt,
+      readByUserIds: readBy,
+    );
+  }
+
   Widget _buildSidebar() {
     return Container(
       color: const Color(0xFF0F172A),
@@ -2276,6 +2433,12 @@ class _MainScreenState extends State<MainScreen> {
               icon: LucideIcons.layoutDashboard,
               label: 'Tableau de bord',
               tabId: AppTabs.dashboard,
+            ),
+          if (_canAccessTab(AppTabs.messenger))
+            _buildNavItem(
+              icon: Icons.forum_outlined,
+              label: 'Messagerie',
+              tabId: AppTabs.messenger,
             ),
           if (_canAccessTab(AppTabs.administration))
             _buildNavItem(
@@ -2717,6 +2880,8 @@ class _MainScreenState extends State<MainScreen> {
     switch (_activeTab) {
       case AppTabs.dashboard:
         return _buildDashboard();
+      case AppTabs.messenger:
+        return _buildMessengerHub();
       case AppTabs.administration:
         return _buildAdministrationHub();
       case AppTabs.services:
@@ -7571,6 +7736,418 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  Widget _buildMessengerHub() {
+    final conversations = _buildChatConversationSummaries();
+    if (conversations.isEmpty) {
+      return _buildSectionCard(
+        title: 'Messagerie Interne',
+        subtitle:
+            'Communication instantanée entre responsable, inséminateurs, vétérinaires et éleveurs',
+        child: _buildEmptyState('Aucune conversation disponible.'),
+      );
+    }
+
+    final activeConversationId = _resolveActiveConversationId(conversations);
+    final activeConversation = conversations.firstWhere(
+      (conversation) => conversation.id == activeConversationId,
+      orElse: () => conversations.first,
+    );
+    _markConversationAsReadDeferred(activeConversation.id);
+    final messages = _messagesForConversation(activeConversation.id);
+
+    return _buildSectionCard(
+      title: 'Messagerie Interne',
+      subtitle:
+          'Canal équipe + discussions directes (style WhatsApp/Telegram) pour la coordination terrain',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth > 980;
+
+          final thread = _buildMessengerThread(
+            activeConversation: activeConversation,
+            messages: messages,
+            maxHeight: isWide ? 560 : 480,
+          );
+
+          if (isWide) {
+            return SizedBox(
+              height: 560,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 300,
+                    child: _buildMessengerConversationList(
+                      conversations: conversations,
+                      activeConversationId: activeConversation.id,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: thread),
+                ],
+              ),
+            );
+          }
+
+          return Column(
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: activeConversation.id,
+                decoration: const InputDecoration(
+                  labelText: 'Conversation',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                items: conversations
+                    .map(
+                      (conversation) => DropdownMenuItem(
+                        value: conversation.id,
+                        child: Text(
+                          '${conversation.title}${conversation.unreadCount > 0 ? ' (${conversation.unreadCount})' : ''}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null) {
+                    return;
+                  }
+                  _setActiveChatConversation(value);
+                },
+              ),
+              const SizedBox(height: 12),
+              thread,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMessengerConversationList({
+    required List<_ChatConversationSummary> conversations,
+    required String activeConversationId,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(12, 12, 12, 6),
+            child: Row(
+              children: [
+                Icon(Icons.forum_outlined, size: 16, color: Color(0xFF0F766E)),
+                SizedBox(width: 8),
+                Text(
+                  'Conversations',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView.separated(
+              itemCount: conversations.length,
+              separatorBuilder: (_, index) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final conversation = conversations[index];
+                final isActive = conversation.id == activeConversationId;
+                return InkWell(
+                  onTap: () => _setActiveChatConversation(conversation.id),
+                  child: Container(
+                    color: isActive
+                        ? const Color(0xFFE0F2FE)
+                        : Colors.transparent,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 10,
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 18,
+                          backgroundColor: conversation.avatarColor.withValues(
+                            alpha: 0.16,
+                          ),
+                          child: Text(
+                            conversation.avatarLabel,
+                            style: TextStyle(
+                              color: conversation.avatarColor,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                conversation.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF0F172A),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                conversation.preview,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xFF64748B),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              conversation.lastMessageAt == null
+                                  ? '-'
+                                  : _chatTimeLabel(conversation.lastMessageAt!),
+                              style: const TextStyle(
+                                color: Color(0xFF94A3B8),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            if (conversation.unreadCount > 0)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0F766E),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  '${conversation.unreadCount}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessengerThread({
+    required _ChatConversationSummary activeConversation,
+    required List<ChatMessage> messages,
+    required double maxHeight,
+  }) {
+    return Container(
+      height: maxHeight,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: activeConversation.avatarColor.withValues(
+                    alpha: 0.16,
+                  ),
+                  child: Text(
+                    activeConversation.avatarLabel,
+                    style: TextStyle(
+                      color: activeConversation.avatarColor,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        activeConversation.title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      Text(
+                        activeConversation.subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: messages.isEmpty
+                ? _buildEmptyState(
+                    'Aucun message pour cette conversation. Écrivez le premier message.',
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final message = messages[index];
+                      final isMine = message.senderId == _currentUser.id;
+                      final status = _messageDeliveryLabel(
+                        message,
+                        activeConversation.id,
+                      );
+                      return Align(
+                        alignment: isMine
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 440),
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 9,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isMine
+                                  ? const Color(0xFF0F766E)
+                                  : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (!isMine)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 4),
+                                    child: Text(
+                                      message.senderName,
+                                      style: const TextStyle(
+                                        color: Color(0xFF0F766E),
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ),
+                                Text(
+                                  message.text,
+                                  style: TextStyle(
+                                    color: isMine
+                                        ? Colors.white
+                                        : const Color(0xFF0F172A),
+                                    height: 1.35,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      _chatTimeLabel(message.sentAt),
+                                      style: TextStyle(
+                                        color: isMine
+                                            ? Colors.white70
+                                            : const Color(0xFF64748B),
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    if (isMine) ...[
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        status,
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _chatComposerController,
+                    minLines: 1,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      hintText: 'Écrire un message...',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  onPressed: () => _sendChatMessage(activeConversation.id),
+                  icon: const Icon(Icons.send, size: 16),
+                  label: const Text('Envoyer'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildUsersManagement() {
     final rows = _users
         .map(
@@ -7824,6 +8401,7 @@ class _MainScreenState extends State<MainScreen> {
       case Roles.inseminator:
         return const [
           AppTabs.dashboard,
+          AppTabs.messenger,
           AppTabs.administration,
           AppTabs.services,
           AppTabs.elevage,
@@ -7839,15 +8417,16 @@ class _MainScreenState extends State<MainScreen> {
       case Roles.breeder:
         return const [
           AppTabs.dashboard,
+          AppTabs.messenger,
           AppTabs.elevage,
           AppTabs.boars,
           AppTabs.sows,
           AppTabs.pedigree,
         ];
       case Roles.vet:
-        return const [AppTabs.dashboard, AppTabs.health];
+        return const [AppTabs.dashboard, AppTabs.messenger, AppTabs.health];
       default:
-        return const [AppTabs.dashboard];
+        return const [AppTabs.dashboard, AppTabs.messenger];
     }
   }
 
@@ -7878,6 +8457,8 @@ class _MainScreenState extends State<MainScreen> {
     switch (tabId) {
       case AppTabs.dashboard:
         return 'TABLEAU DE BORD REPRODUCTION PORCINE';
+      case AppTabs.messenger:
+        return 'MESSAGERIE INTERNE ÉLEVAGE';
       case AppTabs.administration:
         return 'INTERFACE ET ADMINISTRATION';
       case AppTabs.services:
@@ -7912,6 +8493,7 @@ class _MainScreenState extends State<MainScreen> {
     return !const {
       AppTabs.users,
       AppTabs.administration,
+      AppTabs.messenger,
       AppTabs.services,
       AppTabs.commercial,
       AppTabs.logiciel,
@@ -12847,6 +13429,247 @@ class _MainScreenState extends State<MainScreen> {
     return null;
   }
 
+  String _directConversationId(String userIdA, String userIdB) {
+    final ids = [userIdA.trim(), userIdB.trim()]..sort();
+    return 'DM|${ids[0]}|${ids[1]}';
+  }
+
+  bool _isMessageReadByUser(ChatMessage message, String userId) {
+    return message.readByUserIds.contains(userId.trim());
+  }
+
+  int _unreadCountForConversation(String conversationId) {
+    var unread = 0;
+    for (final message in _chatMessages) {
+      if (message.conversationId != conversationId) {
+        continue;
+      }
+      if (message.senderId == _currentUser.id) {
+        continue;
+      }
+      if (_isMessageReadByUser(message, _currentUser.id)) {
+        continue;
+      }
+      unread++;
+    }
+    return unread;
+  }
+
+  bool _markConversationAsReadInState(String conversationId) {
+    var changed = false;
+    for (var i = 0; i < _chatMessages.length; i++) {
+      final message = _chatMessages[i];
+      if (message.conversationId != conversationId ||
+          message.senderId == _currentUser.id ||
+          _isMessageReadByUser(message, _currentUser.id)) {
+        continue;
+      }
+      _chatMessages[i] = message.copyWith(
+        readByUserIds: [...message.readByUserIds, _currentUser.id],
+      );
+      changed = true;
+    }
+    return changed;
+  }
+
+  void _markConversationAsReadDeferred(String conversationId) {
+    if (_chatReadSyncScheduled ||
+        _unreadCountForConversation(conversationId) == 0) {
+      return;
+    }
+    _chatReadSyncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        _chatReadSyncScheduled = false;
+        return;
+      }
+      var changed = false;
+      setState(() {
+        changed = _markConversationAsReadInState(conversationId);
+        _chatReadSyncScheduled = false;
+      });
+      if (changed) {
+        _persistState();
+      }
+    });
+  }
+
+  List<ChatMessage> _messagesForConversation(String conversationId) {
+    final messages = _chatMessages
+        .where((message) => message.conversationId == conversationId)
+        .toList();
+    messages.sort((a, b) => a.sentAt.compareTo(b.sentAt));
+    return messages;
+  }
+
+  String _resolveActiveConversationId(
+    List<_ChatConversationSummary> conversations,
+  ) {
+    for (final conversation in conversations) {
+      if (conversation.id == _activeChatConversationId) {
+        return conversation.id;
+      }
+    }
+    return conversations.first.id;
+  }
+
+  List<_ChatConversationSummary> _buildChatConversationSummaries() {
+    final summaries = <_ChatConversationSummary>[];
+    final groupMessages = _messagesForConversation(_teamConversationId);
+    final groupLast = groupMessages.isEmpty ? null : groupMessages.last;
+    summaries.add(
+      _ChatConversationSummary(
+        id: _teamConversationId,
+        title: 'Canal Équipe',
+        subtitle: '${_users.length} utilisateur(s)',
+        preview: groupLast == null
+            ? 'Aucun message pour le moment.'
+            : _clipText(groupLast.text, 64),
+        lastMessageAt: groupLast?.sentAt,
+        unreadCount: _unreadCountForConversation(_teamConversationId),
+        avatarLabel: 'EQ',
+        avatarColor: const Color(0xFF0F766E),
+        isGroup: true,
+      ),
+    );
+
+    final peers = _users.where((user) => user.id != _currentUser.id).toList();
+    for (final peer in peers) {
+      final conversationId = _directConversationId(_currentUser.id, peer.id);
+      final messages = _messagesForConversation(conversationId);
+      final last = messages.isEmpty ? null : messages.last;
+      summaries.add(
+        _ChatConversationSummary(
+          id: conversationId,
+          title: peer.name,
+          subtitle: '${peer.role} • ${peer.code}',
+          preview: last == null
+              ? 'Démarrer la conversation'
+              : _clipText(last.text, 64),
+          lastMessageAt: last?.sentAt,
+          unreadCount: _unreadCountForConversation(conversationId),
+          avatarLabel: peer.avatar,
+          avatarColor: _roleColor(peer.role),
+        ),
+      );
+    }
+
+    summaries.sort((a, b) {
+      if (a.isGroup && !b.isGroup) {
+        return -1;
+      }
+      if (!a.isGroup && b.isGroup) {
+        return 1;
+      }
+      final aTime = a.lastMessageAt;
+      final bTime = b.lastMessageAt;
+      if (aTime == null && bTime == null) {
+        return a.title.compareTo(b.title);
+      }
+      if (aTime == null) {
+        return 1;
+      }
+      if (bTime == null) {
+        return -1;
+      }
+      return bTime.compareTo(aTime);
+    });
+
+    return summaries;
+  }
+
+  void _setActiveChatConversation(String conversationId) {
+    setState(() {
+      _activeChatConversationId = conversationId.trim().isEmpty
+          ? _teamConversationId
+          : conversationId.trim();
+      _markConversationAsReadInState(_activeChatConversationId);
+    });
+    _persistState();
+  }
+
+  void _sendChatMessage(String conversationId) {
+    final text = _chatComposerController.text.trim();
+    if (text.isEmpty) {
+      _showError('Écrivez un message avant d\'envoyer.');
+      return;
+    }
+
+    final targetConversationId = conversationId.trim().isEmpty
+        ? _teamConversationId
+        : conversationId.trim();
+    final sentAt = DateTime.now();
+    final message = ChatMessage(
+      id: _newId('MSG'),
+      conversationId: targetConversationId,
+      senderId: _currentUser.id,
+      senderName: _currentUser.name,
+      text: text,
+      sentAt: sentAt,
+      readByUserIds: [_currentUser.id],
+    );
+
+    setState(() {
+      _chatMessages.add(message);
+      if (_chatMessages.length > 2500) {
+        _chatMessages.removeRange(0, _chatMessages.length - 2500);
+      }
+      _activeChatConversationId = targetConversationId;
+    });
+    _chatComposerController.clear();
+    _addAuditLog(
+      module: 'MESSAGERIE',
+      action: 'SEND_MESSAGE',
+      detail:
+          'Message envoyé (${targetConversationId == _teamConversationId ? 'Canal équipe' : 'conversation directe'})',
+    );
+    _persistState();
+  }
+
+  String _messageDeliveryLabel(ChatMessage message, String conversationId) {
+    final readByOthers = message.readByUserIds
+        .where((userId) => userId != message.senderId)
+        .length;
+    if (conversationId == _teamConversationId) {
+      return readByOthers > 0 ? 'Lu par $readByOthers' : 'Envoyé';
+    }
+    return readByOthers > 0 ? 'Lu' : 'Envoyé';
+  }
+
+  String _chatTimeLabel(DateTime dateTime) {
+    final today = _currentDate();
+    final messageDay = DateTime(dateTime.year, dateTime.month, dateTime.day);
+    if (messageDay == today) {
+      return DateFormat('HH:mm', 'fr_FR').format(dateTime);
+    }
+    if (messageDay.year == today.year) {
+      return DateFormat('d MMM', 'fr_FR').format(dateTime);
+    }
+    return DateFormat('dd/MM/yy', 'fr_FR').format(dateTime);
+  }
+
+  String _clipText(String text, int maxChars) {
+    final value = text.trim();
+    if (value.length <= maxChars) {
+      return value;
+    }
+    return '${value.substring(0, maxChars - 3)}...';
+  }
+
+  Color _roleColor(String role) {
+    switch (role) {
+      case Roles.admin:
+        return const Color(0xFF7C3AED);
+      case Roles.inseminator:
+        return const Color(0xFFEA580C);
+      case Roles.vet:
+        return const Color(0xFF15803D);
+      case Roles.breeder:
+      default:
+        return const Color(0xFF2563EB);
+    }
+  }
+
   String _firstUserNameByRole(String role) {
     for (final user in _users) {
       if (user.role == role) {
@@ -13708,6 +14531,30 @@ class _ConsanguinityAlert {
     required this.boarCode,
     required this.status,
     required this.issue,
+  });
+}
+
+class _ChatConversationSummary {
+  final String id;
+  final String title;
+  final String subtitle;
+  final String preview;
+  final DateTime? lastMessageAt;
+  final int unreadCount;
+  final String avatarLabel;
+  final Color avatarColor;
+  final bool isGroup;
+
+  const _ChatConversationSummary({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.preview,
+    required this.lastMessageAt,
+    required this.unreadCount,
+    required this.avatarLabel,
+    required this.avatarColor,
+    this.isGroup = false,
   });
 }
 
