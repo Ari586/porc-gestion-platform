@@ -90,16 +90,16 @@ FirebaseOptions? _firebaseOptionsFromEnvironment() {
   const messagingSenderIdFromEnv = String.fromEnvironment(
     'FIREBASE_MESSAGING_SENDER_ID',
   );
-  final apiKey = apiKeyFromEnv.trim().isEmpty
+  final apiKey = apiKeyFromEnv.trim().isEmpty || apiKeyFromEnv.contains('secrets.FIREBASE')
       ? _defaultFirebaseApiKey
       : apiKeyFromEnv.trim();
-  final appId = appIdFromEnv.trim().isEmpty
+  final appId = appIdFromEnv.trim().isEmpty || appIdFromEnv.contains('secrets.FIREBASE')
       ? _defaultFirebaseAppId
       : appIdFromEnv.trim();
-  final projectId = projectIdFromEnv.trim().isEmpty
+  final projectId = projectIdFromEnv.trim().isEmpty || projectIdFromEnv.contains('secrets.FIREBASE')
       ? _defaultFirebaseProjectId
       : projectIdFromEnv.trim();
-  final messagingSenderId = messagingSenderIdFromEnv.trim().isEmpty
+  final messagingSenderId = messagingSenderIdFromEnv.trim().isEmpty || messagingSenderIdFromEnv.contains('secrets.FIREBASE')
       ? _defaultFirebaseMessagingSenderId
       : messagingSenderIdFromEnv.trim();
 
@@ -114,17 +114,23 @@ FirebaseOptions? _firebaseOptionsFromEnvironment() {
   const storageBucketFromEnv = String.fromEnvironment(
     'FIREBASE_STORAGE_BUCKET',
   );
-  const iosBundleId = String.fromEnvironment('FIREBASE_IOS_BUNDLE_ID');
-  const androidClientId = String.fromEnvironment('FIREBASE_ANDROID_CLIENT_ID');
-  const iosClientId = String.fromEnvironment('FIREBASE_IOS_CLIENT_ID');
-  const measurementId = String.fromEnvironment('FIREBASE_MEASUREMENT_ID');
-  const databaseURL = String.fromEnvironment('FIREBASE_DATABASE_URL');
-  final authDomain = authDomainFromEnv.trim().isEmpty
+  const iosBundleIdFromEnv = String.fromEnvironment('FIREBASE_IOS_BUNDLE_ID');
+  const androidClientIdFromEnv = String.fromEnvironment('FIREBASE_ANDROID_CLIENT_ID');
+  const iosClientIdFromEnv = String.fromEnvironment('FIREBASE_IOS_CLIENT_ID');
+  const measurementIdFromEnv = String.fromEnvironment('FIREBASE_MEASUREMENT_ID');
+  const databaseURLFromEnv = String.fromEnvironment('FIREBASE_DATABASE_URL');
+
+  final authDomain = authDomainFromEnv.trim().isEmpty || authDomainFromEnv.contains('secrets.FIREBASE')
       ? _defaultFirebaseAuthDomain
       : authDomainFromEnv.trim();
-  final storageBucket = storageBucketFromEnv.trim().isEmpty
+  final storageBucket = storageBucketFromEnv.trim().isEmpty || storageBucketFromEnv.contains('secrets.FIREBASE')
       ? _defaultFirebaseStorageBucket
       : storageBucketFromEnv.trim();
+  final iosBundleId = iosBundleIdFromEnv.contains('secrets.FIREBASE') ? '' : iosBundleIdFromEnv;
+  final androidClientId = androidClientIdFromEnv.contains('secrets.FIREBASE') ? '' : androidClientIdFromEnv;
+  final iosClientId = iosClientIdFromEnv.contains('secrets.FIREBASE') ? '' : iosClientIdFromEnv;
+  final measurementId = measurementIdFromEnv.contains('secrets.FIREBASE') ? '' : measurementIdFromEnv;
+  final databaseURL = databaseURLFromEnv.contains('secrets.FIREBASE') ? '' : databaseURLFromEnv;
 
   return FirebaseOptions(
     apiKey: apiKey,
