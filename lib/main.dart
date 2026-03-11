@@ -8,7 +8,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:crypto/crypto.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
@@ -803,11 +802,6 @@ class _MainScreenState extends State<MainScreen> {
   static const Color _durocChatBackgroundTop = Color(0xFFF9F2EC);
   static const Color _durocChatBackgroundBottom = Color(0xFFF3E8DF);
   static const Color _durocChatInputSurface = Color(0xFFF7EFE8);
-  static const String _geminiModelName = 'gemini-2.0-flash';
-  static const String _geminiSystemPrompt =
-      'Tu es PorkGest AI, assistant spécialisé en élevage porcin. '
-      'Tu réponds en français avec des recommandations pratiques sur '
-      'la santé, la nutrition, la reproduction et l’insémination artificielle.';
   static const String _passwordHashPrefix = 'sha256:';
   static const int _maxSessionHours = 12;
   static const String _teamConversationId = 'GROUP_ALL_USERS';
@@ -848,7 +842,6 @@ class _MainScreenState extends State<MainScreen> {
       'porc_piglet_selected_date_v1';
   static const String _prefsChatMessagesKey = 'porc_chat_messages_v1';
   static const String _prefsNewsPostsKey = 'porc_news_posts_v1';
-  static const String _prefsGeminiApiKeyKey = 'porc_gemini_api_key_v1';
   static const String _prefsActiveConversationKey =
       'porc_active_conversation_v1';
   static const String _cloudSyncCollection = 'porc_realtime_sync';
@@ -882,9 +875,6 @@ class _MainScreenState extends State<MainScreen> {
   final TextEditingController _messengerSearchController =
       TextEditingController();
   final TextEditingController _headerSearchController = TextEditingController();
-  final TextEditingController _aiAssistantInputController =
-      TextEditingController();
-  final ScrollController _aiAssistantScrollController = ScrollController();
   final List<UserProfile> _users = List<UserProfile>.from(initialUsers);
 
   UserProfile _currentUser = initialUsers.first;
@@ -903,17 +893,6 @@ class _MainScreenState extends State<MainScreen> {
   bool _isMobileMessengerThreadOpen = false;
   String _messengerConversationFilter = '';
   String _newsFeedFilter = 'Tous';
-  bool _isAiAssistantOpen = false;
-  bool _isAiAssistantLoading = false;
-  String _geminiApiKey = '';
-  final List<_AIAssistantMessage> _aiAssistantMessages = [
-    const _AIAssistantMessage(
-      role: 'model',
-      text:
-          'Bonjour ! Je suis votre assistant PorkGest. Comment puis-je vous aider '
-          'sur l’élevage ou l’insémination artificielle aujourd’hui ?',
-    ),
-  ];
   bool _chatReadSyncScheduled = false;
   final Map<String, bool> _taskDoneById = <String, bool>{};
   final Map<String, Uint8List> _imageBytesCache = <String, Uint8List>{};
@@ -1562,18 +1541,6 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ],
             ),
-            if (_isAiAssistantOpen)
-              Positioned.fill(
-                child: _buildAIAssistantFullscreenOverlay(isMobile: isMobile),
-              ),
-            if (!_isAiAssistantOpen)
-              Positioned(
-                right: isMobile ? AppSpacing.s10 : AppSpacing.s16,
-                bottom: _canAddForTab(_activeTab)
-                    ? (isMobile ? 90 : 92)
-                    : (isMobile ? 24 : 20),
-                child: _buildAIAssistantOverlay(),
-              ),
           ],
         ),
       ),
@@ -1615,8 +1582,6 @@ class _MainScreenState extends State<MainScreen> {
     _chatComposerController.dispose();
     _messengerSearchController.dispose();
     _headerSearchController.dispose();
-    _aiAssistantInputController.dispose();
-    _aiAssistantScrollController.dispose();
     _cloudSyncDebounceTimer?.cancel();
     for (final subscription in _cloudSyncSubscriptions) {
       subscription.cancel();
@@ -1650,6 +1615,7 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _loadPersistedState() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('porc_gemini_api_key_v1');
       final usersRaw = _decodeObjectListOrNull(prefs.getString(_prefsUsersKey));
       final boarsRaw = _decodeObjectListOrNull(prefs.getString(_prefsBoarsKey));
       final sowsRaw = _decodeObjectListOrNull(prefs.getString(_prefsSowsKey));
@@ -1863,10 +1829,6 @@ class _MainScreenState extends State<MainScreen> {
             );
         }
 
-        _geminiApiKey = _readString(
-          prefs.getString(_prefsGeminiApiKeyKey),
-        ).trim();
-
         final savedUserId = _readString(
           prefs.getString(_prefsCurrentUserIdKey),
         );
@@ -2055,11 +2017,6 @@ class _MainScreenState extends State<MainScreen> {
         jsonEncode(_newsPosts.map(_newsPostToJson).toList()),
       );
       await prefs.setString(_prefsTaskDoneKey, jsonEncode(_taskDoneById));
-      if (_geminiApiKey.trim().isEmpty) {
-        await prefs.remove(_prefsGeminiApiKeyKey);
-      } else {
-        await prefs.setString(_prefsGeminiApiKeyKey, _geminiApiKey.trim());
-      }
       if (_preferredBoarCode == null || _preferredBoarCode!.trim().isEmpty) {
         await prefs.remove(_prefsPreferredBoarCodeKey);
       } else {
@@ -4686,570 +4643,6 @@ class _MainScreenState extends State<MainScreen> {
           ),
       ],
     );
-  }
-
-  Widget _buildAIAssistantOverlay() {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: () {
-          setState(() => _isAiAssistantOpen = !_isAiAssistantOpen);
-          if (!_isAiAssistantOpen) {
-            return;
-          }
-          _scrollAIAssistantToBottom(jumpOnly: true);
-        },
-        child: Container(
-          width: 62,
-          height: 62,
-          decoration: BoxDecoration(
-            color: _durocChatHeader,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: _durocChatHeader.withValues(alpha: 0.35),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Icon(
-            _isAiAssistantOpen ? Icons.close_rounded : Icons.smart_toy,
-            color: Colors.white,
-            size: 30,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAIAssistantFullscreenOverlay({required bool isMobile}) {
-    final screenSize = MediaQuery.of(context).size;
-    final horizontalMargin = isMobile ? AppSpacing.s8 : AppSpacing.s24;
-    final verticalMargin = isMobile ? AppSpacing.s8 : AppSpacing.s20;
-    final panelWidth = math.min(
-      screenSize.width - (horizontalMargin * 2),
-      isMobile ? screenSize.width - AppSpacing.s16 : 980.0,
-    );
-    final panelHeight = math.max(
-      460.0,
-      screenSize.height - (verticalMargin * 2),
-    );
-
-    return Material(
-      color: Colors.black.withValues(alpha: 0.18),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => setState(() => _isAiAssistantOpen = false),
-        child: Center(
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: horizontalMargin,
-              vertical: verticalMargin,
-            ),
-            child: GestureDetector(
-              onTap: () {},
-              child: _buildAIAssistantPanel(
-                width: panelWidth,
-                height: panelHeight,
-                isMobile: isMobile,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAIAssistantPanel({
-    required double width,
-    required double height,
-    required bool isMobile,
-  }) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1F0F172A),
-            blurRadius: 26,
-            offset: Offset(0, 14),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.s14,
-              AppSpacing.s12,
-              AppSpacing.s10,
-              AppSpacing.s12,
-            ),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [_durocChatHeader, _durocChatHeaderSoft],
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.auto_awesome, color: Colors.white),
-                ),
-                const SizedBox(width: AppSpacing.s10),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Assistant PorkGest',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 16,
-                        ),
-                      ),
-                      Text(
-                        'Expert porcin IA',
-                        style: TextStyle(
-                          color: Color(0xFFE2E8F0),
-                          fontWeight: FontWeight.w700,
-                          fontSize: 10,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Configurer la clé API',
-                  onPressed: _showGeminiApiKeyDialog,
-                  icon: Icon(
-                    Icons.key_outlined,
-                    color: _isAIAssistantConfigured
-                        ? Colors.white
-                        : const Color(0xFFFDE68A),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Fermer',
-                  onPressed: () => setState(() => _isAiAssistantOpen = false),
-                  icon: const Icon(Icons.close, color: Colors.white),
-                ),
-              ],
-            ),
-          ),
-          if (!_isAIAssistantConfigured)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.s12,
-                vertical: AppSpacing.s10,
-              ),
-              decoration: const BoxDecoration(
-                color: Color(0xFFFFF7ED),
-                border: Border(bottom: BorderSide(color: Color(0xFFFED7AA))),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.key_outlined,
-                    color: Color(0xFFB45309),
-                    size: 18,
-                  ),
-                  const SizedBox(width: AppSpacing.s8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Clé API Gemini requise',
-                          style: TextStyle(
-                            color: Color(0xFF9A3412),
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.s2),
-                        const Text(
-                          'Ajoutez une clé API pour activer les réponses IA sur cet appareil.',
-                          style: TextStyle(
-                            color: Color(0xFF9A3412),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.s6),
-                        TextButton.icon(
-                          onPressed: _showGeminiApiKeyDialog,
-                          style: TextButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            foregroundColor: const Color(0xFFB45309),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            minimumSize: const Size(0, 0),
-                          ),
-                          icon: const Icon(Icons.tune, size: 15),
-                          label: const Text('Configurer maintenant'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              color: const Color(0xFFF8FAFC),
-              child: ListView.builder(
-                controller: _aiAssistantScrollController,
-                padding: const EdgeInsets.all(AppSpacing.s12),
-                itemCount:
-                    _aiAssistantMessages.length +
-                    (_isAiAssistantLoading ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (_isAiAssistantLoading &&
-                      index == _aiAssistantMessages.length) {
-                    return Align(
-                      alignment: Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: AppSpacing.s8),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.s12,
-                          vertical: AppSpacing.s10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
-                        ),
-                        child: const Text(
-                          'Réflexion en cours...',
-                          style: TextStyle(
-                            color: Color(0xFF64748B),
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-
-                  final message = _aiAssistantMessages[index];
-                  final isUser = message.role == 'user';
-                  return Align(
-                    alignment: isUser
-                        ? Alignment.centerRight
-                        : Alignment.centerLeft,
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: AppSpacing.s8),
-                      constraints: BoxConstraints(
-                        maxWidth: width * (isMobile ? 0.84 : 0.8),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.s12,
-                        vertical: AppSpacing.s10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isUser ? const Color(0xFF0F766E) : Colors.white,
-                        borderRadius: BorderRadius.only(
-                          topLeft: const Radius.circular(16),
-                          topRight: const Radius.circular(16),
-                          bottomLeft: Radius.circular(isUser ? 16 : 5),
-                          bottomRight: Radius.circular(isUser ? 5 : 16),
-                        ),
-                        border: Border.all(
-                          color: isUser
-                              ? const Color(0xFF0D9488)
-                              : const Color(0xFFE2E8F0),
-                        ),
-                      ),
-                      child: Text(
-                        message.text,
-                        style: TextStyle(
-                          color: isUser
-                              ? Colors.white
-                              : const Color(0xFF1E293B),
-                          fontWeight: FontWeight.w600,
-                          height: 1.38,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.s10,
-              AppSpacing.s10,
-              AppSpacing.s10,
-              AppSpacing.s10,
-            ),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _aiAssistantInputController,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _sendAIAssistantMessage(),
-                    minLines: 1,
-                    maxLines: 4,
-                    decoration: InputDecoration(
-                      hintText: 'Posez une question sur l’élevage...',
-                      filled: true,
-                      fillColor: const Color(0xFFF1F5F9),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.s12,
-                        vertical: AppSpacing.s10,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.s8),
-                SizedBox(
-                  width: 42,
-                  height: 42,
-                  child: FilledButton(
-                    onPressed: _isAiAssistantLoading
-                        ? null
-                        : _sendAIAssistantMessage,
-                    style: FilledButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      backgroundColor: _durocChatHeader,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: const Icon(Icons.send_rounded, size: 18),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _scrollAIAssistantToBottom({bool jumpOnly = false}) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_aiAssistantScrollController.hasClients) {
-        return;
-      }
-      final target = _aiAssistantScrollController.position.maxScrollExtent;
-      if (jumpOnly) {
-        _aiAssistantScrollController.jumpTo(target);
-        return;
-      }
-      _aiAssistantScrollController.animateTo(
-        target,
-        duration: const Duration(milliseconds: 240),
-        curve: Curves.easeOutCubic,
-      );
-    });
-  }
-
-  Future<void> _sendAIAssistantMessage() async {
-    final message = _aiAssistantInputController.text.trim();
-    if (message.isEmpty || _isAiAssistantLoading) {
-      return;
-    }
-    if (!_isAIAssistantConfigured) {
-      _showError('Ajoutez une clé API Gemini pour activer l’assistant.');
-      _showGeminiApiKeyDialog();
-      return;
-    }
-
-    _aiAssistantInputController.clear();
-    setState(() {
-      _aiAssistantMessages.add(
-        _AIAssistantMessage(role: 'user', text: message),
-      );
-      _isAiAssistantLoading = true;
-    });
-    _scrollAIAssistantToBottom();
-
-    try {
-      final response = await _generateAIAssistantResponse(message);
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _aiAssistantMessages.add(
-          _AIAssistantMessage(role: 'model', text: response),
-        );
-      });
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _aiAssistantMessages.add(
-          const _AIAssistantMessage(
-            role: 'model',
-            text:
-                'Une erreur est survenue lors de la génération. '
-                'Veuillez réessayer dans quelques instants.',
-          ),
-        );
-      });
-    } finally {
-      if (mounted) {
-        setState(() => _isAiAssistantLoading = false);
-        _scrollAIAssistantToBottom();
-      }
-    }
-  }
-
-  String _effectiveGeminiApiKey() {
-    const apiKeyFromEnv = String.fromEnvironment('GEMINI_API_KEY');
-    final envValue = apiKeyFromEnv.trim();
-    if (envValue.isNotEmpty) {
-      return envValue;
-    }
-    return _geminiApiKey.trim();
-  }
-
-  bool get _isAIAssistantConfigured => _effectiveGeminiApiKey().isNotEmpty;
-
-  Future<void> _showGeminiApiKeyDialog() async {
-    final controller = TextEditingController(text: _geminiApiKey);
-    final hasEnvKey = const String.fromEnvironment(
-      'GEMINI_API_KEY',
-    ).trim().isNotEmpty;
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Configurer Gemini'),
-          content: SizedBox(
-            width: _dialogWidth(dialogContext),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Renseignez une clé API Gemini pour activer les messages IA.',
-                  style: TextStyle(
-                    color: Color(0xFF334155),
-                    fontWeight: FontWeight.w600,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.s12),
-                TextField(
-                  controller: controller,
-                  obscureText: true,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  textInputAction: TextInputAction.done,
-                  decoration: const InputDecoration(
-                    labelText: 'Clé API Gemini',
-                    hintText: 'AIza...',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.key_outlined),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.s10),
-                Text(
-                  hasEnvKey
-                      ? 'Une clé injectée au lancement est déjà active et reste prioritaire sur la clé locale.'
-                      : 'Cette clé reste stockée localement sur cet appareil et n’est pas synchronisée dans le cloud.',
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Annuler'),
-            ),
-            if (_geminiApiKey.trim().isNotEmpty)
-              TextButton(
-                onPressed: () {
-                  setState(() => _geminiApiKey = '');
-                  Navigator.of(dialogContext).pop();
-                  _persistState(pushCloud: false);
-                  _showInfo('Clé API locale supprimée.');
-                },
-                child: const Text('Supprimer'),
-              ),
-            FilledButton(
-              onPressed: () {
-                final value = controller.text.trim();
-                if (value.isEmpty) {
-                  _showError('Saisissez une clé API Gemini valide.');
-                  return;
-                }
-                setState(() => _geminiApiKey = value);
-                Navigator.of(dialogContext).pop();
-                _persistState(pushCloud: false);
-                _showInfo('Clé API Gemini enregistrée localement.');
-              },
-              child: const Text('Enregistrer'),
-            ),
-          ],
-        );
-      },
-    );
-    controller.dispose();
-  }
-
-  Future<String> _generateAIAssistantResponse(String userMessage) async {
-    final normalizedApiKey = _effectiveGeminiApiKey();
-    if (normalizedApiKey.isEmpty) {
-      return 'Assistant IA non configuré. Ajoutez une clé Gemini dans '
-          'le panneau de configuration de l’assistant.';
-    }
-
-    final model = GenerativeModel(
-      model: _geminiModelName,
-      apiKey: normalizedApiKey,
-      systemInstruction: Content.system(_geminiSystemPrompt),
-    );
-    final prompt =
-        'Tu es un expert en élevage porcin et en insémination artificielle. '
-        'Réponds en français de manière claire et opérationnelle.\n'
-        'Question utilisateur: $userMessage';
-    final response = await model.generateContent([Content.text(prompt)]);
-    final text = (response.text ?? '').trim();
-    if (text.isEmpty) {
-      return 'Je n’ai pas pu générer de réponse exploitable. '
-          'Peux-tu reformuler la question ?';
-    }
-    return text;
   }
 
   int _headerNotificationCount() {
@@ -22842,23 +22235,19 @@ class _MainScreenState extends State<MainScreen> {
     _persistState(immediateCloudPush: true);
   }
 
-  bool _isTeamConversationRoleAllowed(String role) {
-    final normalized = _normalizeLookup(role);
-    return normalized == _normalizeLookup(Roles.admin) ||
-        normalized == _normalizeLookup(Roles.inseminator) ||
-        normalized == _normalizeLookup(Roles.vet) ||
-        normalized == 'administrateur' ||
-        normalized == 'admin';
-  }
-
   bool _isTeamConversationUserAllowed(UserProfile user) {
-    return _isTeamConversationRoleAllowed(user.role);
+    return user.id.trim().isNotEmpty;
   }
 
   bool _isTeamConversationUserIdAllowed(String userId) {
-    final user = _findUserById(userId.trim());
-    if (user == null) {
+    final normalizedUserId = userId.trim();
+    if (normalizedUserId.isEmpty) {
       return false;
+    }
+    final user = _findUserById(normalizedUserId);
+    if (user == null) {
+      // Keep team messages visible even if the sender profile is not yet loaded locally.
+      return true;
     }
     return _isTeamConversationUserAllowed(user);
   }
@@ -22899,7 +22288,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   String _teamConversationAccessError() {
-    return 'Canal équipe réservé aux rôles Responsable/Administrateur, Inséminateur et Vétérinaire.';
+    return 'Canal équipe indisponible.';
   }
 
   bool _isMessageReadByUser(ChatMessage message, String userId) {
@@ -25464,11 +24853,4 @@ class _BiosecurityItem {
     required this.detail,
     required this.ok,
   });
-}
-
-class _AIAssistantMessage {
-  final String role;
-  final String text;
-
-  const _AIAssistantMessage({required this.role, required this.text});
 }
