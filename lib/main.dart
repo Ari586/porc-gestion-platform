@@ -45,6 +45,7 @@ class AppSpacing {
   static const double s22 = 22;
   static const double s24 = 24;
   static const double s58 = 58;
+  static const double s72 = 72;
 
   static const double xxs = 4;
   static const double xs = 8;
@@ -3500,35 +3501,24 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildSidebarBrandHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.lg,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(AppSpacing.xxl),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildBrandLogo(
-            height: AppSpacing.s58,
-            borderRadius: BorderRadius.circular(AppSpacing.lg),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildBrandLogo(
+          height: AppSpacing.s72,
+          borderRadius: BorderRadius.circular(AppSpacing.lg),
+        ),
+        const SizedBox(height: AppSpacing.s6),
+        const Text(
+          'PigIA',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w900,
+            fontSize: 16,
+            letterSpacing: -0.2,
           ),
-          const SizedBox(height: AppSpacing.s6),
-          const Text(
-            'PigIA',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-              fontSize: 16,
-              letterSpacing: -0.2,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -3575,7 +3565,7 @@ class _MainScreenState extends State<MainScreen> {
             Align(
               alignment: Alignment.topLeft,
               child: _buildBrandLogo(
-                height: AppSpacing.s58,
+                height: AppSpacing.s72,
                 borderRadius: BorderRadius.circular(AppSpacing.xl),
               ),
             ),
