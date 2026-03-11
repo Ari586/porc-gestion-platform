@@ -788,6 +788,13 @@ class _MainScreenState extends State<MainScreen> {
   static const Color _accentTealDeep = Color(0xFF0F766E);
   static const Color _sidebarDark = Color(0xFF0B1220);
   static const Color _sidebarDarkSoft = Color(0xFF111C33);
+  static const Color _newsCanvasTop = Color(0xFFFFF4E8);
+  static const Color _newsCanvasBottom = Color(0xFFE8F4FF);
+  static const Color _newsCardSurface = Color(0xFFFFFCF7);
+  static const Color _newsCardBorder = Color(0xFFEAD8C5);
+  static const Color _newsHeaderGradientStart = Color(0xFFB45309);
+  static const Color _newsHeaderGradientEnd = Color(0xFF0F766E);
+  static const Color _newsMutedText = Color(0xFF5B6475);
   static const Color _durocChatHeader = Color(0xFF6B4B3E);
   static const Color _durocChatHeaderSoft = Color(0xFF8A6450);
   static const Color _durocChatOutgoingBubble = Color(0xFFD9F3C3);
@@ -3906,8 +3913,12 @@ class _MainScreenState extends State<MainScreen> {
         height: 68,
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s10),
         decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(bottom: BorderSide(color: Color(0xFFDCE4EE))),
+          gradient: LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [_newsHeaderGradientStart, _newsHeaderGradientEnd],
+          ),
+          border: Border(bottom: BorderSide(color: Color(0xFF0B5B55))),
         ),
         child: Row(
           children: [
@@ -3915,7 +3926,7 @@ class _MainScreenState extends State<MainScreen> {
               IconButton(
                 tooltip: 'Menu',
                 onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                icon: const Icon(LucideIcons.menu),
+                icon: const Icon(LucideIcons.menu, color: Colors.white),
               ),
             const Expanded(
               child: Text(
@@ -3923,19 +3934,22 @@ class _MainScreenState extends State<MainScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: Color(0xFF0F172A),
+                  color: Colors.white,
                   fontWeight: FontWeight.w900,
                   fontSize: 20,
                   letterSpacing: -0.4,
                 ),
               ),
             ),
-            IconButton(
-              tooltip: 'Créer une publication',
-              onPressed: _showAddNewsPostDialog,
-              icon: const Icon(
-                Icons.add_circle_outline,
-                color: Color(0xFF0F766E),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: IconButton(
+                tooltip: 'Créer une publication',
+                onPressed: _showAddNewsPostDialog,
+                icon: const Icon(Icons.add_circle_outline, color: Colors.white),
               ),
             ),
             const SizedBox(width: AppSpacing.s4),
@@ -11251,8 +11265,13 @@ class _MainScreenState extends State<MainScreen> {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F7FB),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_newsCanvasTop, _newsCanvasBottom],
+        ),
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: _newsCardBorder.withValues(alpha: 0.55)),
       ),
       padding: EdgeInsets.fromLTRB(
         isCompact ? AppSpacing.s8 : AppSpacing.s10,
@@ -11277,14 +11296,14 @@ class _MainScreenState extends State<MainScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(AppSpacing.s16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: _newsCardSurface,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: const Color(0xFFE3E8EF)),
+                border: Border.all(color: _newsCardBorder),
               ),
               child: const Text(
                 'Aucune publication pour ce filtre. Essayez "Tous" ou créez une nouvelle publication.',
                 style: TextStyle(
-                  color: Color(0xFF64748B),
+                  color: _newsMutedText,
                   fontWeight: FontWeight.w600,
                   height: 1.35,
                 ),
@@ -11363,11 +11382,11 @@ class _MainScreenState extends State<MainScreen> {
   Color _newsCategoryColor(String category) {
     switch (category) {
       case 'IA':
-        return const Color(0xFF15803D);
+        return const Color(0xFF0E7490);
       case 'Santé':
-        return const Color(0xFFB45309);
+        return const Color(0xFFC2410C);
       case 'Vente':
-        return const Color(0xFF0369A1);
+        return const Color(0xFFB91C1C);
       case 'Photos':
         return const Color(0xFF1D4ED8);
       default:
@@ -11387,9 +11406,19 @@ class _MainScreenState extends State<MainScreen> {
         vertical: AppSpacing.s12,
       ),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_newsHeaderGradientStart, _newsHeaderGradientEnd],
+        ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE3E8EF)),
+        boxShadow: [
+          BoxShadow(
+            color: _newsHeaderGradientEnd.withValues(alpha: 0.22),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -11397,7 +11426,7 @@ class _MainScreenState extends State<MainScreen> {
             child: Text(
               'Actualités',
               style: TextStyle(
-                color: Color(0xFF0F172A),
+                color: Colors.white,
                 fontWeight: FontWeight.w900,
                 fontSize: 20,
                 letterSpacing: -0.3,
@@ -11409,7 +11438,7 @@ class _MainScreenState extends State<MainScreen> {
                 ? '$visiblePosts / $totalPosts'
                 : '$totalPosts publication(s)',
             style: const TextStyle(
-              color: Color(0xFF64748B),
+              color: Color(0xFFE2E8F0),
               fontWeight: FontWeight.w700,
               fontSize: 12,
             ),
@@ -11455,18 +11484,25 @@ class _MainScreenState extends State<MainScreen> {
           vertical: AppSpacing.s8,
         ),
         decoration: BoxDecoration(
-          color: selected ? accent.withValues(alpha: 0.14) : Colors.white,
+          color: selected ? accent.withValues(alpha: 0.18) : _newsCardSurface,
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: selected
-                ? accent.withValues(alpha: 0.55)
-                : const Color(0xFFDCE4EE),
+            color: selected ? accent.withValues(alpha: 0.62) : _newsCardBorder,
           ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.2),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : const [],
         ),
         child: Text(
           '$filter ($count)',
           style: TextStyle(
-            color: selected ? accent : const Color(0xFF475569),
+            color: selected ? accent : _newsMutedText,
             fontWeight: FontWeight.w800,
             fontSize: 12,
           ),
@@ -11485,9 +11521,16 @@ class _MainScreenState extends State<MainScreen> {
         AppSpacing.s10,
       ),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _newsCardSurface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE3E8EF)),
+        border: Border.all(color: _newsCardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFB45309).withValues(alpha: 0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -11505,13 +11548,14 @@ class _MainScreenState extends State<MainScreen> {
                       vertical: AppSpacing.s11,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF2F5FA),
+                      color: const Color(0xFFFDEDD9),
                       borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: const Color(0xFFF1D7BC)),
                     ),
                     child: Text(
                       'Que voulez-vous partager, $firstName ?',
                       style: const TextStyle(
-                        color: Color(0xFF64748B),
+                        color: Color(0xFF7A5A44),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -11521,7 +11565,7 @@ class _MainScreenState extends State<MainScreen> {
             ],
           ),
           const SizedBox(height: AppSpacing.s10),
-          const Divider(height: 1),
+          const Divider(height: 1, color: Color(0xFFECCFB0)),
           const SizedBox(height: AppSpacing.s8),
           Row(
             children: [
@@ -11572,11 +11616,17 @@ class _MainScreenState extends State<MainScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Padding(
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.s4,
           vertical: AppSpacing.s8,
+        ),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.26)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -11620,9 +11670,16 @@ class _MainScreenState extends State<MainScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _newsCardSurface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE3E8EF)),
+        border: Border.all(color: _newsCardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFB45309).withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -11655,7 +11712,7 @@ class _MainScreenState extends State<MainScreen> {
                       Text(
                         '${post.authorRole} • ${_newsTimeLabel(post.createdAt)}',
                         style: const TextStyle(
-                          color: Color(0xFF64748B),
+                          color: _newsMutedText,
                           fontWeight: FontWeight.w600,
                           fontSize: 11,
                         ),
@@ -11699,7 +11756,7 @@ class _MainScreenState extends State<MainScreen> {
                 child: Text(
                   post.imageName.trim(),
                   style: const TextStyle(
-                    color: Color(0xFF64748B),
+                    color: _newsMutedText,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
@@ -11730,9 +11787,7 @@ class _MainScreenState extends State<MainScreen> {
                         ? Icons.thumb_up_alt
                         : Icons.thumb_up_alt_outlined,
                     label: 'J’aime',
-                    color: isLiked
-                        ? const Color(0xFF0F766E)
-                        : const Color(0xFF475569),
+                    color: isLiked ? const Color(0xFF0E7490) : _newsMutedText,
                     onTap: () => _toggleNewsLike(post.id),
                   ),
                 ),
@@ -11740,7 +11795,7 @@ class _MainScreenState extends State<MainScreen> {
                   child: _buildNewsActionButton(
                     icon: Icons.chat_bubble_outline,
                     label: 'Commenter',
-                    color: const Color(0xFF475569),
+                    color: _newsMutedText,
                     onTap: () => _showAddNewsCommentDialog(post),
                   ),
                 ),
@@ -11748,7 +11803,7 @@ class _MainScreenState extends State<MainScreen> {
                   child: _buildNewsActionButton(
                     icon: Icons.share_outlined,
                     label: 'Partager',
-                    color: const Color(0xFF475569),
+                    color: _newsMutedText,
                     onTap: () => _showInfo('Partage interne enregistré.'),
                   ),
                 ),
@@ -11787,7 +11842,7 @@ class _MainScreenState extends State<MainScreen> {
                     child: Text(
                       'Voir plus de commentaires (${comments.length})',
                       style: const TextStyle(
-                        color: Color(0xFF2563EB),
+                        color: Color(0xFF0E7490),
                         fontWeight: FontWeight.w700,
                         fontSize: 11,
                       ),
@@ -11813,8 +11868,9 @@ class _MainScreenState extends State<MainScreen> {
         vertical: AppSpacing.s4,
       ),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
+        color: color.withValues(alpha: 0.16),
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.34)),
       ),
       child: Text(
         label,
@@ -11869,7 +11925,7 @@ class _MainScreenState extends State<MainScreen> {
           PopupMenuItem<String>(value: 'report', child: Text('Signaler')),
         ];
       },
-      icon: const Icon(Icons.more_horiz, color: Color(0xFF64748B)),
+      icon: const Icon(Icons.more_horiz, color: _newsMutedText),
     );
   }
 
@@ -11891,13 +11947,13 @@ class _MainScreenState extends State<MainScreen> {
               Icon(
                 Icons.favorite,
                 size: 14,
-                color: const Color(0xFF0F766E).withValues(alpha: 0.9),
+                color: const Color(0xFFDC2626).withValues(alpha: 0.9),
               ),
               const SizedBox(width: AppSpacing.s4),
               Text(
                 '${post.likedByUserIds.length} réaction(s)',
                 style: const TextStyle(
-                  color: Color(0xFF64748B),
+                  color: _newsMutedText,
                   fontWeight: FontWeight.w700,
                   fontSize: 11,
                 ),
@@ -11907,7 +11963,7 @@ class _MainScreenState extends State<MainScreen> {
           Text(
             '${post.comments.length} commentaire(s)',
             style: const TextStyle(
-              color: Color(0xFF64748B),
+              color: _newsMutedText,
               fontWeight: FontWeight.w700,
               fontSize: 11,
             ),
@@ -11915,7 +11971,7 @@ class _MainScreenState extends State<MainScreen> {
           Text(
             '$shareCount partage(s)',
             style: const TextStyle(
-              color: Color(0xFF64748B),
+              color: _newsMutedText,
               fontWeight: FontWeight.w700,
               fontSize: 11,
             ),
@@ -11934,7 +11990,11 @@ class _MainScreenState extends State<MainScreen> {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
-      child: Padding(
+      child: Container(
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.09),
+          borderRadius: BorderRadius.circular(10),
+        ),
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.s8),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -11976,8 +12036,9 @@ class _MainScreenState extends State<MainScreen> {
                 vertical: AppSpacing.s8,
               ),
               decoration: BoxDecoration(
-                color: const Color(0xFFF2F5FA),
+                color: const Color(0xFFFDF1E4),
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFF1D8C1)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -11990,7 +12051,7 @@ class _MainScreenState extends State<MainScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: Color(0xFF0F172A),
+                            color: Color(0xFF1E293B),
                             fontWeight: FontWeight.w800,
                             fontSize: 12,
                           ),
@@ -12000,7 +12061,7 @@ class _MainScreenState extends State<MainScreen> {
                       Text(
                         _newsTimeLabel(comment.createdAt),
                         style: const TextStyle(
-                          color: Color(0xFF94A3B8),
+                          color: Color(0xFF8B97A9),
                           fontWeight: FontWeight.w700,
                           fontSize: 10,
                         ),
@@ -12011,7 +12072,7 @@ class _MainScreenState extends State<MainScreen> {
                   Text(
                     comment.text,
                     style: const TextStyle(
-                      color: Color(0xFF334155),
+                      color: _newsMutedText,
                       fontWeight: FontWeight.w600,
                       height: 1.35,
                     ),
@@ -12038,7 +12099,7 @@ class _MainScreenState extends State<MainScreen> {
         : fallbackName.trim().substring(0, 1).toUpperCase();
     return CircleAvatar(
       radius: radius,
-      backgroundColor: const Color(0xFF14B8A6),
+      backgroundColor: const Color(0xFFB45309),
       child: Text(
         initial,
         style: TextStyle(
