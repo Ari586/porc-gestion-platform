@@ -50,6 +50,7 @@ class Roles {
 class AppTabs {
   static const String dashboard = 'dashboard';
   static const String profile = 'profile';
+  static const String actualites = 'actualites';
   static const String administration = 'administration';
   static const String messenger = 'messenger';
   static const String services = 'services';
@@ -542,6 +543,48 @@ class ChatMessage {
   }
 }
 
+class NewsComment {
+  final String id;
+  final String authorId;
+  final String authorName;
+  final String text;
+  final DateTime createdAt;
+
+  const NewsComment({
+    required this.id,
+    required this.authorId,
+    required this.authorName,
+    required this.text,
+    required this.createdAt,
+  });
+}
+
+class NewsPost {
+  final String id;
+  final String authorId;
+  final String authorName;
+  final String authorRole;
+  final String text;
+  final DateTime createdAt;
+  final String imageBase64;
+  final String imageName;
+  final List<String> likedByUserIds;
+  final List<NewsComment> comments;
+
+  const NewsPost({
+    required this.id,
+    required this.authorId,
+    required this.authorName,
+    required this.authorRole,
+    required this.text,
+    required this.createdAt,
+    this.imageBase64 = '',
+    this.imageName = '',
+    this.likedByUserIds = const [],
+    this.comments = const [],
+  });
+}
+
 const List<UserProfile> initialUsers = [
   UserProfile(
     id: 'U1',
@@ -651,6 +694,7 @@ class _MainScreenState extends State<MainScreen> {
   static const String _prefsSelectedPigletDateKey =
       'porc_piglet_selected_date_v1';
   static const String _prefsChatMessagesKey = 'porc_chat_messages_v1';
+  static const String _prefsNewsPostsKey = 'porc_news_posts_v1';
   static const String _prefsActiveConversationKey =
       'porc_active_conversation_v1';
 
@@ -1170,6 +1214,41 @@ class _MainScreenState extends State<MainScreen> {
     ),
   ];
 
+  final List<NewsPost> _newsPosts = [
+    NewsPost(
+      id: 'POST1',
+      authorId: 'U2',
+      authorName: 'Marc Éleveur',
+      authorRole: Roles.breeder,
+      text:
+          'Mise-bas réussie sur TR-2001 ce matin: 12 nés vivants. Protocole colostrum lancé immédiatement.',
+      createdAt: DateTime.now().subtract(const Duration(hours: 6, minutes: 20)),
+      likedByUserIds: ['U1', 'U3'],
+      comments: [
+        NewsComment(
+          id: 'COM1',
+          authorId: 'U4',
+          authorName: 'Lucie Véto',
+          text: 'Parfait. Faites bien le suivi température sur les 48h.',
+          createdAt: DateTime.now().subtract(
+            const Duration(hours: 5, minutes: 50),
+          ),
+        ),
+      ],
+    ),
+    NewsPost(
+      id: 'POST2',
+      authorId: 'U3',
+      authorName: 'Paul Insem',
+      authorRole: Roles.inseminator,
+      text:
+          'Tournée IA confirmée demain: Fokontany Antanetibe -> Commune Itaosy. Merci de préparer les truies identifiées.',
+      createdAt: DateTime.now().subtract(const Duration(hours: 3, minutes: 5)),
+      likedByUserIds: ['U1'],
+      comments: [],
+    ),
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -1299,6 +1378,9 @@ class _MainScreenState extends State<MainScreen> {
       );
       final chatRaw = _decodeObjectListOrNull(
         prefs.getString(_prefsChatMessagesKey),
+      );
+      final newsPostsRaw = _decodeObjectListOrNull(
+        prefs.getString(_prefsNewsPostsKey),
       );
       final taskDoneRaw = _decodeObjectMapOrNull(
         prefs.getString(_prefsTaskDoneKey),
@@ -1445,6 +1527,12 @@ class _MainScreenState extends State<MainScreen> {
             ..addAll(
               chatRaw.map(_chatMessageFromJson).whereType<ChatMessage>(),
             );
+        }
+
+        if (newsPostsRaw != null) {
+          _newsPosts
+            ..clear()
+            ..addAll(newsPostsRaw.map(_newsPostFromJson).whereType<NewsPost>());
         }
 
         if (taskDoneRaw != null) {
@@ -1631,6 +1719,10 @@ class _MainScreenState extends State<MainScreen> {
       await prefs.setString(
         _prefsChatMessagesKey,
         jsonEncode(_chatMessages.map(_chatMessageToJson).toList()),
+      );
+      await prefs.setString(
+        _prefsNewsPostsKey,
+        jsonEncode(_newsPosts.map(_newsPostToJson).toList()),
       );
       await prefs.setString(_prefsTaskDoneKey, jsonEncode(_taskDoneById));
       if (_preferredBoarCode == null || _preferredBoarCode!.trim().isEmpty) {
@@ -2660,6 +2752,93 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  Map<String, dynamic> _newsCommentToJson(NewsComment comment) {
+    return {
+      'id': comment.id,
+      'authorId': comment.authorId,
+      'authorName': comment.authorName,
+      'text': comment.text,
+      'createdAt': comment.createdAt.toIso8601String(),
+    };
+  }
+
+  NewsComment? _newsCommentFromJson(Map<String, dynamic> json) {
+    final id = _readString(json['id']).trim();
+    final authorId = _readString(json['authorId']).trim();
+    final authorName = _readString(json['authorName']).trim();
+    final text = _readString(json['text']).trim();
+    final createdAt = _parseDateTimeFromString(_readString(json['createdAt']));
+    if (id.isEmpty || authorName.isEmpty || text.isEmpty || createdAt == null) {
+      return null;
+    }
+    return NewsComment(
+      id: id,
+      authorId: authorId,
+      authorName: authorName,
+      text: text,
+      createdAt: createdAt,
+    );
+  }
+
+  Map<String, dynamic> _newsPostToJson(NewsPost post) {
+    return {
+      'id': post.id,
+      'authorId': post.authorId,
+      'authorName': post.authorName,
+      'authorRole': post.authorRole,
+      'text': post.text,
+      'createdAt': post.createdAt.toIso8601String(),
+      'imageBase64': post.imageBase64,
+      'imageName': post.imageName,
+      'likedByUserIds': post.likedByUserIds,
+      'comments': post.comments.map(_newsCommentToJson).toList(),
+    };
+  }
+
+  NewsPost? _newsPostFromJson(Map<String, dynamic> json) {
+    final id = _readString(json['id']).trim();
+    final authorId = _readString(json['authorId']).trim();
+    final authorName = _readString(json['authorName']).trim();
+    final authorRole = _readString(json['authorRole']).trim();
+    final text = _readString(json['text']).trim();
+    final createdAt = _parseDateTimeFromString(_readString(json['createdAt']));
+    final imageBase64 = _readString(json['imageBase64']).trim();
+    final imageName = _readString(json['imageName']).trim();
+    if (id.isEmpty ||
+        authorName.isEmpty ||
+        createdAt == null ||
+        (text.isEmpty && imageBase64.isEmpty)) {
+      return null;
+    }
+
+    final comments = <NewsComment>[];
+    if (json['comments'] is List) {
+      for (final item in (json['comments'] as List)) {
+        if (item is! Map) {
+          continue;
+        }
+        final comment = _newsCommentFromJson(Map<String, dynamic>.from(item));
+        if (comment != null) {
+          comments.add(comment);
+        }
+      }
+    }
+    comments.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+
+    return NewsPost(
+      id: id,
+      authorId: authorId,
+      authorName: authorName,
+      authorRole: authorRole.isEmpty ? Roles.breeder : authorRole,
+      text: text,
+      createdAt: createdAt,
+      imageBase64: imageBase64,
+      imageName: imageName,
+      likedByUserIds: _readStringList(json['likedByUserIds']),
+      comments: comments,
+    );
+  }
+
   Widget _buildSidebar() {
     return Container(
       color: const Color(0xFF0F172A),
@@ -2704,6 +2883,12 @@ class _MainScreenState extends State<MainScreen> {
               icon: Icons.account_circle_outlined,
               label: 'Mon Profil',
               tabId: AppTabs.profile,
+            ),
+          if (_canAccessTab(AppTabs.actualites))
+            _buildNavItem(
+              icon: Icons.dynamic_feed_outlined,
+              label: 'Actualités',
+              tabId: AppTabs.actualites,
             ),
           if (_canAccessTab(AppTabs.messenger))
             _buildNavItem(
@@ -3220,6 +3405,8 @@ class _MainScreenState extends State<MainScreen> {
         return _buildDashboard();
       case AppTabs.profile:
         return _buildProfileHub();
+      case AppTabs.actualites:
+        return _buildNewsFeedHub();
       case AppTabs.messenger:
         return _buildMessengerHub();
       case AppTabs.administration:
@@ -8559,6 +8746,804 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  Widget _buildNewsFeedHub() {
+    final posts = List<NewsPost>.from(_newsPosts)
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final myPostsCount = posts
+        .where((post) => post.authorId == _currentUser.id)
+        .length;
+    final myLikesCount = posts.fold<int>(0, (sum, post) {
+      if (post.authorId != _currentUser.id) {
+        return sum;
+      }
+      return sum + post.likedByUserIds.length;
+    });
+    final commentsCount = posts.fold<int>(
+      0,
+      (sum, post) => sum + post.comments.length,
+    );
+    final photosCount = posts
+        .where((post) => post.imageBase64.trim().isNotEmpty)
+        .length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionCard(
+          title: 'Actualités Élevage',
+          subtitle:
+              'Fil collaboratif style réseau social pour publier les infos terrain en temps réel',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 640;
+                  final composerHeader = Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildUserAvatar(_currentUser, radius: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _currentUser.name,
+                              style: const TextStyle(
+                                color: Color(0xFF0F172A),
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Partagez une actualité: reproduction, santé, mise-bas, vente, alerte terrain...',
+                              style: TextStyle(
+                                color: Color(0xFF64748B),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+
+                  if (compact) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        composerHeader,
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: _showAddNewsPostDialog,
+                            icon: const Icon(Icons.edit_outlined, size: 16),
+                            label: const Text('Créer une publication'),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      Expanded(child: composerHeader),
+                      const SizedBox(width: 12),
+                      FilledButton.icon(
+                        onPressed: _showAddNewsPostDialog,
+                        icon: const Icon(Icons.edit_outlined, size: 16),
+                        label: const Text('Créer une publication'),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth > 900;
+                  final indicators = [
+                    _buildMiniIndicator(
+                      label: 'Mes publications',
+                      value: '$myPostsCount',
+                      color: const Color(0xFF0284C7),
+                    ),
+                    _buildMiniIndicator(
+                      label: 'J\'aime reçus',
+                      value: '$myLikesCount',
+                      color: const Color(0xFF7C3AED),
+                    ),
+                    _buildMiniIndicator(
+                      label: 'Commentaires',
+                      value: '$commentsCount',
+                      color: const Color(0xFF15803D),
+                    ),
+                    _buildMiniIndicator(
+                      label: 'Posts avec photo',
+                      value: '$photosCount',
+                      color: const Color(0xFFEA580C),
+                    ),
+                  ];
+
+                  if (isWide) {
+                    return Row(
+                      children: [
+                        Expanded(child: indicators[0]),
+                        const SizedBox(width: 10),
+                        Expanded(child: indicators[1]),
+                        const SizedBox(width: 10),
+                        Expanded(child: indicators[2]),
+                        const SizedBox(width: 10),
+                        Expanded(child: indicators[3]),
+                      ],
+                    );
+                  }
+
+                  return Column(
+                    children: [
+                      indicators[0],
+                      const SizedBox(height: 10),
+                      indicators[1],
+                      const SizedBox(height: 10),
+                      indicators[2],
+                      const SizedBox(height: 10),
+                      indicators[3],
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (posts.isEmpty)
+          _buildSectionCard(
+            title: 'Fil d\'actualité',
+            subtitle: 'Aucune publication pour le moment',
+            child: _buildEmptyState(
+              'Publiez la première actualité de votre élevage.',
+            ),
+          )
+        else
+          ListView.separated(
+            itemCount: posts.length,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            separatorBuilder: (_, index) => const SizedBox(height: 12),
+            itemBuilder: (context, index) => _buildNewsPostCard(posts[index]),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildNewsPostCard(NewsPost post) {
+    final isLiked = post.likedByUserIds.contains(_currentUser.id);
+    final canManage = _canManageNewsPost(post);
+    final authorProfile = _findUserById(post.authorId);
+    final comments = List<NewsComment>.from(post.comments)
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    final visibleComments = comments.length > 4
+        ? comments.sublist(comments.length - 4)
+        : comments;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildNewsAuthorAvatar(authorProfile, post.authorName),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      post.authorName,
+                      style: const TextStyle(
+                        color: Color(0xFF0F172A),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _roleColor(
+                              post.authorRole,
+                            ).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            post.authorRole,
+                            style: TextStyle(
+                              color: _roleColor(post.authorRole),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          _newsTimeLabel(post.createdAt),
+                          style: const TextStyle(
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (canManage)
+                PopupMenuButton<String>(
+                  tooltip: 'Actions',
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'edit':
+                        _showAddNewsPostDialog(existing: post);
+                        break;
+                      case 'delete':
+                        _deleteNewsPost(post.id);
+                        break;
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem<String>(
+                      value: 'edit',
+                      child: Text('Modifier'),
+                    ),
+                    PopupMenuItem<String>(
+                      value: 'delete',
+                      child: Text('Supprimer'),
+                    ),
+                  ],
+                  icon: const Icon(Icons.more_horiz, color: Color(0xFF64748B)),
+                ),
+            ],
+          ),
+          if (post.text.trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              post.text.trim(),
+              style: const TextStyle(
+                color: Color(0xFF1E293B),
+                height: 1.38,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          if (post.imageBase64.trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _buildNewsPostImage(post.imageBase64),
+            if (post.imageName.trim().isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                post.imageName.trim(),
+                style: const TextStyle(
+                  color: Color(0xFF64748B),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: () => _toggleNewsLike(post.id),
+                  icon: Icon(
+                    isLiked ? Icons.favorite : Icons.favorite_border,
+                    size: 17,
+                    color: isLiked
+                        ? const Color(0xFFDC2626)
+                        : const Color(0xFF64748B),
+                  ),
+                  label: Text(
+                    'J\'aime (${post.likedByUserIds.length})',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: () => _showAddNewsCommentDialog(post),
+                  icon: const Icon(
+                    Icons.chat_bubble_outline,
+                    size: 17,
+                    color: Color(0xFF334155),
+                  ),
+                  label: Text(
+                    'Commenter (${post.comments.length})',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (comments.isNotEmpty) ...[
+            const Divider(height: 18),
+            if (comments.length > visibleComments.length)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  '${comments.length - visibleComments.length} commentaire(s) plus ancien(s)...',
+                  style: const TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ...visibleComments.map((comment) {
+              final commentUser = _findUserById(comment.authorId);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildNewsAuthorAvatar(
+                      commentUser,
+                      comment.authorName,
+                      radius: 14,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              comment.authorName,
+                              style: const TextStyle(
+                                color: Color(0xFF0F172A),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              comment.text,
+                              style: const TextStyle(
+                                color: Color(0xFF334155),
+                                fontWeight: FontWeight.w600,
+                                height: 1.35,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _newsTimeLabel(comment.createdAt),
+                              style: const TextStyle(
+                                color: Color(0xFF64748B),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNewsAuthorAvatar(
+    UserProfile? user,
+    String fallbackName, {
+    double radius = 18,
+  }) {
+    if (user != null) {
+      return _buildUserAvatar(user, radius: radius);
+    }
+    final initial = fallbackName.trim().isEmpty
+        ? '?'
+        : fallbackName.trim().substring(0, 1).toUpperCase();
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: const Color(0xFF14B8A6),
+      child: Text(
+        initial,
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w800,
+          fontSize: math.max(11, radius * 0.55),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNewsPostImage(String imageBase64) {
+    try {
+      final bytes = base64Decode(imageBase64);
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.memory(
+          bytes,
+          width: double.infinity,
+          height: 240,
+          fit: BoxFit.cover,
+        ),
+      );
+    } catch (_) {
+      return Container(
+        width: double.infinity,
+        height: 200,
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEE2E2),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        alignment: Alignment.center,
+        child: const Icon(LucideIcons.alertTriangle, color: Color(0xFFB91C1C)),
+      );
+    }
+  }
+
+  bool _canManageNewsPost(NewsPost post) {
+    return post.authorId == _currentUser.id || _currentUser.role == Roles.admin;
+  }
+
+  String _newsTimeLabel(DateTime timestamp) {
+    final now = DateTime.now();
+    final diff = now.difference(timestamp);
+    if (diff.inSeconds < 60) {
+      return 'à l\'instant';
+    }
+    if (diff.inMinutes < 60) {
+      return 'il y a ${diff.inMinutes} min';
+    }
+    if (diff.inHours < 24) {
+      return 'il y a ${diff.inHours} h';
+    }
+    if (diff.inDays < 7) {
+      return 'il y a ${diff.inDays} j';
+    }
+    return _formatDateTime(timestamp);
+  }
+
+  Future<void> _showAddNewsPostDialog({NewsPost? existing}) async {
+    final textCtrl = TextEditingController(text: existing?.text ?? '');
+    String selectedImageBase64 = existing?.imageBase64 ?? '';
+    String selectedImageName = existing?.imageName ?? '';
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final isEdit = existing != null;
+            return AlertDialog(
+              title: Text(
+                isEdit ? 'Modifier publication' : 'Nouvelle publication',
+              ),
+              content: SizedBox(
+                width: _dialogWidth(dialogContext),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          _buildUserAvatar(_currentUser, radius: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _currentUser.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: textCtrl,
+                        minLines: 3,
+                        maxLines: 6,
+                        decoration: const InputDecoration(
+                          labelText: 'Texte de publication',
+                          hintText:
+                              'Ex: Mise-bas, protocole IA, alerte sanitaire, disponibilité porcelets...',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _buildImagePreviewBox(selectedImageBase64, size: 110),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              final image = await _pickImageAsBase64();
+                              if (image == null) {
+                                return;
+                              }
+                              final generatedName =
+                                  'post-${DateTime.now().millisecondsSinceEpoch}.jpg';
+                              setModalState(() {
+                                selectedImageBase64 = image;
+                                selectedImageName = generatedName;
+                              });
+                            },
+                            icon: const Icon(Icons.image_outlined, size: 16),
+                            label: const Text('Ajouter image'),
+                          ),
+                          if (selectedImageBase64.trim().isNotEmpty)
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                setModalState(() {
+                                  selectedImageBase64 = '';
+                                  selectedImageName = '';
+                                });
+                              },
+                              icon: const Icon(Icons.delete_outline, size: 16),
+                              label: const Text('Retirer image'),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Annuler'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final text = textCtrl.text.trim();
+                    if (text.isEmpty && selectedImageBase64.trim().isEmpty) {
+                      _showError(
+                        'La publication doit contenir un texte ou une image.',
+                      );
+                      return;
+                    }
+
+                    if (isEdit) {
+                      final index = _newsPosts.indexWhere(
+                        (post) => post.id == existing.id,
+                      );
+                      if (index < 0) {
+                        _showError('Publication introuvable.');
+                        return;
+                      }
+                      final old = _newsPosts[index];
+                      final updated = NewsPost(
+                        id: old.id,
+                        authorId: old.authorId,
+                        authorName: old.authorName,
+                        authorRole: old.authorRole,
+                        text: text,
+                        createdAt: old.createdAt,
+                        imageBase64: selectedImageBase64.trim(),
+                        imageName: selectedImageName.trim(),
+                        likedByUserIds: old.likedByUserIds,
+                        comments: old.comments,
+                      );
+                      setState(() => _newsPosts[index] = updated);
+                      _addAuditLog(
+                        module: 'ACTUALITES',
+                        action: 'UPDATE_POST',
+                        detail:
+                            'Publication modifiée ${updated.id} par ${_currentUser.code}',
+                      );
+                      _persistState();
+                      Navigator.of(dialogContext).pop();
+                      _showInfo('Publication mise à jour.');
+                      return;
+                    }
+
+                    final newPost = NewsPost(
+                      id: _newId('POST'),
+                      authorId: _currentUser.id,
+                      authorName: _currentUser.name,
+                      authorRole: _currentUser.role,
+                      text: text,
+                      createdAt: DateTime.now(),
+                      imageBase64: selectedImageBase64.trim(),
+                      imageName: selectedImageName.trim(),
+                      likedByUserIds: const [],
+                      comments: const [],
+                    );
+                    setState(() => _newsPosts.insert(0, newPost));
+                    _addAuditLog(
+                      module: 'ACTUALITES',
+                      action: 'CREATE_POST',
+                      detail: 'Publication créée ${newPost.id}',
+                    );
+                    _persistState();
+                    Navigator.of(dialogContext).pop();
+                    _showInfo('Publication publiée.');
+                  },
+                  child: Text(isEdit ? 'Mettre à jour' : 'Publier'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    textCtrl.dispose();
+  }
+
+  void _showAddNewsCommentDialog(NewsPost post) {
+    final commentCtrl = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Ajouter un commentaire'),
+          content: SizedBox(
+            width: _dialogWidth(dialogContext),
+            child: TextField(
+              controller: commentCtrl,
+              minLines: 2,
+              maxLines: 5,
+              decoration: const InputDecoration(
+                labelText: 'Commentaire *',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final text = commentCtrl.text.trim();
+                if (text.isEmpty) {
+                  _showError('Le commentaire est vide.');
+                  return;
+                }
+                _addNewsComment(post.id, text);
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Publier'),
+            ),
+          ],
+        );
+      },
+    ).then((_) => commentCtrl.dispose());
+  }
+
+  void _addNewsComment(String postId, String text) {
+    final index = _newsPosts.indexWhere((post) => post.id == postId);
+    if (index < 0) {
+      _showError('Publication introuvable.');
+      return;
+    }
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      _showError('Le commentaire est vide.');
+      return;
+    }
+    final target = _newsPosts[index];
+    final comments = List<NewsComment>.from(target.comments)
+      ..add(
+        NewsComment(
+          id: _newId('COM'),
+          authorId: _currentUser.id,
+          authorName: _currentUser.name,
+          text: trimmed,
+          createdAt: DateTime.now(),
+        ),
+      );
+    final updated = NewsPost(
+      id: target.id,
+      authorId: target.authorId,
+      authorName: target.authorName,
+      authorRole: target.authorRole,
+      text: target.text,
+      createdAt: target.createdAt,
+      imageBase64: target.imageBase64,
+      imageName: target.imageName,
+      likedByUserIds: target.likedByUserIds,
+      comments: comments,
+    );
+    setState(() => _newsPosts[index] = updated);
+    _persistState();
+    _showInfo('Commentaire publié.');
+  }
+
+  void _toggleNewsLike(String postId) {
+    final index = _newsPosts.indexWhere((post) => post.id == postId);
+    if (index < 0) {
+      return;
+    }
+    final target = _newsPosts[index];
+    final likes = List<String>.from(target.likedByUserIds);
+    if (likes.contains(_currentUser.id)) {
+      likes.remove(_currentUser.id);
+    } else {
+      likes.add(_currentUser.id);
+    }
+    final updated = NewsPost(
+      id: target.id,
+      authorId: target.authorId,
+      authorName: target.authorName,
+      authorRole: target.authorRole,
+      text: target.text,
+      createdAt: target.createdAt,
+      imageBase64: target.imageBase64,
+      imageName: target.imageName,
+      likedByUserIds: likes,
+      comments: target.comments,
+    );
+    setState(() => _newsPosts[index] = updated);
+    _persistState();
+  }
+
+  Future<void> _deleteNewsPost(String postId) async {
+    final index = _newsPosts.indexWhere((post) => post.id == postId);
+    if (index < 0) {
+      return;
+    }
+    final target = _newsPosts[index];
+    if (!_canManageNewsPost(target)) {
+      _showError('Vous ne pouvez pas supprimer cette publication.');
+      return;
+    }
+    final confirmed = await _confirmDeletion(
+      title: 'Supprimer cette publication ?',
+      message: 'Cette action supprimera aussi ses commentaires.',
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+    setState(() => _newsPosts.removeAt(index));
+    _addAuditLog(
+      module: 'ACTUALITES',
+      action: 'DELETE_POST',
+      detail: 'Publication supprimée ${target.id}',
+    );
+    _persistState();
+    _showInfo('Publication supprimée.');
+  }
+
   Widget _buildUserAvatar(
     UserProfile user, {
     double radius = 18,
@@ -9600,6 +10585,7 @@ class _MainScreenState extends State<MainScreen> {
         return const [
           AppTabs.dashboard,
           AppTabs.profile,
+          AppTabs.actualites,
           AppTabs.messenger,
           AppTabs.administration,
           AppTabs.services,
@@ -9617,6 +10603,7 @@ class _MainScreenState extends State<MainScreen> {
         return const [
           AppTabs.dashboard,
           AppTabs.profile,
+          AppTabs.actualites,
           AppTabs.messenger,
           AppTabs.elevage,
           AppTabs.boars,
@@ -9627,11 +10614,17 @@ class _MainScreenState extends State<MainScreen> {
         return const [
           AppTabs.dashboard,
           AppTabs.profile,
+          AppTabs.actualites,
           AppTabs.messenger,
           AppTabs.health,
         ];
       default:
-        return const [AppTabs.dashboard, AppTabs.profile, AppTabs.messenger];
+        return const [
+          AppTabs.dashboard,
+          AppTabs.profile,
+          AppTabs.actualites,
+          AppTabs.messenger,
+        ];
     }
   }
 
@@ -9664,6 +10657,8 @@ class _MainScreenState extends State<MainScreen> {
         return 'TABLEAU DE BORD REPRODUCTION PORCINE';
       case AppTabs.profile:
         return 'PROFIL UTILISATEUR';
+      case AppTabs.actualites:
+        return 'ACTUALITÉS ÉLEVAGE';
       case AppTabs.messenger:
         return 'MESSAGERIE INTERNE ÉLEVAGE';
       case AppTabs.administration:
@@ -9715,6 +10710,8 @@ class _MainScreenState extends State<MainScreen> {
         return LucideIcons.syringe;
       case AppTabs.boars:
         return LucideIcons.badgeInfo;
+      case AppTabs.actualites:
+        return Icons.dynamic_feed_outlined;
       case AppTabs.sows:
         return LucideIcons.piggyBank;
       case AppTabs.pedigree:
@@ -9735,6 +10732,8 @@ class _MainScreenState extends State<MainScreen> {
         return 'Ajouter IA';
       case AppTabs.boars:
         return 'Ajouter Verrat';
+      case AppTabs.actualites:
+        return 'Publier actualité';
       case AppTabs.sows:
         return 'Ajouter Truie';
       case AppTabs.pedigree:
@@ -9760,6 +10759,9 @@ class _MainScreenState extends State<MainScreen> {
         break;
       case AppTabs.boars:
         _showAddBoarDialog();
+        break;
+      case AppTabs.actualites:
+        _showAddNewsPostDialog();
         break;
       case AppTabs.sows:
         _showAddSowDialog();
