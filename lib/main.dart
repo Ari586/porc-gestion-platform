@@ -66,6 +66,8 @@ class UserProfile {
   final String name;
   final String role;
   final String avatar;
+  final String address;
+  final String contact;
   final String login;
   final String password;
 
@@ -75,6 +77,8 @@ class UserProfile {
     required this.name,
     required this.role,
     required this.avatar,
+    this.address = '',
+    this.contact = '',
     required this.login,
     required this.password,
   });
@@ -327,6 +331,8 @@ const List<UserProfile> initialUsers = [
     name: 'Jean Responsable',
     role: Roles.admin,
     avatar: 'J',
+    address: 'Lot A12 Antananarivo',
+    contact: '+261 34 00 01 000',
     login: 'admin',
     password: 'Admin@2026',
   ),
@@ -336,6 +342,8 @@ const List<UserProfile> initialUsers = [
     name: 'Marc Éleveur',
     role: Roles.breeder,
     avatar: 'M',
+    address: 'Ferme Andoharanofotsy',
+    contact: '+261 34 00 01 002',
     login: 'eleveur',
     password: 'Elevage@2026',
   ),
@@ -345,6 +353,8 @@ const List<UserProfile> initialUsers = [
     name: 'Paul Insem',
     role: Roles.inseminator,
     avatar: 'P',
+    address: 'Zone rurale Itaosy',
+    contact: '+261 34 00 01 003',
     login: 'insemination',
     password: 'Insem@2026',
   ),
@@ -354,6 +364,8 @@ const List<UserProfile> initialUsers = [
     name: 'Lucie Véto',
     role: Roles.vet,
     avatar: 'L',
+    address: 'Clinique Vet Ambatobe',
+    contact: '+261 34 00 01 004',
     login: 'veto',
     password: 'Sante@2026',
   ),
@@ -1106,6 +1118,8 @@ class _MainScreenState extends State<MainScreen> {
       'name': user.name,
       'role': user.role,
       'avatar': user.avatar,
+      'address': user.address,
+      'contact': user.contact,
       'login': user.login,
       'password': user.password,
     };
@@ -1117,6 +1131,8 @@ class _MainScreenState extends State<MainScreen> {
     final name = _readString(json['name']).trim();
     final role = _readString(json['role']).trim();
     final avatar = _readString(json['avatar']).trim();
+    var address = _readString(json['address']).trim();
+    var contact = _readString(json['contact']).trim();
     final login = _readString(json['login']).trim();
     final password = _readString(json['password']);
     if (id.isEmpty ||
@@ -1128,12 +1144,31 @@ class _MainScreenState extends State<MainScreen> {
         password.isEmpty) {
       return null;
     }
+
+    UserProfile? fallbackUser;
+    for (final user in initialUsers) {
+      if (user.id == id ||
+          user.code.toLowerCase() == code.toLowerCase() ||
+          user.login.toLowerCase() == login.toLowerCase()) {
+        fallbackUser = user;
+        break;
+      }
+    }
+    if (address.isEmpty && fallbackUser != null) {
+      address = fallbackUser.address;
+    }
+    if (contact.isEmpty && fallbackUser != null) {
+      contact = fallbackUser.contact;
+    }
+
     return UserProfile(
       id: id,
       code: code,
       name: name,
       role: role,
       avatar: avatar,
+      address: address,
+      contact: contact,
       login: login,
       password: password,
     );
@@ -1961,6 +1996,8 @@ class _MainScreenState extends State<MainScreen> {
       0,
       (sum, sale) => sum + sale.amount,
     );
+    final inseminatorRecaps = _computeInseminatorRecaps();
+    final breederIaRecaps = _computeBreederIaRecaps();
 
     final clientRows = _clients
         .map(
@@ -1999,6 +2036,60 @@ class _MainScreenState extends State<MainScreen> {
                     Icons.delete_outline,
                     color: Color(0xFFB91C1C),
                   ),
+                ),
+              ),
+            ],
+          ),
+        )
+        .toList();
+
+    final inseminatorRows = inseminatorRecaps
+        .map(
+          (recap) => DataRow(
+            cells: [
+              DataCell(Text(recap.user.code)),
+              DataCell(Text(recap.user.name)),
+              DataCell(
+                Text(recap.user.address.isEmpty ? '-' : recap.user.address),
+              ),
+              DataCell(
+                Text(recap.user.contact.isEmpty ? '-' : recap.user.contact),
+              ),
+              DataCell(Text('${recap.totalIa}')),
+              DataCell(
+                Text(
+                  '${recap.successRate}%',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              DataCell(
+                Text(
+                  _formatAmount(recap.totalIaCost),
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+        )
+        .toList();
+
+    final breederIaRows = breederIaRecaps
+        .map(
+          (recap) => DataRow(
+            cells: [
+              DataCell(Text(recap.user.code)),
+              DataCell(Text(recap.user.name)),
+              DataCell(
+                Text(recap.user.address.isEmpty ? '-' : recap.user.address),
+              ),
+              DataCell(
+                Text(recap.user.contact.isEmpty ? '-' : recap.user.contact),
+              ),
+              DataCell(Text('${recap.sowsToInseminate}')),
+              DataCell(
+                Text(
+                  '${recap.successRate}%',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),
             ],
@@ -2066,6 +2157,39 @@ class _MainScreenState extends State<MainScreen> {
               _buildSalesEvolutionChart(filteredSales),
             ],
           ),
+        ),
+        const SizedBox(height: 16),
+        _buildDataTableSection(
+          title: 'Récapitulation suivi inséminateurs',
+          subtitle:
+              'Code, coordonnées, nombre IA, taux de réussite et coût total IA',
+          emptyMessage: 'Aucun inséminateur disponible.',
+          columns: const [
+            DataColumn(label: Text('CODE INSÉMINATEUR')),
+            DataColumn(label: Text('NOM')),
+            DataColumn(label: Text('ADRESSE')),
+            DataColumn(label: Text('CONTACT')),
+            DataColumn(label: Text('NOMBRE IA')),
+            DataColumn(label: Text('TAUX RÉUSSITE IA')),
+            DataColumn(label: Text('COÛT IA')),
+          ],
+          rows: inseminatorRows,
+        ),
+        const SizedBox(height: 16),
+        _buildDataTableSection(
+          title: 'Récapitulation gestion éleveurs (truies pour IA)',
+          subtitle:
+              'Code, coordonnées, truies à faire IA et taux de réussite IA',
+          emptyMessage: 'Aucun éleveur disponible.',
+          columns: const [
+            DataColumn(label: Text('CODE ÉLEVEUR')),
+            DataColumn(label: Text('NOM')),
+            DataColumn(label: Text('ADRESSE')),
+            DataColumn(label: Text('CONTACT')),
+            DataColumn(label: Text('TRUIES À FAIRE IA')),
+            DataColumn(label: Text('TAUX RÉUSSITE IA')),
+          ],
+          rows: breederIaRows,
         ),
         const SizedBox(height: 16),
         _buildDataTableSection(
@@ -3907,6 +4031,163 @@ class _MainScreenState extends State<MainScreen> {
     return stats;
   }
 
+  List<_InseminatorRecap> _computeInseminatorRecaps() {
+    final inseminators = _users
+        .where((user) => user.role == Roles.inseminator)
+        .toList();
+
+    final recaps = inseminators.map((inseminator) {
+      final records = _inseminations
+          .where((record) => _recordMatchesInseminator(record, inseminator))
+          .toList();
+      final successCount = records
+          .where((record) => _isSuccessfulStatus(record.status))
+          .length;
+      final failedCount = records
+          .where((record) => _isFailedStatus(record.status))
+          .length;
+      final totalCost = records.fold<double>(
+        0,
+        (sum, record) => sum + _estimatedIaCost(record),
+      );
+
+      return _InseminatorRecap(
+        user: inseminator,
+        totalIa: records.length,
+        successIa: successCount,
+        failedIa: failedCount,
+        totalIaCost: totalCost,
+      );
+    }).toList();
+
+    recaps.sort((a, b) {
+      final byIaCount = b.totalIa.compareTo(a.totalIa);
+      if (byIaCount != 0) {
+        return byIaCount;
+      }
+      return a.user.name.compareTo(b.user.name);
+    });
+
+    return recaps;
+  }
+
+  List<_BreederIaRecap> _computeBreederIaRecaps() {
+    final breeders = _users
+        .where((user) => user.role == Roles.breeder)
+        .toList();
+    final today = _currentDate();
+
+    final recaps = breeders.map((breeder) {
+      final breederSows = _sows
+          .where((sow) => sow.breederId.trim() == breeder.id.trim())
+          .toList();
+      final breederSowCodes = breederSows
+          .map((sow) => _normalizeLookup(sow.code))
+          .toSet();
+      final breederRecords = _inseminations
+          .where(
+            (record) =>
+                breederSowCodes.contains(_normalizeLookup(record.sowCode)),
+          )
+          .toList();
+
+      final successCount = breederRecords
+          .where((record) => _isSuccessfulStatus(record.status))
+          .length;
+      final failedCount = breederRecords
+          .where((record) => _isFailedStatus(record.status))
+          .length;
+
+      var sowsToInseminate = 0;
+      for (final sow in breederSows) {
+        final latestRecord = _latestInseminationForSow(sow.code);
+        if (latestRecord == null) {
+          sowsToInseminate++;
+          continue;
+        }
+        if (_isFailedStatus(latestRecord.status)) {
+          sowsToInseminate++;
+          continue;
+        }
+        if (_isSuccessfulStatus(latestRecord.status)) {
+          continue;
+        }
+        final diagnosisLimit = _expectedPregnancyCheckDate(
+          latestRecord,
+        ).add(const Duration(days: 7));
+        if (today.isAfter(diagnosisLimit)) {
+          sowsToInseminate++;
+        }
+      }
+
+      return _BreederIaRecap(
+        user: breeder,
+        sowsToInseminate: sowsToInseminate,
+        successIa: successCount,
+        failedIa: failedCount,
+      );
+    }).toList();
+
+    recaps.sort((a, b) {
+      final bySows = b.sowsToInseminate.compareTo(a.sowsToInseminate);
+      if (bySows != 0) {
+        return bySows;
+      }
+      return a.user.name.compareTo(b.user.name);
+    });
+
+    return recaps;
+  }
+
+  bool _recordMatchesInseminator(
+    InseminationRecord record,
+    UserProfile inseminator,
+  ) {
+    final raw = _normalizeLookup(record.inseminator);
+    if (raw.isEmpty) {
+      return false;
+    }
+    final byName = _normalizeLookup(inseminator.name);
+    final byCode = _normalizeLookup(inseminator.code);
+    final byLogin = _normalizeLookup(inseminator.login);
+
+    if (raw == byName || raw == byCode || raw == byLogin) {
+      return true;
+    }
+    return byName.isNotEmpty && raw.contains(byName);
+  }
+
+  String _normalizeLookup(String value) => value.trim().toLowerCase();
+
+  double _estimatedIaCost(InseminationRecord record) {
+    var cost = 35000.0;
+    if (record.dose2Date != null) {
+      cost += 12000;
+    }
+    final boar = _findBoar(record.boarCode);
+    if (boar != null &&
+        boar.semenType.trim().toLowerCase().contains('congel')) {
+      cost += 8000;
+    }
+    return cost;
+  }
+
+  InseminationRecord? _latestInseminationForSow(String sowCode) {
+    final normalizedSowCode = _normalizeLookup(sowCode);
+    InseminationRecord? latest;
+
+    for (final record in _inseminations) {
+      if (_normalizeLookup(record.sowCode) != normalizedSowCode) {
+        continue;
+      }
+      if (latest == null || record.dose1Date.isAfter(latest.dose1Date)) {
+        latest = record;
+      }
+    }
+
+    return latest;
+  }
+
   Widget _buildMiniIndicator({
     required String label,
     required String value,
@@ -4814,6 +5095,8 @@ class _MainScreenState extends State<MainScreen> {
             cells: [
               DataCell(Text(user.code)),
               DataCell(Text(user.name)),
+              DataCell(Text(user.address.isEmpty ? '-' : user.address)),
+              DataCell(Text(user.contact.isEmpty ? '-' : user.contact)),
               DataCell(Text(user.role)),
               DataCell(Text(user.login)),
               const DataCell(Text('********')),
@@ -4931,6 +5214,8 @@ class _MainScreenState extends State<MainScreen> {
           columns: const [
             DataColumn(label: Text('CODE')),
             DataColumn(label: Text('NOM')),
+            DataColumn(label: Text('ADRESSE')),
+            DataColumn(label: Text('CONTACT')),
             DataColumn(label: Text('RÔLE')),
             DataColumn(label: Text('LOGIN')),
             DataColumn(label: Text('MOT DE PASSE')),
@@ -6499,6 +6784,8 @@ class _MainScreenState extends State<MainScreen> {
   void _showAddUserDialog() {
     final codeCtrl = TextEditingController();
     final nameCtrl = TextEditingController();
+    final addressCtrl = TextEditingController();
+    final contactCtrl = TextEditingController();
     final loginCtrl = TextEditingController();
     final passwordCtrl = TextEditingController();
     String selectedRole = Roles.breeder;
@@ -6523,6 +6810,8 @@ class _MainScreenState extends State<MainScreen> {
                         hint: 'USR-01',
                       ),
                       _dialogField(nameCtrl, 'Nom complet *'),
+                      _dialogField(addressCtrl, 'Adresse *'),
+                      _dialogField(contactCtrl, 'Contact *'),
                       DropdownButtonFormField<String>(
                         initialValue: selectedRole,
                         decoration: const InputDecoration(
@@ -6598,15 +6887,19 @@ class _MainScreenState extends State<MainScreen> {
                   onPressed: () {
                     final code = codeCtrl.text.trim();
                     final name = nameCtrl.text.trim();
+                    final address = addressCtrl.text.trim();
+                    final contact = contactCtrl.text.trim();
                     final login = loginCtrl.text.trim().toLowerCase();
                     final password = passwordCtrl.text;
 
                     if (code.isEmpty ||
                         name.isEmpty ||
+                        address.isEmpty ||
+                        contact.isEmpty ||
                         login.isEmpty ||
                         password.isEmpty) {
                       _showError(
-                        'Veuillez remplir code, nom, rôle, login et mot de passe.',
+                        'Veuillez remplir code, nom, adresse, contact, rôle, login et mot de passe.',
                       );
                       return;
                     }
@@ -6632,6 +6925,8 @@ class _MainScreenState extends State<MainScreen> {
                       name: name,
                       role: selectedRole,
                       avatar: avatar,
+                      address: address,
+                      contact: contact,
                       login: login,
                       password: password,
                     );
@@ -6649,13 +6944,22 @@ class _MainScreenState extends State<MainScreen> {
         );
       },
     ).then(
-      (_) => _disposeControllers([codeCtrl, nameCtrl, loginCtrl, passwordCtrl]),
+      (_) => _disposeControllers([
+        codeCtrl,
+        nameCtrl,
+        addressCtrl,
+        contactCtrl,
+        loginCtrl,
+        passwordCtrl,
+      ]),
     );
   }
 
   void _showEditUserDialog(UserProfile user) {
     final codeCtrl = TextEditingController(text: user.code);
     final nameCtrl = TextEditingController(text: user.name);
+    final addressCtrl = TextEditingController(text: user.address);
+    final contactCtrl = TextEditingController(text: user.contact);
     final loginCtrl = TextEditingController(text: user.login);
     String selectedRole = user.role;
 
@@ -6674,6 +6978,8 @@ class _MainScreenState extends State<MainScreen> {
                     children: [
                       _dialogField(codeCtrl, 'Code utilisateur *'),
                       _dialogField(nameCtrl, 'Nom complet *'),
+                      _dialogField(addressCtrl, 'Adresse *'),
+                      _dialogField(contactCtrl, 'Contact *'),
                       DropdownButtonFormField<String>(
                         initialValue: selectedRole,
                         decoration: const InputDecoration(
@@ -6720,10 +7026,18 @@ class _MainScreenState extends State<MainScreen> {
                   onPressed: () {
                     final code = codeCtrl.text.trim();
                     final name = nameCtrl.text.trim();
+                    final address = addressCtrl.text.trim();
+                    final contact = contactCtrl.text.trim();
                     final login = loginCtrl.text.trim().toLowerCase();
 
-                    if (code.isEmpty || name.isEmpty || login.isEmpty) {
-                      _showError('Code, nom et login sont obligatoires.');
+                    if (code.isEmpty ||
+                        name.isEmpty ||
+                        address.isEmpty ||
+                        contact.isEmpty ||
+                        login.isEmpty) {
+                      _showError(
+                        'Code, nom, adresse, contact et login sont obligatoires.',
+                      );
                       return;
                     }
                     if (_isDuplicateUserCode(code, ignoreUserId: user.id)) {
@@ -6752,6 +7066,8 @@ class _MainScreenState extends State<MainScreen> {
                       name: name,
                       role: selectedRole,
                       avatar: _avatarFromName(name),
+                      address: address,
+                      contact: contact,
                       login: login,
                       password: user.password,
                     );
@@ -6782,7 +7098,15 @@ class _MainScreenState extends State<MainScreen> {
           },
         );
       },
-    ).then((_) => _disposeControllers([codeCtrl, nameCtrl, loginCtrl]));
+    ).then(
+      (_) => _disposeControllers([
+        codeCtrl,
+        nameCtrl,
+        addressCtrl,
+        contactCtrl,
+        loginCtrl,
+      ]),
+    );
   }
 
   void _showChangeUserPasswordDialog(UserProfile user) {
@@ -6877,6 +7201,8 @@ class _MainScreenState extends State<MainScreen> {
                       name: user.name,
                       role: user.role,
                       avatar: user.avatar,
+                      address: user.address,
+                      contact: user.contact,
                       login: user.login,
                       password: password,
                     );
@@ -8144,6 +8470,52 @@ class _OutcomeDonutPainter extends CustomPainter {
       }
     }
     return false;
+  }
+}
+
+class _InseminatorRecap {
+  final UserProfile user;
+  final int totalIa;
+  final int successIa;
+  final int failedIa;
+  final double totalIaCost;
+
+  const _InseminatorRecap({
+    required this.user,
+    required this.totalIa,
+    required this.successIa,
+    required this.failedIa,
+    required this.totalIaCost,
+  });
+
+  int get successRate {
+    final decided = successIa + failedIa;
+    if (decided == 0) {
+      return 0;
+    }
+    return ((successIa / decided) * 100).round();
+  }
+}
+
+class _BreederIaRecap {
+  final UserProfile user;
+  final int sowsToInseminate;
+  final int successIa;
+  final int failedIa;
+
+  const _BreederIaRecap({
+    required this.user,
+    required this.sowsToInseminate,
+    required this.successIa,
+    required this.failedIa,
+  });
+
+  int get successRate {
+    final decided = successIa + failedIa;
+    if (decided == 0) {
+      return 0;
+    }
+    return ((successIa / decided) * 100).round();
   }
 }
 
