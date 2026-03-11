@@ -2864,6 +2864,99 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildSidebar() {
+    final navItems = <Widget>[
+      if (_canAccessTab(AppTabs.dashboard))
+        _buildNavItem(
+          icon: LucideIcons.layoutDashboard,
+          label: 'Tableau de bord',
+          tabId: AppTabs.dashboard,
+        ),
+      if (_canAccessTab(AppTabs.profile))
+        _buildNavItem(
+          icon: Icons.account_circle_outlined,
+          label: 'Mon Profil',
+          tabId: AppTabs.profile,
+        ),
+      if (_canAccessTab(AppTabs.actualites))
+        _buildNavItem(
+          icon: Icons.dynamic_feed_outlined,
+          label: 'Actualités',
+          tabId: AppTabs.actualites,
+        ),
+      if (_canAccessTab(AppTabs.messenger))
+        _buildNavItem(
+          icon: Icons.forum_outlined,
+          label: 'Messagerie',
+          tabId: AppTabs.messenger,
+        ),
+      if (_canAccessTab(AppTabs.administration))
+        _buildNavItem(
+          icon: LucideIcons.users,
+          label: 'Interface & Admin',
+          tabId: AppTabs.administration,
+        ),
+      if (_canAccessTab(AppTabs.services))
+        _buildNavItem(
+          icon: LucideIcons.shieldCheck,
+          label: 'Pack Services',
+          tabId: AppTabs.services,
+        ),
+      if (_canAccessTab(AppTabs.elevage))
+        _buildNavItem(
+          icon: LucideIcons.piggyBank,
+          label: 'Gestion Élevage',
+          tabId: AppTabs.elevage,
+        ),
+      if (_canAccessTab(AppTabs.commercial))
+        _buildNavItem(
+          icon: LucideIcons.layers,
+          label: 'Commercial & Stock',
+          tabId: AppTabs.commercial,
+        ),
+      if (_canAccessTab(AppTabs.inseminations))
+        _buildNavItem(
+          icon: LucideIcons.syringe,
+          label: 'Reproduction IA',
+          tabId: AppTabs.inseminations,
+        ),
+      if (_canAccessTab(AppTabs.boars))
+        _buildNavItem(
+          icon: LucideIcons.badgeInfo,
+          label: 'Verrats',
+          tabId: AppTabs.boars,
+        ),
+      if (_canAccessTab(AppTabs.sows))
+        _buildNavItem(
+          icon: LucideIcons.piggyBank,
+          label: 'Truies',
+          tabId: AppTabs.sows,
+        ),
+      if (_canAccessTab(AppTabs.pedigree))
+        _buildNavItem(
+          icon: LucideIcons.dna,
+          label: 'Pedigree',
+          tabId: AppTabs.pedigree,
+        ),
+      if (_canAccessTab(AppTabs.health))
+        _buildNavItem(
+          icon: LucideIcons.shieldCheck,
+          label: 'Vaccins & Traitements',
+          tabId: AppTabs.health,
+        ),
+      if (_canAccessTab(AppTabs.logiciel))
+        _buildNavItem(
+          icon: LucideIcons.badgeInfo,
+          label: 'Caractéristiques',
+          tabId: AppTabs.logiciel,
+        ),
+      if (_canAccessTab(AppTabs.users))
+        _buildNavItem(
+          icon: LucideIcons.users,
+          label: 'Utilisateurs',
+          tabId: AppTabs.users,
+        ),
+    ];
+
     return Container(
       color: const Color(0xFF0F172A),
       padding: const EdgeInsets.all(16),
@@ -2896,97 +2989,16 @@ class _MainScreenState extends State<MainScreen> {
               ],
             ),
           ),
-          if (_canAccessTab(AppTabs.dashboard))
-            _buildNavItem(
-              icon: LucideIcons.layoutDashboard,
-              label: 'Tableau de bord',
-              tabId: AppTabs.dashboard,
+          Expanded(
+            child: Scrollbar(
+              thumbVisibility: true,
+              child: ListView(
+                padding: const EdgeInsets.only(right: 4, bottom: 8),
+                children: navItems,
+              ),
             ),
-          if (_canAccessTab(AppTabs.profile))
-            _buildNavItem(
-              icon: Icons.account_circle_outlined,
-              label: 'Mon Profil',
-              tabId: AppTabs.profile,
-            ),
-          if (_canAccessTab(AppTabs.actualites))
-            _buildNavItem(
-              icon: Icons.dynamic_feed_outlined,
-              label: 'Actualités',
-              tabId: AppTabs.actualites,
-            ),
-          if (_canAccessTab(AppTabs.messenger))
-            _buildNavItem(
-              icon: Icons.forum_outlined,
-              label: 'Messagerie',
-              tabId: AppTabs.messenger,
-            ),
-          if (_canAccessTab(AppTabs.administration))
-            _buildNavItem(
-              icon: LucideIcons.users,
-              label: 'Interface & Admin',
-              tabId: AppTabs.administration,
-            ),
-          if (_canAccessTab(AppTabs.services))
-            _buildNavItem(
-              icon: LucideIcons.shieldCheck,
-              label: 'Pack Services',
-              tabId: AppTabs.services,
-            ),
-          if (_canAccessTab(AppTabs.elevage))
-            _buildNavItem(
-              icon: LucideIcons.piggyBank,
-              label: 'Gestion Élevage',
-              tabId: AppTabs.elevage,
-            ),
-          if (_canAccessTab(AppTabs.commercial))
-            _buildNavItem(
-              icon: LucideIcons.layers,
-              label: 'Commercial & Stock',
-              tabId: AppTabs.commercial,
-            ),
-          if (_canAccessTab(AppTabs.inseminations))
-            _buildNavItem(
-              icon: LucideIcons.syringe,
-              label: 'Reproduction IA',
-              tabId: AppTabs.inseminations,
-            ),
-          if (_canAccessTab(AppTabs.boars))
-            _buildNavItem(
-              icon: LucideIcons.badgeInfo,
-              label: 'Verrats',
-              tabId: AppTabs.boars,
-            ),
-          if (_canAccessTab(AppTabs.sows))
-            _buildNavItem(
-              icon: LucideIcons.piggyBank,
-              label: 'Truies',
-              tabId: AppTabs.sows,
-            ),
-          if (_canAccessTab(AppTabs.pedigree))
-            _buildNavItem(
-              icon: LucideIcons.dna,
-              label: 'Pedigree',
-              tabId: AppTabs.pedigree,
-            ),
-          if (_canAccessTab(AppTabs.health))
-            _buildNavItem(
-              icon: LucideIcons.shieldCheck,
-              label: 'Vaccins & Traitements',
-              tabId: AppTabs.health,
-            ),
-          if (_canAccessTab(AppTabs.logiciel))
-            _buildNavItem(
-              icon: LucideIcons.badgeInfo,
-              label: 'Caractéristiques',
-              tabId: AppTabs.logiciel,
-            ),
-          if (_canAccessTab(AppTabs.users))
-            _buildNavItem(
-              icon: LucideIcons.users,
-              label: 'Utilisateurs',
-              tabId: AppTabs.users,
-            ),
-          const Spacer(),
+          ),
+          const SizedBox(height: 8),
           _buildCurrentUserCard(),
         ],
       ),
