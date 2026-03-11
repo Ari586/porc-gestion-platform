@@ -1983,6 +1983,8 @@ class _MainScreenState extends State<MainScreen> {
         name: boar.name,
         type: 'Verrat',
         breed: boar.breed,
+        birthDate: boar.birthDate,
+        breederId: boar.breederId,
         sireCode: boar.sireCode,
         damCode: boar.damCode,
         origin: boar.origin,
@@ -2000,6 +2002,8 @@ class _MainScreenState extends State<MainScreen> {
         name: sow.name,
         type: 'Truie',
         breed: sow.breed,
+        birthDate: sow.birthDate,
+        breederId: sow.breederId,
         sireCode: sow.sireCode,
         damCode: sow.damCode,
         origin: '',
@@ -9359,6 +9363,41 @@ class _MainScreenState extends State<MainScreen> {
                         maternalSire: maternalSireNode,
                         maternalDam: maternalDamNode,
                       ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        FilledButton.icon(
+                          onPressed: selectedNode == null
+                              ? null
+                              : () => _showPedigreeEditorDialog(
+                                  selectedNode.code,
+                                ),
+                          icon: const Icon(Icons.edit_outlined, size: 16),
+                          label: const Text('Modifier manuel / auto'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: selectedNode == null
+                              ? null
+                              : () => _autoAssignPedigreeForAnimal(
+                                  selectedNode.code,
+                                ),
+                          icon: const Icon(
+                            Icons.auto_fix_high_outlined,
+                            size: 16,
+                          ),
+                          label: const Text('Auto sur cet animal'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: pedigreeNodes.isEmpty
+                              ? null
+                              : _autoAssignPedigreeForAllAnimals,
+                          icon: const Icon(Icons.hub_outlined, size: 16),
+                          label: const Text('Auto global'),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
         ),
@@ -9460,6 +9499,8 @@ class _MainScreenState extends State<MainScreen> {
           name: boar.name,
           type: 'Verrat',
           breed: boar.breed,
+          birthDate: boar.birthDate,
+          breederId: boar.breederId,
           sireCode: boar.sireCode,
           damCode: boar.damCode,
           origin: boar.origin,
@@ -9474,6 +9515,8 @@ class _MainScreenState extends State<MainScreen> {
           name: sow.name,
           type: 'Truie',
           breed: sow.breed,
+          birthDate: sow.birthDate,
+          breederId: sow.breederId,
           sireCode: sow.sireCode,
           damCode: sow.damCode,
           origin: '',
@@ -9747,6 +9790,556 @@ class _MainScreenState extends State<MainScreen> {
         ),
       ],
     );
+  }
+
+  void _showPedigreeEditorDialog(String animalCode) {
+    final node = _pedigreeNodeByCode(animalCode);
+    if (node == null) {
+      _showError('Animal introuvable pour modifier le pedigree.');
+      return;
+    }
+
+    final sireCtrl = TextEditingController(text: node.sireCode);
+    final damCtrl = TextEditingController(text: node.damCode);
+    var quickSireValue = '';
+    var quickDamValue = '';
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final boarOptions =
+                _boars
+                    .where(
+                      (boar) =>
+                          _normalizeLookup(boar.code) !=
+                          _normalizeLookup(node.code),
+                    )
+                    .toList()
+                  ..sort((a, b) => a.code.compareTo(b.code));
+            final sowOptions =
+                _sows
+                    .where(
+                      (sow) =>
+                          _normalizeLookup(sow.code) !=
+                          _normalizeLookup(node.code),
+                    )
+                    .toList()
+                  ..sort((a, b) => a.code.compareTo(b.code));
+
+            return AlertDialog(
+              title: const Text('Modifier pedigree (manuel / auto)'),
+              content: SizedBox(
+                width: _dialogWidth(dialogContext),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Text(
+                          'Animal cible: ${node.code} • ${node.name} (${node.type})',
+                          style: const TextStyle(
+                            color: Color(0xFF334155),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _dialogField(
+                        sireCtrl,
+                        'Code père (manuel)',
+                        hint: 'Ex: VR-1001',
+                      ),
+                      DropdownButtonFormField<String>(
+                        initialValue: quickSireValue,
+                        decoration: const InputDecoration(
+                          labelText: 'Choix rapide père (verrat)',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: [
+                          const DropdownMenuItem(
+                            value: '',
+                            child: Text('Choisir un verrat'),
+                          ),
+                          ...boarOptions.map(
+                            (boar) => DropdownMenuItem(
+                              value: boar.code,
+                              child: Text('${boar.code} - ${boar.name}'),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return;
+                          }
+                          setModalState(() {
+                            sireCtrl.text = value;
+                            quickSireValue = '';
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _dialogField(
+                        damCtrl,
+                        'Code mère (manuel)',
+                        hint: 'Ex: TR-2001',
+                      ),
+                      DropdownButtonFormField<String>(
+                        initialValue: quickDamValue,
+                        decoration: const InputDecoration(
+                          labelText: 'Choix rapide mère (truie)',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: [
+                          const DropdownMenuItem(
+                            value: '',
+                            child: Text('Choisir une truie'),
+                          ),
+                          ...sowOptions.map(
+                            (sow) => DropdownMenuItem(
+                              value: sow.code,
+                              child: Text('${sow.code} - ${sow.name}'),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return;
+                          }
+                          setModalState(() {
+                            damCtrl.text = value;
+                            quickDamValue = '';
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          final suggestion = _suggestPedigreeLinksForAnimal(
+                            node.code,
+                          );
+                          if (suggestion.sireCode.isEmpty &&
+                              suggestion.damCode.isEmpty) {
+                            _showError(
+                              'Aucune proposition automatique disponible.',
+                            );
+                            return;
+                          }
+                          setModalState(() {
+                            sireCtrl.text = suggestion.sireCode;
+                            damCtrl.text = suggestion.damCode;
+                          });
+                        },
+                        icon: const Icon(
+                          Icons.auto_fix_high_outlined,
+                          size: 16,
+                        ),
+                        label: const Text('Proposer automatiquement'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Annuler'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final sireCode = sireCtrl.text.trim();
+                    final damCode = damCtrl.text.trim();
+                    final animalCodeNormalized = _normalizeLookup(node.code);
+
+                    if (sireCode.isNotEmpty &&
+                        _normalizeLookup(sireCode) == animalCodeNormalized) {
+                      _showError(
+                        'Le père ne peut pas être le même animal (${node.code}).',
+                      );
+                      return;
+                    }
+                    if (damCode.isNotEmpty &&
+                        _normalizeLookup(damCode) == animalCodeNormalized) {
+                      _showError(
+                        'La mère ne peut pas être le même animal (${node.code}).',
+                      );
+                      return;
+                    }
+                    if (sireCode.isNotEmpty &&
+                        damCode.isNotEmpty &&
+                        _normalizeLookup(sireCode) ==
+                            _normalizeLookup(damCode)) {
+                      _showError(
+                        'Les codes père et mère doivent être différents.',
+                      );
+                      return;
+                    }
+
+                    final changed = _savePedigreeLinks(
+                      animalCode: node.code,
+                      sireCode: sireCode,
+                      damCode: damCode,
+                      auditAction: 'MANUAL_PEDIGREE_UPDATE',
+                      feedbackLabel:
+                          'Pedigree mis à jour pour ${node.code} (${node.name}).',
+                    );
+                    Navigator.of(dialogContext).pop();
+                    if (!changed) {
+                      _showInfo(
+                        'Aucune modification détectée pour ${node.code}.',
+                      );
+                    }
+                  },
+                  child: const Text('Enregistrer'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then((_) => _disposeControllers([sireCtrl, damCtrl]));
+  }
+
+  bool _applyPedigreeLinksInState({
+    required String animalCode,
+    required String sireCode,
+    required String damCode,
+  }) {
+    final normalizedAnimalCode = _normalizeLookup(animalCode);
+    final normalizedSire = sireCode.trim();
+    final normalizedDam = damCode.trim();
+
+    for (var i = 0; i < _boars.length; i++) {
+      final boar = _boars[i];
+      if (_normalizeLookup(boar.code) != normalizedAnimalCode) {
+        continue;
+      }
+      if (_normalizeLookup(boar.sireCode) == _normalizeLookup(normalizedSire) &&
+          _normalizeLookup(boar.damCode) == _normalizeLookup(normalizedDam)) {
+        return false;
+      }
+      _boars[i] = Boar(
+        id: boar.id,
+        code: boar.code,
+        name: boar.name,
+        breed: boar.breed,
+        birthDate: boar.birthDate,
+        origin: boar.origin,
+        breederId: boar.breederId,
+        sireCode: normalizedSire,
+        damCode: normalizedDam,
+        semenType: boar.semenType,
+        notes: boar.notes,
+        imageBase64: boar.imageBase64,
+      );
+      return true;
+    }
+
+    for (var i = 0; i < _sows.length; i++) {
+      final sow = _sows[i];
+      if (_normalizeLookup(sow.code) != normalizedAnimalCode) {
+        continue;
+      }
+      if (_normalizeLookup(sow.sireCode) == _normalizeLookup(normalizedSire) &&
+          _normalizeLookup(sow.damCode) == _normalizeLookup(normalizedDam)) {
+        return false;
+      }
+      _sows[i] = Sow(
+        id: sow.id,
+        code: sow.code,
+        name: sow.name,
+        breed: sow.breed,
+        birthDate: sow.birthDate,
+        parity: sow.parity,
+        breederId: sow.breederId,
+        sireCode: normalizedSire,
+        damCode: normalizedDam,
+        notes: sow.notes,
+        imageBase64: sow.imageBase64,
+      );
+      return true;
+    }
+
+    return false;
+  }
+
+  bool _savePedigreeLinks({
+    required String animalCode,
+    required String sireCode,
+    required String damCode,
+    required String auditAction,
+    required String feedbackLabel,
+  }) {
+    var changed = false;
+    final cleanSireCode = sireCode.trim();
+    final cleanDamCode = damCode.trim();
+
+    setState(() {
+      changed = _applyPedigreeLinksInState(
+        animalCode: animalCode,
+        sireCode: cleanSireCode,
+        damCode: cleanDamCode,
+      );
+      if (changed) {
+        _selectedPedigreeAnimalCode = animalCode;
+      }
+    });
+
+    if (!changed) {
+      return false;
+    }
+
+    _addAuditLog(
+      module: 'PEDIGREE',
+      action: auditAction,
+      detail:
+          '$animalCode -> père: ${cleanSireCode.isEmpty ? '-' : cleanSireCode}, '
+          'mère: ${cleanDamCode.isEmpty ? '-' : cleanDamCode}',
+    );
+    _persistState();
+    _showInfo(feedbackLabel);
+    return true;
+  }
+
+  void _autoAssignPedigreeForAnimal(String animalCode) {
+    final node = _pedigreeNodeByCode(animalCode);
+    if (node == null) {
+      _showError('Animal introuvable pour l\'assignation automatique.');
+      return;
+    }
+
+    final suggestion = _suggestPedigreeLinksForAnimal(node.code);
+    if (suggestion.sireCode.isEmpty && suggestion.damCode.isEmpty) {
+      _showError('Aucune proposition automatique disponible.');
+      return;
+    }
+
+    final changed = _savePedigreeLinks(
+      animalCode: node.code,
+      sireCode: suggestion.sireCode,
+      damCode: suggestion.damCode,
+      auditAction: 'AUTO_PEDIGREE_UPDATE',
+      feedbackLabel: 'Pedigree auto appliqué pour ${node.code}.',
+    );
+    if (!changed) {
+      _showInfo(
+        'Aucune modification automatique nécessaire pour ${node.code}.',
+      );
+    }
+  }
+
+  void _autoAssignPedigreeForAllAnimals() {
+    final nodes = _allPedigreeNodes();
+    if (nodes.isEmpty) {
+      _showError('Aucun animal disponible pour l\'assignation automatique.');
+      return;
+    }
+
+    var updatedCount = 0;
+    setState(() {
+      for (final node in nodes) {
+        final suggestion = _suggestPedigreeLinksForAnimal(node.code);
+        final changed = _applyPedigreeLinksInState(
+          animalCode: node.code,
+          sireCode: suggestion.sireCode,
+          damCode: suggestion.damCode,
+        );
+        if (changed) {
+          updatedCount++;
+        }
+      }
+      _selectedPedigreeAnimalCode = _resolveSelectedPedigreeCode(
+        _selectedPedigreeAnimalCode,
+        _allPedigreeNodes(),
+      );
+    });
+
+    if (updatedCount <= 0) {
+      _showInfo('Aucune mise à jour automatique nécessaire.');
+      return;
+    }
+
+    _addAuditLog(
+      module: 'PEDIGREE',
+      action: 'AUTO_PEDIGREE_GLOBAL',
+      detail: '$updatedCount pedigree(s) mis à jour automatiquement.',
+      severity: 'WARN',
+    );
+    _persistState();
+    _showInfo('$updatedCount pedigree(s) mis à jour automatiquement.');
+  }
+
+  ({String sireCode, String damCode}) _suggestPedigreeLinksForAnimal(
+    String animalCode,
+  ) {
+    final node = _pedigreeNodeByCode(animalCode);
+    if (node == null) {
+      return (sireCode: '', damCode: '');
+    }
+
+    var sireCode = node.sireCode.trim();
+    var damCode = node.damCode.trim();
+
+    if (sireCode.isEmpty) {
+      sireCode = _suggestSireCodeForPedigree(node);
+    }
+    if (damCode.isEmpty) {
+      damCode = _suggestDamCodeForPedigree(node, excludedCode: sireCode);
+    }
+    if (sireCode.isNotEmpty &&
+        damCode.isNotEmpty &&
+        _normalizeLookup(sireCode) == _normalizeLookup(damCode)) {
+      damCode = _suggestDamCodeForPedigree(node, excludedCode: sireCode);
+    }
+
+    return (sireCode: sireCode, damCode: damCode);
+  }
+
+  String _suggestSireCodeForPedigree(_PedigreeTreeNode target) {
+    final normalizedTargetCode = _normalizeLookup(target.code);
+    const minimumAgeGapDays = 180;
+
+    final olderCandidates = _boars.where((boar) {
+      if (_normalizeLookup(boar.code) == normalizedTargetCode) {
+        return false;
+      }
+      return target.birthDate.difference(boar.birthDate).inDays >=
+          minimumAgeGapDays;
+    }).toList();
+
+    final candidates = olderCandidates.isNotEmpty
+        ? olderCandidates
+        : _boars
+              .where(
+                (boar) => _normalizeLookup(boar.code) != normalizedTargetCode,
+              )
+              .toList();
+    if (candidates.isEmpty) {
+      return '';
+    }
+
+    candidates.sort((a, b) {
+      final scoreA = _scoreBoarCandidateForPedigree(a, target);
+      final scoreB = _scoreBoarCandidateForPedigree(b, target);
+      if (scoreA != scoreB) {
+        return scoreB.compareTo(scoreA);
+      }
+      return a.birthDate.compareTo(b.birthDate);
+    });
+
+    return candidates.first.code;
+  }
+
+  String _suggestDamCodeForPedigree(
+    _PedigreeTreeNode target, {
+    String excludedCode = '',
+  }) {
+    final excluded = <String>{
+      _normalizeLookup(target.code),
+      if (excludedCode.trim().isNotEmpty) _normalizeLookup(excludedCode),
+    };
+    const minimumAgeGapDays = 180;
+
+    final olderCandidates = _sows.where((sow) {
+      final code = _normalizeLookup(sow.code);
+      if (excluded.contains(code)) {
+        return false;
+      }
+      return target.birthDate.difference(sow.birthDate).inDays >=
+          minimumAgeGapDays;
+    }).toList();
+
+    final candidates = olderCandidates.isNotEmpty
+        ? olderCandidates
+        : _sows
+              .where((sow) => !excluded.contains(_normalizeLookup(sow.code)))
+              .toList();
+    if (candidates.isEmpty) {
+      return '';
+    }
+
+    candidates.sort((a, b) {
+      final scoreA = _scoreSowCandidateForPedigree(a, target);
+      final scoreB = _scoreSowCandidateForPedigree(b, target);
+      if (scoreA != scoreB) {
+        return scoreB.compareTo(scoreA);
+      }
+      return a.birthDate.compareTo(b.birthDate);
+    });
+
+    return candidates.first.code;
+  }
+
+  int _scoreBoarCandidateForPedigree(Boar boar, _PedigreeTreeNode target) {
+    var score = 0;
+    if (_normalizeLookup(boar.breed) == _normalizeLookup(target.breed)) {
+      score += 40;
+    }
+    if (target.breederId.trim().isNotEmpty &&
+        _normalizeLookup(boar.breederId) ==
+            _normalizeLookup(target.breederId)) {
+      score += 18;
+    }
+    final ageGap = target.birthDate.difference(boar.birthDate).inDays;
+    if (ageGap >= 540) {
+      score += 16;
+    } else if (ageGap >= 365) {
+      score += 12;
+    } else if (ageGap >= 240) {
+      score += 8;
+    } else if (ageGap >= 180) {
+      score += 4;
+    }
+
+    final inseminationCount = _inseminations
+        .where(
+          (record) =>
+              _normalizeLookup(record.boarCode) == _normalizeLookup(boar.code),
+        )
+        .length;
+    score += math.min(12, inseminationCount * 2);
+    return score;
+  }
+
+  int _scoreSowCandidateForPedigree(Sow sow, _PedigreeTreeNode target) {
+    var score = 0;
+    if (_normalizeLookup(sow.breed) == _normalizeLookup(target.breed)) {
+      score += 40;
+    }
+    if (target.breederId.trim().isNotEmpty &&
+        _normalizeLookup(sow.breederId) == _normalizeLookup(target.breederId)) {
+      score += 18;
+    }
+    final ageGap = target.birthDate.difference(sow.birthDate).inDays;
+    if (ageGap >= 540) {
+      score += 16;
+    } else if (ageGap >= 365) {
+      score += 12;
+    } else if (ageGap >= 240) {
+      score += 8;
+    } else if (ageGap >= 180) {
+      score += 4;
+    }
+    score += math.min(10, sow.parity * 2);
+    final farrowingCount = _farrowingRecords
+        .where(
+          (record) =>
+              _normalizeLookup(record.sowCode) == _normalizeLookup(sow.code),
+        )
+        .length;
+    score += math.min(8, farrowingCount * 2);
+    return score;
   }
 
   Widget _buildHealthManagement() {
@@ -20490,6 +21083,8 @@ class _PedigreeTreeNode {
   final String name;
   final String type;
   final String breed;
+  final DateTime birthDate;
+  final String breederId;
   final String sireCode;
   final String damCode;
   final String origin;
@@ -20499,6 +21094,8 @@ class _PedigreeTreeNode {
     required this.name,
     required this.type,
     required this.breed,
+    required this.birthDate,
+    required this.breederId,
     required this.sireCode,
     required this.damCode,
     required this.origin,
