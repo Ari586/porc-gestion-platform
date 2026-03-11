@@ -9019,139 +9019,11 @@ class _MainScreenState extends State<MainScreen> {
         .where((post) => post.imageBase64.trim().isNotEmpty)
         .length;
 
-    return Column(
+    final feedList = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionCard(
-          title: 'Actualités Élevage',
-          subtitle:
-              'Fil collaboratif style réseau social pour publier les infos terrain en temps réel',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact = constraints.maxWidth < 640;
-                  final composerHeader = Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildUserAvatar(_currentUser, radius: 20),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _currentUser.name,
-                              style: const TextStyle(
-                                color: Color(0xFF0F172A),
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            const Text(
-                              'Partagez une actualité: reproduction, santé, mise-bas, vente, alerte terrain...',
-                              style: TextStyle(
-                                color: Color(0xFF64748B),
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-
-                  if (compact) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        composerHeader,
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: _showAddNewsPostDialog,
-                            icon: const Icon(Icons.edit_outlined, size: 16),
-                            label: const Text('Créer une publication'),
-                          ),
-                        ),
-                      ],
-                    );
-                  }
-
-                  return Row(
-                    children: [
-                      Expanded(child: composerHeader),
-                      const SizedBox(width: 12),
-                      FilledButton.icon(
-                        onPressed: _showAddNewsPostDialog,
-                        icon: const Icon(Icons.edit_outlined, size: 16),
-                        label: const Text('Créer une publication'),
-                      ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final isWide = constraints.maxWidth > 900;
-                  final indicators = [
-                    _buildMiniIndicator(
-                      label: 'Mes publications',
-                      value: '$myPostsCount',
-                      color: const Color(0xFF0284C7),
-                    ),
-                    _buildMiniIndicator(
-                      label: 'J\'aime reçus',
-                      value: '$myLikesCount',
-                      color: const Color(0xFF7C3AED),
-                    ),
-                    _buildMiniIndicator(
-                      label: 'Commentaires',
-                      value: '$commentsCount',
-                      color: const Color(0xFF15803D),
-                    ),
-                    _buildMiniIndicator(
-                      label: 'Posts avec photo',
-                      value: '$photosCount',
-                      color: const Color(0xFFEA580C),
-                    ),
-                  ];
-
-                  if (isWide) {
-                    return Row(
-                      children: [
-                        Expanded(child: indicators[0]),
-                        const SizedBox(width: 10),
-                        Expanded(child: indicators[1]),
-                        const SizedBox(width: 10),
-                        Expanded(child: indicators[2]),
-                        const SizedBox(width: 10),
-                        Expanded(child: indicators[3]),
-                      ],
-                    );
-                  }
-
-                  return Column(
-                    children: [
-                      indicators[0],
-                      const SizedBox(height: 10),
-                      indicators[1],
-                      const SizedBox(height: 10),
-                      indicators[2],
-                      const SizedBox(height: 10),
-                      indicators[3],
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
+        _buildNewsComposerCard(),
+        const SizedBox(height: 12),
         if (posts.isEmpty)
           _buildSectionCard(
             title: 'Fil d\'actualité',
@@ -9170,6 +9042,333 @@ class _MainScreenState extends State<MainScreen> {
           ),
       ],
     );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktopFeed = constraints.maxWidth >= 1180;
+        if (!isDesktopFeed) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSectionCard(
+                title: 'Actualités Élevage',
+                subtitle:
+                    'Fil social terrain (style Facebook) pour publier, commenter et suivre la ferme',
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildMiniIndicator(
+                            label: 'Mes posts',
+                            value: '$myPostsCount',
+                            color: const Color(0xFF2563EB),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildMiniIndicator(
+                            label: 'J\'aime reçus',
+                            value: '$myLikesCount',
+                            color: const Color(0xFFDC2626),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildMiniIndicator(
+                            label: 'Commentaires',
+                            value: '$commentsCount',
+                            color: const Color(0xFF0F766E),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildMiniIndicator(
+                            label: 'Photos',
+                            value: '$photosCount',
+                            color: const Color(0xFFEA580C),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              feedList,
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 260,
+              child: _buildNewsLeftRail(
+                myPostsCount: myPostsCount,
+                myLikesCount: myLikesCount,
+                commentsCount: commentsCount,
+                photosCount: photosCount,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 700),
+                child: feedList,
+              ),
+            ),
+            const SizedBox(width: 14),
+            SizedBox(width: 280, child: _buildNewsRightRail(posts.length)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildNewsComposerCard() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              _buildUserAvatar(_currentUser, radius: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: InkWell(
+                  onTap: _showAddNewsPostDialog,
+                  borderRadius: BorderRadius.circular(999),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'Que voulez-vous partager, ${_currentUser.name.split(' ').first} ?',
+                      style: const TextStyle(
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Divider(height: 1),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: _buildNewsComposerQuickButton(
+                  icon: Icons.image_outlined,
+                  color: const Color(0xFF16A34A),
+                  label: 'Photo',
+                  onTap: _showAddNewsPostDialog,
+                ),
+              ),
+              Expanded(
+                child: _buildNewsComposerQuickButton(
+                  icon: LucideIcons.syringe,
+                  color: const Color(0xFF0F766E),
+                  label: 'Annonce IA',
+                  onTap: _showAddNewsPostDialog,
+                ),
+              ),
+              Expanded(
+                child: _buildNewsComposerQuickButton(
+                  icon: LucideIcons.shieldCheck,
+                  color: const Color(0xFF0284C7),
+                  label: 'Alerte Santé',
+                  onTap: _showAddNewsPostDialog,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNewsComposerQuickButton({
+    required IconData icon,
+    required Color color,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFF334155),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNewsLeftRail({
+    required int myPostsCount,
+    required int myLikesCount,
+    required int commentsCount,
+    required int photosCount,
+  }) {
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _buildUserAvatar(_currentUser, radius: 17),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _currentUser.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF0F172A),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              _buildNewsRailStatRow('Mes posts', '$myPostsCount'),
+              _buildNewsRailStatRow('J\'aime reçus', '$myLikesCount'),
+              _buildNewsRailStatRow('Commentaires', '$commentsCount'),
+              _buildNewsRailStatRow('Photos publiées', '$photosCount'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNewsRailStatRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFF475569),
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Color(0xFF0F172A),
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNewsRightRail(int totalPosts) {
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Actualités IA',
+                style: TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Utilisez ce fil pour les alertes de chaleur, diagnostics J28, mise-bas et suivi porcelets.',
+                style: TextStyle(
+                  color: Color(0xFF475569),
+                  fontSize: 12,
+                  height: 1.35,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEFF6FF),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFBFDBFE)),
+          ),
+          child: Text(
+            'Publications totales: $totalPosts',
+            style: const TextStyle(
+              color: Color(0xFF1E3A8A),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildNewsPostCard(NewsPost post) {
@@ -9183,164 +9382,182 @@ class _MainScreenState extends State<MainScreen> {
         : comments;
 
     return Container(
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildNewsAuthorAvatar(authorProfile, post.authorName),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      post.authorName,
-                      style: const TextStyle(
-                        color: Color(0xFF0F172A),
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 10, 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildNewsAuthorAvatar(authorProfile, post.authorName),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        post.authorName,
+                        style: const TextStyle(
+                          color: Color(0xFF0F172A),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _roleColor(
-                              post.authorRole,
-                            ).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            post.authorRole,
-                            style: TextStyle(
-                              color: _roleColor(post.authorRole),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 11,
-                            ),
-                          ),
+                      const SizedBox(height: 1),
+                      Text(
+                        '${post.authorRole} • ${_newsTimeLabel(post.createdAt)}',
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11,
                         ),
-                        Text(
-                          _newsTimeLabel(post.createdAt),
-                          style: const TextStyle(
-                            color: Color(0xFF64748B),
-                            fontWeight: FontWeight.w700,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              if (canManage)
-                PopupMenuButton<String>(
-                  tooltip: 'Actions',
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'edit':
-                        _showAddNewsPostDialog(existing: post);
-                        break;
-                      case 'delete':
-                        _deleteNewsPost(post.id);
-                        break;
-                    }
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem<String>(
-                      value: 'edit',
-                      child: Text('Modifier'),
+                if (canManage)
+                  PopupMenuButton<String>(
+                    tooltip: 'Actions',
+                    onSelected: (value) {
+                      switch (value) {
+                        case 'edit':
+                          _showAddNewsPostDialog(existing: post);
+                          break;
+                        case 'delete':
+                          _deleteNewsPost(post.id);
+                          break;
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem<String>(
+                        value: 'edit',
+                        child: Text('Modifier'),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'delete',
+                        child: Text('Supprimer'),
+                      ),
+                    ],
+                    icon: const Icon(
+                      Icons.more_horiz,
+                      color: Color(0xFF64748B),
                     ),
-                    PopupMenuItem<String>(
-                      value: 'delete',
-                      child: Text('Supprimer'),
-                    ),
-                  ],
-                  icon: const Icon(Icons.more_horiz, color: Color(0xFF64748B)),
-                ),
-            ],
+                  ),
+              ],
+            ),
           ),
           if (post.text.trim().isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              post.text.trim(),
-              style: const TextStyle(
-                color: Color(0xFF1E293B),
-                height: 1.38,
-                fontWeight: FontWeight.w600,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: Text(
+                post.text.trim(),
+                style: const TextStyle(
+                  color: Color(0xFF1E293B),
+                  height: 1.38,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
           if (post.imageBase64.trim().isNotEmpty) ...[
-            const SizedBox(height: 10),
             _buildNewsPostImage(post.imageBase64),
             if (post.imageName.trim().isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                post.imageName.trim(),
-                style: const TextStyle(
-                  color: Color(0xFF64748B),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+                child: Text(
+                  post.imageName.trim(),
+                  style: const TextStyle(
+                    color: Color(0xFF64748B),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
           ],
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: TextButton.icon(
-                  onPressed: () => _toggleNewsLike(post.id),
-                  icon: Icon(
-                    isLiked ? Icons.favorite : Icons.favorite_border,
-                    size: 17,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.thumb_up_alt,
+                  size: 14,
+                  color: const Color(0xFF2563EB).withValues(alpha: 0.9),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${post.likedByUserIds.length}',
+                  style: const TextStyle(
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${post.comments.length} commentaires',
+                  style: const TextStyle(
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Divider(height: 1),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(6, 0, 6, 2),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildNewsActionButton(
+                    icon: isLiked
+                        ? Icons.thumb_up_alt
+                        : Icons.thumb_up_alt_outlined,
+                    label: 'J’aime',
                     color: isLiked
-                        ? const Color(0xFFDC2626)
-                        : const Color(0xFF64748B),
-                  ),
-                  label: Text(
-                    'J\'aime (${post.likedByUserIds.length})',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                        ? const Color(0xFF2563EB)
+                        : const Color(0xFF475569),
+                    onTap: () => _toggleNewsLike(post.id),
                   ),
                 ),
-              ),
-              Expanded(
-                child: TextButton.icon(
-                  onPressed: () => _showAddNewsCommentDialog(post),
-                  icon: const Icon(
-                    Icons.chat_bubble_outline,
-                    size: 17,
-                    color: Color(0xFF334155),
-                  ),
-                  label: Text(
-                    'Commenter (${post.comments.length})',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                Expanded(
+                  child: _buildNewsActionButton(
+                    icon: Icons.chat_bubble_outline,
+                    label: 'Commenter',
+                    color: const Color(0xFF475569),
+                    onTap: () => _showAddNewsCommentDialog(post),
                   ),
                 ),
-              ),
-            ],
+                Expanded(
+                  child: _buildNewsActionButton(
+                    icon: Icons.share_outlined,
+                    label: 'Partager',
+                    color: const Color(0xFF475569),
+                    onTap: () => _showInfo('Partage interne enregistré.'),
+                  ),
+                ),
+              ],
+            ),
           ),
           if (comments.isNotEmpty) ...[
-            const Divider(height: 18),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Divider(height: 14),
+            ),
             if (comments.length > visibleComments.length)
               Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                 child: Text(
                   '${comments.length - visibleComments.length} commentaire(s) plus ancien(s)...',
                   style: const TextStyle(
@@ -9353,7 +9570,7 @@ class _MainScreenState extends State<MainScreen> {
             ...visibleComments.map((comment) {
               final commentUser = _findUserById(comment.authorId);
               return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -9412,6 +9629,36 @@ class _MainScreenState extends State<MainScreen> {
             }),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildNewsActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
