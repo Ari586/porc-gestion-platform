@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -293,6 +294,46 @@ class StockItem {
   });
 }
 
+class AnimalSaleListing {
+  final String id;
+  final String category;
+  final String animalCode;
+  final String animalName;
+  final String breed;
+  final int quantity;
+  final double unitPrice;
+  final double weightKg;
+  final DateTime publishedDate;
+  final String sellerId;
+  final String sellerName;
+  final String contact;
+  final String location;
+  final String status;
+  final bool isPublished;
+  final String description;
+  final String imageBase64;
+
+  const AnimalSaleListing({
+    required this.id,
+    required this.category,
+    required this.animalCode,
+    required this.animalName,
+    required this.breed,
+    required this.quantity,
+    required this.unitPrice,
+    this.weightKg = 0,
+    required this.publishedDate,
+    required this.sellerId,
+    required this.sellerName,
+    required this.contact,
+    required this.location,
+    this.status = 'Disponible',
+    this.isPublished = true,
+    this.description = '',
+    this.imageBase64 = '',
+  });
+}
+
 class BuildingRecord {
   final String id;
   final String name;
@@ -453,6 +494,14 @@ class ChatMessage {
   final String text;
   final DateTime sentAt;
   final List<String> readByUserIds;
+  final String messageType;
+  final String mediaBase64;
+  final String mediaName;
+  final String mediaMimeType;
+  final int mediaSizeBytes;
+  final String callType;
+  final String callStatus;
+  final int callDurationSeconds;
 
   const ChatMessage({
     required this.id,
@@ -462,6 +511,14 @@ class ChatMessage {
     required this.text,
     required this.sentAt,
     this.readByUserIds = const [],
+    this.messageType = 'text',
+    this.mediaBase64 = '',
+    this.mediaName = '',
+    this.mediaMimeType = '',
+    this.mediaSizeBytes = 0,
+    this.callType = '',
+    this.callStatus = '',
+    this.callDurationSeconds = 0,
   });
 
   ChatMessage copyWith({List<String>? readByUserIds}) {
@@ -473,6 +530,14 @@ class ChatMessage {
       text: text,
       sentAt: sentAt,
       readByUserIds: readByUserIds ?? this.readByUserIds,
+      messageType: messageType,
+      mediaBase64: mediaBase64,
+      mediaName: mediaName,
+      mediaMimeType: mediaMimeType,
+      mediaSizeBytes: mediaSizeBytes,
+      callType: callType,
+      callStatus: callStatus,
+      callDurationSeconds: callDurationSeconds,
     );
   }
 }
@@ -551,6 +616,9 @@ class _MainScreenState extends State<MainScreen> {
   static const String _passwordHashPrefix = 'sha256:';
   static const int _maxSessionHours = 12;
   static const String _teamConversationId = 'GROUP_ALL_USERS';
+  static const int _chatImageMaxBytes = 320 * 1024;
+  static const int _chatAudioMaxBytes = 600 * 1024;
+  static const int _chatVideoMaxBytes = 900 * 1024;
   static const String _prefsUsersKey = 'porc_users_v1';
   static const String _prefsBoarsKey = 'porc_boars_v1';
   static const String _prefsSowsKey = 'porc_sows_v1';
@@ -559,6 +627,8 @@ class _MainScreenState extends State<MainScreen> {
   static const String _prefsClientsKey = 'porc_clients_v1';
   static const String _prefsSuppliersKey = 'porc_suppliers_v1';
   static const String _prefsSalesKey = 'porc_sales_v1';
+  static const String _prefsAnimalSaleListingsKey =
+      'porc_animal_sale_listings_v1';
   static const String _prefsSuppliesKey = 'porc_supplies_v1';
   static const String _prefsBuildingsKey = 'porc_buildings_v1';
   static const String _prefsBatchesKey = 'porc_batches_v1';
@@ -800,6 +870,47 @@ class _MainScreenState extends State<MainScreen> {
       date: DateTime.now().subtract(const Duration(days: 46)),
       quantity: 18,
       amount: 2700000,
+    ),
+  ];
+
+  final List<AnimalSaleListing> _animalSaleListings = [
+    AnimalSaleListing(
+      id: 'ASL1',
+      category: 'Verrat',
+      animalCode: 'VR-1001',
+      animalName: 'Atlas',
+      breed: 'Large White',
+      quantity: 1,
+      unitPrice: 2800000,
+      weightKg: 185,
+      publishedDate: DateTime.now().subtract(const Duration(days: 2)),
+      sellerId: 'U2',
+      sellerName: 'Marc Éleveur',
+      contact: '+261 34 00 01 002',
+      location: 'Andoharanofotsy / Analamanga',
+      status: 'Disponible',
+      isPublished: true,
+      description:
+          'Verrat confirmé en station, bonne qualité semence et pedigree renseigné.',
+    ),
+    AnimalSaleListing(
+      id: 'ASL2',
+      category: 'Porcelets',
+      animalCode: 'LOT-PORC-27',
+      animalName: 'Lot porcelets sevrés',
+      breed: 'Croisé LW x LR',
+      quantity: 18,
+      unitPrice: 160000,
+      weightKg: 8.6,
+      publishedDate: DateTime.now().subtract(const Duration(days: 1)),
+      sellerId: 'U2',
+      sellerName: 'Marc Éleveur',
+      contact: '+261 34 00 01 002',
+      location: 'Itaosy / Analamanga',
+      status: 'Disponible',
+      isPublished: true,
+      description:
+          'Porcelets vaccinés et sevrés, disponibles pour engraissement.',
     ),
   ];
 
@@ -1159,6 +1270,9 @@ class _MainScreenState extends State<MainScreen> {
         prefs.getString(_prefsSuppliersKey),
       );
       final salesRaw = _decodeObjectListOrNull(prefs.getString(_prefsSalesKey));
+      final animalSaleListingsRaw = _decodeObjectListOrNull(
+        prefs.getString(_prefsAnimalSaleListingsKey),
+      );
       final suppliesRaw = _decodeObjectListOrNull(
         prefs.getString(_prefsSuppliesKey),
       );
@@ -1249,6 +1363,16 @@ class _MainScreenState extends State<MainScreen> {
           _salesRecords
             ..clear()
             ..addAll(salesRaw.map(_saleFromJson).whereType<SaleRecord>());
+        }
+
+        if (animalSaleListingsRaw != null) {
+          _animalSaleListings
+            ..clear()
+            ..addAll(
+              animalSaleListingsRaw
+                  .map(_animalSaleListingFromJson)
+                  .whereType<AnimalSaleListing>(),
+            );
         }
 
         if (suppliesRaw != null) {
@@ -1467,6 +1591,10 @@ class _MainScreenState extends State<MainScreen> {
       await prefs.setString(
         _prefsSalesKey,
         jsonEncode(_salesRecords.map(_saleToJson).toList()),
+      );
+      await prefs.setString(
+        _prefsAnimalSaleListingsKey,
+        jsonEncode(_animalSaleListings.map(_animalSaleListingToJson).toList()),
       );
       await prefs.setString(
         _prefsSuppliesKey,
@@ -2043,6 +2171,83 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  Map<String, dynamic> _animalSaleListingToJson(AnimalSaleListing listing) {
+    return {
+      'id': listing.id,
+      'category': listing.category,
+      'animalCode': listing.animalCode,
+      'animalName': listing.animalName,
+      'breed': listing.breed,
+      'quantity': listing.quantity,
+      'unitPrice': listing.unitPrice,
+      'weightKg': listing.weightKg,
+      'publishedDate': listing.publishedDate.toIso8601String(),
+      'sellerId': listing.sellerId,
+      'sellerName': listing.sellerName,
+      'contact': listing.contact,
+      'location': listing.location,
+      'status': listing.status,
+      'isPublished': listing.isPublished,
+      'description': listing.description,
+      'imageBase64': listing.imageBase64,
+    };
+  }
+
+  AnimalSaleListing? _animalSaleListingFromJson(Map<String, dynamic> json) {
+    final id = _readString(json['id']).trim();
+    final category = _readString(json['category']).trim();
+    final animalCode = _readString(json['animalCode']).trim();
+    final animalName = _readString(json['animalName']).trim();
+    final breed = _readString(json['breed']).trim();
+    final quantity = _readInt(json['quantity']);
+    final unitPrice = _readDouble(json['unitPrice']);
+    final weightKg = _readDouble(json['weightKg']);
+    final publishedDate = _parseDateFromString(
+      _readString(json['publishedDate']),
+    );
+    final sellerId = _readString(json['sellerId']).trim();
+    final sellerName = _readString(json['sellerName']).trim();
+    final contact = _readString(json['contact']).trim();
+    final location = _readString(json['location']).trim();
+    final status = _readString(json['status']).trim();
+    final isPublishedRaw = _readString(json['isPublished']).trim();
+    final isPublished = isPublishedRaw.toLowerCase() != 'false';
+    final description = _readString(json['description']).trim();
+    final imageBase64 = _readString(json['imageBase64']).trim();
+
+    if (id.isEmpty ||
+        category.isEmpty ||
+        animalCode.isEmpty ||
+        animalName.isEmpty ||
+        quantity <= 0 ||
+        unitPrice <= 0 ||
+        publishedDate == null ||
+        sellerName.isEmpty ||
+        status.isEmpty) {
+      return null;
+    }
+
+    return AnimalSaleListing(
+      id: id,
+      category: category,
+      animalCode: animalCode,
+      animalName: animalName,
+      breed: breed,
+      quantity: quantity,
+      unitPrice: unitPrice,
+      weightKg: weightKg,
+      publishedDate: publishedDate,
+      sellerId: sellerId,
+      sellerName: sellerName,
+      contact: contact,
+      location: location,
+      status: status,
+      isPublished: isPublished,
+      description: description,
+      imageBase64: imageBase64,
+    );
+  }
+
   Map<String, dynamic> _supplyToJson(SupplyRecord supply) {
     return {
       'id': supply.id,
@@ -2387,6 +2592,14 @@ class _MainScreenState extends State<MainScreen> {
       'text': message.text,
       'sentAt': message.sentAt.toIso8601String(),
       'readByUserIds': message.readByUserIds,
+      'messageType': message.messageType,
+      'mediaBase64': message.mediaBase64,
+      'mediaName': message.mediaName,
+      'mediaMimeType': message.mediaMimeType,
+      'mediaSizeBytes': message.mediaSizeBytes,
+      'callType': message.callType,
+      'callStatus': message.callStatus,
+      'callDurationSeconds': message.callDurationSeconds,
     };
   }
 
@@ -2397,12 +2610,31 @@ class _MainScreenState extends State<MainScreen> {
     final senderName = _readString(json['senderName']).trim();
     final text = _readString(json['text']).trim();
     final sentAt = _parseDateTimeFromString(_readString(json['sentAt']));
+    final messageType = _readString(json['messageType']).trim().isEmpty
+        ? 'text'
+        : _readString(json['messageType']).trim();
+    final mediaBase64 = _readString(json['mediaBase64']).trim();
+    final mediaName = _readString(json['mediaName']).trim();
+    final mediaMimeType = _readString(json['mediaMimeType']).trim();
+    final mediaSizeBytes = _readInt(json['mediaSizeBytes']);
+    final callType = _readString(json['callType']).trim();
+    final callStatus = _readString(json['callStatus']).trim();
+    final callDurationSeconds = _readInt(json['callDurationSeconds']);
     if (id.isEmpty ||
         conversationId.isEmpty ||
         senderId.isEmpty ||
         senderName.isEmpty ||
-        text.isEmpty ||
         sentAt == null) {
+      return null;
+    }
+    final hasRenderableBody =
+        text.isNotEmpty ||
+        mediaBase64.isNotEmpty ||
+        messageType == 'call' ||
+        messageType == 'audio' ||
+        messageType == 'video' ||
+        messageType == 'image';
+    if (!hasRenderableBody) {
       return null;
     }
     var readBy = _readStringList(json['readByUserIds']);
@@ -2417,6 +2649,14 @@ class _MainScreenState extends State<MainScreen> {
       text: text,
       sentAt: sentAt,
       readByUserIds: readBy,
+      messageType: messageType,
+      mediaBase64: mediaBase64,
+      mediaName: mediaName,
+      mediaMimeType: mediaMimeType,
+      mediaSizeBytes: mediaSizeBytes,
+      callType: callType,
+      callStatus: callStatus,
+      callDurationSeconds: callDurationSeconds,
     );
   }
 
@@ -4274,6 +4514,10 @@ class _MainScreenState extends State<MainScreen> {
         )
         .toList();
 
+    final animalSaleRows = _buildAnimalSaleListingRows(
+      _animalSaleListingsForElevage(),
+    );
+
     final inventoryRows = [
       DataRow(
         cells: [
@@ -4479,6 +4723,36 @@ class _MainScreenState extends State<MainScreen> {
         ),
         const SizedBox(height: 16),
         _buildDataTableSection(
+          title: 'Publication animaux à vendre',
+          subtitle:
+              'Diffusion des verrats, truies et lots de porcelets disponibles à la vente',
+          emptyMessage: 'Aucune annonce animale enregistrée.',
+          actions: [
+            FilledButton.icon(
+              onPressed: _showAddAnimalSaleListingDialog,
+              icon: const Icon(LucideIcons.plus, size: 16),
+              label: const Text('Publier animal'),
+            ),
+          ],
+          columns: const [
+            DataColumn(label: Text('PHOTO')),
+            DataColumn(label: Text('DATE')),
+            DataColumn(label: Text('CATÉGORIE')),
+            DataColumn(label: Text('CODE / LOT')),
+            DataColumn(label: Text('ANIMAL')),
+            DataColumn(label: Text('RACE')),
+            DataColumn(label: Text('QTÉ')),
+            DataColumn(label: Text('PRIX UNITAIRE')),
+            DataColumn(label: Text('VENDEUR')),
+            DataColumn(label: Text('CONTACT')),
+            DataColumn(label: Text('LOCALISATION')),
+            DataColumn(label: Text('STATUT')),
+            DataColumn(label: Text('ACTIONS')),
+          ],
+          rows: animalSaleRows,
+        ),
+        const SizedBox(height: 16),
+        _buildDataTableSection(
           title: 'Inventaire des animaux',
           subtitle: 'Effectif actuel par catégorie',
           emptyMessage: 'Aucun animal inventorié.',
@@ -4590,6 +4864,15 @@ class _MainScreenState extends State<MainScreen> {
         )
         .toList();
 
+    final allAnimalSaleListings = _animalSaleListingsForCommercial();
+    final publishedAnimalSaleCount = allAnimalSaleListings
+        .where((listing) => listing.isPublished)
+        .length;
+    final soldAnimalSaleCount = allAnimalSaleListings
+        .where((listing) => _normalizeLookup(listing.status).contains('vendu'))
+        .length;
+    final animalSaleRows = _buildAnimalSaleListingRows(allAnimalSaleListings);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -4665,6 +4948,51 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth > 860;
+                  final indicators = [
+                    _buildMiniIndicator(
+                      label: 'Annonces marché',
+                      value: '${allAnimalSaleListings.length}',
+                      color: const Color(0xFF0284C7),
+                    ),
+                    _buildMiniIndicator(
+                      label: 'Annonces publiées',
+                      value: '$publishedAnimalSaleCount',
+                      color: const Color(0xFF15803D),
+                    ),
+                    _buildMiniIndicator(
+                      label: 'Annonces vendues',
+                      value: '$soldAnimalSaleCount',
+                      color: const Color(0xFFB45309),
+                    ),
+                  ];
+
+                  if (isWide) {
+                    return Row(
+                      children: [
+                        Expanded(child: indicators[0]),
+                        const SizedBox(width: 12),
+                        Expanded(child: indicators[1]),
+                        const SizedBox(width: 12),
+                        Expanded(child: indicators[2]),
+                      ],
+                    );
+                  }
+
+                  return Column(
+                    children: [
+                      indicators[0],
+                      const SizedBox(height: 10),
+                      indicators[1],
+                      const SizedBox(height: 10),
+                      indicators[2],
+                    ],
+                  );
+                },
+              ),
             ],
           ),
         ),
@@ -4689,6 +5017,36 @@ class _MainScreenState extends State<MainScreen> {
             DataColumn(label: Text('ACTIONS')),
           ],
           rows: salesRows,
+        ),
+        const SizedBox(height: 16),
+        _buildDataTableSection(
+          title: 'Animaux publiés pour vente',
+          subtitle:
+              'Marketplace interne: publication, suivi, réservation et statut vendu',
+          emptyMessage: 'Aucune annonce animale disponible.',
+          actions: [
+            FilledButton.icon(
+              onPressed: _showAddAnimalSaleListingDialog,
+              icon: const Icon(LucideIcons.plus, size: 16),
+              label: const Text('Publier animal'),
+            ),
+          ],
+          columns: const [
+            DataColumn(label: Text('PHOTO')),
+            DataColumn(label: Text('DATE')),
+            DataColumn(label: Text('CATÉGORIE')),
+            DataColumn(label: Text('CODE / LOT')),
+            DataColumn(label: Text('ANIMAL')),
+            DataColumn(label: Text('RACE')),
+            DataColumn(label: Text('QTÉ')),
+            DataColumn(label: Text('PRIX UNITAIRE')),
+            DataColumn(label: Text('VENDEUR')),
+            DataColumn(label: Text('CONTACT')),
+            DataColumn(label: Text('LOCALISATION')),
+            DataColumn(label: Text('STATUT')),
+            DataColumn(label: Text('ACTIONS')),
+          ],
+          rows: animalSaleRows,
         ),
         const SizedBox(height: 16),
         _buildDataTableSection(
@@ -6635,6 +6993,7 @@ class _MainScreenState extends State<MainScreen> {
         eventsByDay[_normalizeDate(selectedDate)] ??
         const <_GestationCalendarEvent>[];
     const weekDays = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+    final compactCalendar = MediaQuery.of(context).size.width < 760;
 
     return _buildSectionCard(
       title: 'Calendrier de gestation porcine',
@@ -6654,10 +7013,10 @@ class _MainScreenState extends State<MainScreen> {
                 child: Text(
                   DateFormat('MMMM yyyy', 'fr_FR').format(monthStart),
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w900,
-                    fontSize: 16,
-                    color: Color(0xFF0F172A),
+                    fontSize: compactCalendar ? 14 : 16,
+                    color: const Color(0xFF0F172A),
                   ),
                 ),
               ),
@@ -6713,14 +7072,16 @@ class _MainScreenState extends State<MainScreen> {
                 .map(
                   (dayName) => Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      padding: EdgeInsets.symmetric(
+                        vertical: compactCalendar ? 4 : 6,
+                      ),
                       child: Text(
                         dayName,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Color(0xFF64748B),
                           fontWeight: FontWeight.w800,
-                          fontSize: 12,
+                          fontSize: compactCalendar ? 11 : 12,
                         ),
                       ),
                     ),
@@ -6732,11 +7093,11 @@ class _MainScreenState extends State<MainScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: rowCount * 7,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 7,
-              childAspectRatio: 1.0,
-              crossAxisSpacing: 6,
-              mainAxisSpacing: 6,
+              childAspectRatio: compactCalendar ? 1.45 : 1.2,
+              crossAxisSpacing: compactCalendar ? 4 : 6,
+              mainAxisSpacing: compactCalendar ? 4 : 6,
             ),
             itemBuilder: (context, index) {
               final dayNumber = index - leadingEmptyCells + 1;
@@ -6769,7 +7130,7 @@ class _MainScreenState extends State<MainScreen> {
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.all(6),
+                  padding: EdgeInsets.all(compactCalendar ? 4 : 6),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? const Color(0xFFDCFCE7)
@@ -6811,7 +7172,7 @@ class _MainScreenState extends State<MainScreen> {
                                 '${dayEvents.length}',
                                 style: const TextStyle(
                                   color: Colors.white,
-                                  fontSize: 10,
+                                  fontSize: 9,
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
@@ -6824,7 +7185,7 @@ class _MainScreenState extends State<MainScreen> {
                           spacing: 4,
                           runSpacing: 4,
                           children: dayEvents
-                              .take(4)
+                              .take(compactCalendar ? 3 : 4)
                               .map((event) => _buildDayMarker(event.color))
                               .toList(),
                         ),
@@ -6859,6 +7220,7 @@ class _MainScreenState extends State<MainScreen> {
         eventsByDay[_normalizeDate(selectedDate)] ??
         const <_GestationCalendarEvent>[];
     const weekDays = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+    final compactCalendar = MediaQuery.of(context).size.width < 760;
 
     return _buildSectionCard(
       title: 'Calendrier prise en charge porcelets',
@@ -6878,10 +7240,10 @@ class _MainScreenState extends State<MainScreen> {
                 child: Text(
                   DateFormat('MMMM yyyy', 'fr_FR').format(monthStart),
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w900,
-                    fontSize: 16,
-                    color: Color(0xFF0F172A),
+                    fontSize: compactCalendar ? 14 : 16,
+                    color: const Color(0xFF0F172A),
                   ),
                 ),
               ),
@@ -6921,6 +7283,10 @@ class _MainScreenState extends State<MainScreen> {
                 label: 'Alerte',
                 color: const Color(0xFFB91C1C),
               ),
+              _buildGestationLegendChip(
+                label: 'Protocole',
+                color: const Color(0xFF2563EB),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -6929,14 +7295,16 @@ class _MainScreenState extends State<MainScreen> {
                 .map(
                   (dayName) => Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      padding: EdgeInsets.symmetric(
+                        vertical: compactCalendar ? 4 : 6,
+                      ),
                       child: Text(
                         dayName,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Color(0xFF64748B),
                           fontWeight: FontWeight.w800,
-                          fontSize: 12,
+                          fontSize: compactCalendar ? 11 : 12,
                         ),
                       ),
                     ),
@@ -6948,11 +7316,11 @@ class _MainScreenState extends State<MainScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: rowCount * 7,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 7,
-              childAspectRatio: 1.0,
-              crossAxisSpacing: 6,
-              mainAxisSpacing: 6,
+              childAspectRatio: compactCalendar ? 1.45 : 1.2,
+              crossAxisSpacing: compactCalendar ? 4 : 6,
+              mainAxisSpacing: compactCalendar ? 4 : 6,
             ),
             itemBuilder: (context, index) {
               final dayNumber = index - leadingEmptyCells + 1;
@@ -6985,7 +7353,7 @@ class _MainScreenState extends State<MainScreen> {
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.all(6),
+                  padding: EdgeInsets.all(compactCalendar ? 4 : 6),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? const Color(0xFFFFF7ED)
@@ -7027,7 +7395,7 @@ class _MainScreenState extends State<MainScreen> {
                                 '${dayEvents.length}',
                                 style: const TextStyle(
                                   color: Colors.white,
-                                  fontSize: 10,
+                                  fontSize: 9,
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
@@ -7040,7 +7408,7 @@ class _MainScreenState extends State<MainScreen> {
                           spacing: 4,
                           runSpacing: 4,
                           children: dayEvents
-                              .take(4)
+                              .take(compactCalendar ? 3 : 4)
                               .map((event) => _buildDayMarker(event.color))
                               .toList(),
                         ),
@@ -7051,7 +7419,7 @@ class _MainScreenState extends State<MainScreen> {
             },
           ),
           const SizedBox(height: 14),
-          _buildSelectedGestationDayCard(selectedDate, selectedEvents),
+          _buildSelectedPigletDayCard(selectedDate, selectedEvents),
         ],
       ),
     );
@@ -7084,6 +7452,124 @@ class _MainScreenState extends State<MainScreen> {
           if (events.isEmpty)
             const Text(
               'Aucune action planifiée sur cette date.',
+              style: TextStyle(
+                color: Color(0xFF64748B),
+                fontWeight: FontWeight.w600,
+              ),
+            )
+          else
+            ...events.map(
+              (event) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(event.icon, size: 16, color: event.color),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        event.label,
+                        style: const TextStyle(
+                          color: Color(0xFF334155),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      event.type,
+                      style: TextStyle(
+                        color: event.color,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelectedPigletDayCard(
+    DateTime selectedDate,
+    List<_GestationCalendarEvent> events,
+  ) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Suivi porcelets du ${_formatDate(selectedDate)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+              FilledButton.icon(
+                onPressed: () =>
+                    _showAddPigletCareDialog(initialDate: selectedDate),
+                icon: const Icon(LucideIcons.plus, size: 14),
+                label: const Text('Ajouter'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton(
+                onPressed: () => _showAddPigletCareDialog(
+                  initialDate: selectedDate,
+                  initialEventType: 'Coupe dents',
+                  initialDetails: 'Coupe dents porcelets',
+                ),
+                child: const Text('Coupe dents'),
+              ),
+              OutlinedButton(
+                onPressed: () => _showAddPigletCareDialog(
+                  initialDate: selectedDate,
+                  initialEventType: 'Supplémentation fer',
+                  initialDetails: 'Injection fer porcelets',
+                ),
+                child: const Text('Injection fer'),
+              ),
+              OutlinedButton(
+                onPressed: () => _showAddPigletCareDialog(
+                  initialDate: selectedDate,
+                  initialEventType: 'Vaccination porcelets',
+                  initialDetails: 'Vaccination porcelets',
+                ),
+                child: const Text('Vaccination'),
+              ),
+              OutlinedButton(
+                onPressed: () => _showAddPigletCareDialog(
+                  initialDate: selectedDate,
+                  initialEventType: 'Sevrage',
+                  initialDetails: 'Sevrage et transfert post-sevrage',
+                ),
+                child: const Text('Sevrage'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (events.isEmpty)
+            const Text(
+              'Aucun suivi porcelet planifié sur cette date.',
               style: TextStyle(
                 color: Color(0xFF64748B),
                 fontWeight: FontWeight.w600,
@@ -8680,6 +9166,24 @@ class _MainScreenState extends State<MainScreen> {
                     ],
                   ),
                 ),
+                IconButton(
+                  tooltip: 'Appel audio',
+                  onPressed: () =>
+                      _startChatCall(activeConversation.id, 'audio'),
+                  icon: const Icon(
+                    Icons.call_outlined,
+                    color: Color(0xFF0F766E),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Appel vidéo',
+                  onPressed: () =>
+                      _startChatCall(activeConversation.id, 'video'),
+                  icon: const Icon(
+                    Icons.videocam_outlined,
+                    color: Color(0xFF0F766E),
+                  ),
+                ),
               ],
             ),
           ),
@@ -8731,15 +9235,9 @@ class _MainScreenState extends State<MainScreen> {
                                       ),
                                     ),
                                   ),
-                                Text(
-                                  message.text,
-                                  style: TextStyle(
-                                    color: isMine
-                                        ? Colors.white
-                                        : const Color(0xFF0F172A),
-                                    height: 1.35,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                _buildChatMessageContent(
+                                  message: message,
+                                  isMine: isMine,
                                 ),
                                 const SizedBox(height: 4),
                                 Row(
@@ -8779,25 +9277,64 @@ class _MainScreenState extends State<MainScreen> {
           const Divider(height: 1),
           Padding(
             padding: const EdgeInsets.all(12),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _chatComposerController,
-                    minLines: 1,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      hintText: 'Écrire un message...',
-                      border: OutlineInputBorder(),
-                      isDense: true,
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => _pickAndSendChatAttachment(
+                        activeConversation.id,
+                        'image',
+                      ),
+                      icon: const Icon(Icons.image_outlined, size: 16),
+                      label: const Text('Image'),
                     ),
-                  ),
+                    OutlinedButton.icon(
+                      onPressed: () => _pickAndSendChatAttachment(
+                        activeConversation.id,
+                        'video',
+                      ),
+                      icon: const Icon(Icons.videocam_outlined, size: 16),
+                      label: const Text('Vidéo'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _pickAndSendChatAttachment(
+                        activeConversation.id,
+                        'audio',
+                      ),
+                      icon: const Icon(
+                        Icons.multitrack_audio_outlined,
+                        size: 16,
+                      ),
+                      label: const Text('Audio'),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: () => _sendChatMessage(activeConversation.id),
-                  icon: const Icon(Icons.send, size: 16),
-                  label: const Text('Envoyer'),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _chatComposerController,
+                        minLines: 1,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          hintText: 'Écrire un message...',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.icon(
+                      onPressed: () => _sendChatMessage(activeConversation.id),
+                      icon: const Icon(Icons.send, size: 16),
+                      label: const Text('Envoyer'),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -9318,6 +9855,14 @@ class _MainScreenState extends State<MainScreen> {
                 onTap: () {
                   Navigator.of(context).pop();
                   _showAddPigletCareDialog();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.storefront_outlined),
+                title: const Text('Publier un animal à vendre'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _showAddAnimalSaleListingDialog();
                 },
               ),
             ],
@@ -11317,20 +11862,50 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  void _showAddPigletCareDialog() {
+  void _showAddPigletCareDialog({
+    DateTime? initialDate,
+    String? initialEventType,
+    String? initialSowCode,
+    String? initialGroupName,
+    String? initialDetails,
+  }) {
     if (_sows.isEmpty) {
       _showError('Ajoutez d\'abord une truie pour lier la portée.');
       return;
     }
 
-    final groupNameCtrl = TextEditingController(text: 'Portée');
-    final eventDateCtrl = TextEditingController();
-    final detailsCtrl = TextEditingController();
+    final groupNameCtrl = TextEditingController(
+      text: initialGroupName ?? 'Portée',
+    );
+    final eventDateCtrl = TextEditingController(
+      text: initialDate == null ? '' : _formatDate(initialDate),
+    );
+    final detailsCtrl = TextEditingController(text: initialDetails ?? '');
     final responsibleCtrl = TextEditingController(text: _currentUser.name);
     final nextDateCtrl = TextEditingController();
 
-    String selectedSowCode = _sows.first.code;
-    String selectedEventType = 'Colostrum';
+    final availableEventTypes = const <String>[
+      'Colostrum',
+      'Coupe dents',
+      'Supplémentation fer',
+      'Castration',
+      'Vaccination porcelets',
+      'Traitement',
+      'Sevrage',
+    ];
+    final sowCodes = _sows.map((sow) => sow.code).toList();
+    String selectedSowCode =
+        initialSowCode != null &&
+            sowCodes.any(
+              (code) => code.toLowerCase() == initialSowCode.toLowerCase(),
+            )
+        ? sowCodes.firstWhere(
+            (code) => code.toLowerCase() == initialSowCode.toLowerCase(),
+          )
+        : _sows.first.code;
+    String selectedEventType = availableEventTypes.contains(initialEventType)
+        ? initialEventType!
+        : 'Colostrum';
 
     showDialog<void>(
       context: context,
@@ -11375,28 +11950,14 @@ class _MainScreenState extends State<MainScreen> {
                           border: OutlineInputBorder(),
                           isDense: true,
                         ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'Colostrum',
-                            child: Text('Colostrum'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Supplémentation fer',
-                            child: Text('Supplémentation fer'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Vaccination porcelets',
-                            child: Text('Vaccination porcelets'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Traitement',
-                            child: Text('Traitement'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Sevrage',
-                            child: Text('Sevrage'),
-                          ),
-                        ],
+                        items: availableEventTypes
+                            .map(
+                              (eventType) => DropdownMenuItem(
+                                value: eventType,
+                                child: Text(eventType),
+                              ),
+                            )
+                            .toList(),
                         onChanged: (value) {
                           if (value != null) {
                             setModalState(() => selectedEventType = value);
@@ -11511,7 +12072,18 @@ class _MainScreenState extends State<MainScreen> {
     String selectedSowCode = _sows.any((sow) => sow.code == record.animalCode)
         ? record.animalCode
         : _sows.first.code;
-    String selectedEventType = record.eventType;
+    final availableEventTypes = const <String>[
+      'Colostrum',
+      'Coupe dents',
+      'Supplémentation fer',
+      'Castration',
+      'Vaccination porcelets',
+      'Traitement',
+      'Sevrage',
+    ];
+    String selectedEventType = availableEventTypes.contains(record.eventType)
+        ? record.eventType
+        : 'Traitement';
 
     showDialog<void>(
       context: context,
@@ -11556,28 +12128,14 @@ class _MainScreenState extends State<MainScreen> {
                           border: OutlineInputBorder(),
                           isDense: true,
                         ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'Colostrum',
-                            child: Text('Colostrum'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Supplémentation fer',
-                            child: Text('Supplémentation fer'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Vaccination porcelets',
-                            child: Text('Vaccination porcelets'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Traitement',
-                            child: Text('Traitement'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Sevrage',
-                            child: Text('Sevrage'),
-                          ),
-                        ],
+                        items: availableEventTypes
+                            .map(
+                              (eventType) => DropdownMenuItem(
+                                value: eventType,
+                                child: Text(eventType),
+                              ),
+                            )
+                            .toList(),
                         onChanged: (value) {
                           if (value != null) {
                             setModalState(() => selectedEventType = value);
@@ -12526,6 +13084,384 @@ class _MainScreenState extends State<MainScreen> {
     ).then((_) => _disposeControllers([dateCtrl, amountCtrl, notesCtrl]));
   }
 
+  void _showAddAnimalSaleListingDialog() {
+    _showAnimalSaleListingDialog();
+  }
+
+  void _showEditAnimalSaleListingDialog(AnimalSaleListing listing) {
+    if (!_canManageAnimalSaleListing(listing)) {
+      _showError('Vous ne pouvez pas modifier cette annonce.');
+      return;
+    }
+    _showAnimalSaleListingDialog(existing: listing);
+  }
+
+  void _showAnimalSaleListingDialog({AnimalSaleListing? existing}) {
+    final codeCtrl = TextEditingController(text: existing?.animalCode ?? '');
+    final nameCtrl = TextEditingController(text: existing?.animalName ?? '');
+    final breedCtrl = TextEditingController(text: existing?.breed ?? '');
+    final quantityCtrl = TextEditingController(
+      text: existing == null ? '1' : '${existing.quantity}',
+    );
+    final unitPriceCtrl = TextEditingController(
+      text: existing == null ? '' : existing.unitPrice.toStringAsFixed(0),
+    );
+    final weightCtrl = TextEditingController(
+      text: existing == null
+          ? ''
+          : (existing.weightKg <= 0
+                ? ''
+                : existing.weightKg.toStringAsFixed(1)),
+    );
+    final sellerCtrl = TextEditingController(
+      text: existing?.sellerName ?? _currentUser.name,
+    );
+    final contactCtrl = TextEditingController(
+      text: existing?.contact.isNotEmpty == true
+          ? existing!.contact
+          : _currentUser.contact,
+    );
+    final territory = _territoryLabel(_currentUser);
+    final locationCtrl = TextEditingController(
+      text: existing?.location.isNotEmpty == true
+          ? existing!.location
+          : (territory == '-' ? '' : territory),
+    );
+    final descriptionCtrl = TextEditingController(
+      text: existing?.description ?? '',
+    );
+
+    String selectedCategory = existing?.category ?? 'Porcelets';
+    String selectedStatus = existing?.status ?? 'Disponible';
+    bool isPublished = existing?.isPublished ?? true;
+    String selectedImageBase64 = existing?.imageBase64 ?? '';
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: Text(
+                existing == null
+                    ? 'Publier un animal à vendre'
+                    : 'Modifier annonce de vente',
+              ),
+              content: SizedBox(
+                width: _dialogWidth(dialogContext),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedCategory,
+                        decoration: const InputDecoration(
+                          labelText: 'Catégorie *',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'Verrat',
+                            child: Text('Verrat'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Truie',
+                            child: Text('Truie'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Porcelets',
+                            child: Text('Porcelets'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Porc charcutier',
+                            child: Text('Porc charcutier'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Lot mixte',
+                            child: Text('Lot mixte'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Autre',
+                            child: Text('Autre'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            setModalState(() => selectedCategory = value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _dialogField(
+                        codeCtrl,
+                        'Code animal / lot *',
+                        hint: 'VR-1001 ou LOT-PORC-01',
+                      ),
+                      _dialogField(nameCtrl, 'Nom animal / lot *'),
+                      _dialogField(
+                        breedCtrl,
+                        'Race',
+                        hint: 'Large White / Croisé / ...',
+                      ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildImagePreviewBox(selectedImageBase64, size: 88),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final image = await _pickImageAsBase64();
+                                    if (image == null) {
+                                      return;
+                                    }
+                                    setModalState(
+                                      () => selectedImageBase64 = image,
+                                    );
+                                  },
+                                  icon: const Icon(
+                                    Icons.add_photo_alternate_outlined,
+                                    size: 16,
+                                  ),
+                                  label: const Text('Ajouter image'),
+                                ),
+                                if (selectedImageBase64.trim().isNotEmpty)
+                                  OutlinedButton.icon(
+                                    onPressed: () {
+                                      setModalState(
+                                        () => selectedImageBase64 = '',
+                                      );
+                                    },
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      size: 16,
+                                    ),
+                                    label: const Text('Retirer'),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _dialogField(
+                        quantityCtrl,
+                        'Quantité *',
+                        keyboardType: TextInputType.number,
+                      ),
+                      _dialogField(
+                        unitPriceCtrl,
+                        'Prix unitaire (Ar) *',
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                      _dialogField(
+                        weightCtrl,
+                        'Poids moyen (kg)',
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                      _dialogField(sellerCtrl, 'Nom vendeur *'),
+                      _dialogField(contactCtrl, 'Contact vendeur'),
+                      _dialogField(locationCtrl, 'Localisation'),
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedStatus,
+                        decoration: const InputDecoration(
+                          labelText: 'Statut commercial',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'Disponible',
+                            child: Text('Disponible'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Réservé',
+                            child: Text('Réservé'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Vendu',
+                            child: Text('Vendu'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Retiré',
+                            child: Text('Retiré'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            setModalState(() => selectedStatus = value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Annonce publiée'),
+                        subtitle: Text(
+                          isPublished
+                              ? 'Visible dans le marché de vente'
+                              : 'Mode brouillon (non visible)',
+                        ),
+                        value: isPublished,
+                        onChanged: (value) {
+                          setModalState(() => isPublished = value);
+                        },
+                      ),
+                      _dialogField(descriptionCtrl, 'Description', maxLines: 3),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Annuler'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final code = codeCtrl.text.trim();
+                    final name = nameCtrl.text.trim();
+                    final quantity = int.tryParse(quantityCtrl.text.trim());
+                    final unitPrice = _tryParseAmount(
+                      unitPriceCtrl.text.trim(),
+                    );
+                    final weightKg = weightCtrl.text.trim().isEmpty
+                        ? 0.0
+                        : (_tryParseAmount(weightCtrl.text.trim()) ?? -1);
+                    final sellerName = sellerCtrl.text.trim();
+
+                    if (code.isEmpty ||
+                        name.isEmpty ||
+                        quantity == null ||
+                        quantity <= 0 ||
+                        unitPrice == null ||
+                        unitPrice <= 0 ||
+                        sellerName.isEmpty) {
+                      _showError(
+                        'Code, nom, quantité > 0, prix > 0 et vendeur sont requis.',
+                      );
+                      return;
+                    }
+                    if (weightKg < 0) {
+                      _showError('Poids moyen invalide.');
+                      return;
+                    }
+
+                    final persistedImage = selectedImageBase64.trim().isEmpty
+                        ? _resolveAnimalSaleImageBase64(
+                            AnimalSaleListing(
+                              id: 'TMP',
+                              category: selectedCategory,
+                              animalCode: code,
+                              animalName: name,
+                              breed: breedCtrl.text.trim(),
+                              quantity: quantity,
+                              unitPrice: unitPrice,
+                              weightKg: weightKg,
+                              publishedDate: _currentDate(),
+                              sellerId: existing?.sellerId.isNotEmpty == true
+                                  ? existing!.sellerId
+                                  : _currentUser.id,
+                              sellerName: sellerName,
+                              contact: contactCtrl.text.trim(),
+                              location: locationCtrl.text.trim(),
+                              status: selectedStatus,
+                              isPublished: isPublished,
+                              description: descriptionCtrl.text.trim(),
+                              imageBase64: '',
+                            ),
+                          )
+                        : selectedImageBase64.trim();
+
+                    final now = _currentDate();
+                    final listing = AnimalSaleListing(
+                      id: existing?.id ?? _newId('ASL'),
+                      category: selectedCategory,
+                      animalCode: code,
+                      animalName: name,
+                      breed: breedCtrl.text.trim(),
+                      quantity: quantity,
+                      unitPrice: unitPrice,
+                      weightKg: weightKg,
+                      publishedDate: existing == null
+                          ? now
+                          : (!existing.isPublished && isPublished
+                                ? now
+                                : existing.publishedDate),
+                      sellerId: existing?.sellerId.isNotEmpty == true
+                          ? existing!.sellerId
+                          : _currentUser.id,
+                      sellerName: sellerName,
+                      contact: contactCtrl.text.trim(),
+                      location: locationCtrl.text.trim(),
+                      status: selectedStatus,
+                      isPublished: isPublished,
+                      description: descriptionCtrl.text.trim(),
+                      imageBase64: persistedImage,
+                    );
+
+                    if (existing == null) {
+                      setState(() => _animalSaleListings.insert(0, listing));
+                      _addAuditLog(
+                        module: 'COMMERCIAL',
+                        action: 'CREATE_ANIMAL_LISTING',
+                        detail:
+                            'Annonce ${listing.category} ${listing.animalCode} créée',
+                      );
+                      _showInfo('Annonce publiée.');
+                    } else {
+                      final index = _animalSaleListings.indexWhere(
+                        (item) => item.id == existing.id,
+                      );
+                      if (index < 0) {
+                        _showError('Annonce introuvable.');
+                        return;
+                      }
+                      setState(() => _animalSaleListings[index] = listing);
+                      _addAuditLog(
+                        module: 'COMMERCIAL',
+                        action: 'UPDATE_ANIMAL_LISTING',
+                        detail:
+                            'Annonce ${listing.category} ${listing.animalCode} mise à jour',
+                      );
+                      _showInfo('Annonce mise à jour.');
+                    }
+
+                    _persistState();
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: Text(existing == null ? 'Publier' : 'Mettre à jour'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then(
+      (_) => _disposeControllers([
+        codeCtrl,
+        nameCtrl,
+        breedCtrl,
+        quantityCtrl,
+        unitPriceCtrl,
+        weightCtrl,
+        sellerCtrl,
+        contactCtrl,
+        locationCtrl,
+        descriptionCtrl,
+      ]),
+    );
+  }
+
   void _showAddUserDialog() {
     final codeCtrl = TextEditingController();
     final nameCtrl = TextEditingController();
@@ -13410,6 +14346,177 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  List<AnimalSaleListing> _animalSaleListingsForElevage() {
+    final onlyOwnListings = _currentUser.role == Roles.breeder;
+    final listings = _animalSaleListings.where((listing) {
+      if (!onlyOwnListings) {
+        return true;
+      }
+      return _isAnimalSaleOwnedByCurrentUser(listing);
+    }).toList();
+    listings.sort((a, b) => b.publishedDate.compareTo(a.publishedDate));
+    return listings;
+  }
+
+  List<AnimalSaleListing> _animalSaleListingsForCommercial() {
+    final listings = List<AnimalSaleListing>.from(_animalSaleListings);
+    listings.sort((a, b) => b.publishedDate.compareTo(a.publishedDate));
+    return listings;
+  }
+
+  List<DataRow> _buildAnimalSaleListingRows(List<AnimalSaleListing> listings) {
+    return listings
+        .map(
+          (listing) => DataRow(
+            cells: [
+              DataCell(_buildAnimalSaleListingPhoto(listing, size: 44)),
+              DataCell(Text(_formatDate(listing.publishedDate))),
+              DataCell(Text(listing.category)),
+              DataCell(Text(listing.animalCode)),
+              DataCell(Text(listing.animalName)),
+              DataCell(Text(listing.breed.isEmpty ? '-' : listing.breed)),
+              DataCell(Text('${listing.quantity}')),
+              DataCell(Text(_formatAmount(listing.unitPrice))),
+              DataCell(Text(listing.sellerName)),
+              DataCell(Text(listing.contact.isEmpty ? '-' : listing.contact)),
+              DataCell(Text(listing.location.isEmpty ? '-' : listing.location)),
+              DataCell(
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      listing.status,
+                      style: TextStyle(
+                        color: _animalSaleStatusColor(listing.status),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      listing.isPublished ? 'Publié' : 'Brouillon',
+                      style: TextStyle(
+                        color: listing.isPublished
+                            ? const Color(0xFF15803D)
+                            : const Color(0xFF64748B),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              DataCell(
+                _canManageAnimalSaleListing(listing)
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            tooltip: listing.isPublished
+                                ? 'Retirer de la vente'
+                                : 'Publier',
+                            onPressed: () =>
+                                _toggleAnimalSalePublication(listing.id),
+                            icon: Icon(
+                              listing.isPublished
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.public_outlined,
+                              color: listing.isPublished
+                                  ? const Color(0xFFB45309)
+                                  : const Color(0xFF15803D),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Modifier annonce',
+                            onPressed: () =>
+                                _showEditAnimalSaleListingDialog(listing),
+                            icon: const Icon(
+                              Icons.edit_outlined,
+                              color: Color(0xFF2563EB),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Supprimer annonce',
+                            onPressed: () =>
+                                _deleteAnimalSaleListing(listing.id),
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: Color(0xFFB91C1C),
+                            ),
+                          ),
+                        ],
+                      )
+                    : const Text('-'),
+              ),
+            ],
+          ),
+        )
+        .toList();
+  }
+
+  Widget _buildAnimalSaleListingPhoto(
+    AnimalSaleListing listing, {
+    double size = 52,
+  }) {
+    return _buildImagePreviewBox(
+      _resolveAnimalSaleImageBase64(listing),
+      size: size,
+    );
+  }
+
+  String _resolveAnimalSaleImageBase64(AnimalSaleListing listing) {
+    if (listing.imageBase64.trim().isNotEmpty) {
+      return listing.imageBase64.trim();
+    }
+    final code = listing.animalCode.trim();
+    if (code.isEmpty) {
+      return '';
+    }
+    final boar = _findBoar(code);
+    if (boar != null && boar.imageBase64.trim().isNotEmpty) {
+      return boar.imageBase64.trim();
+    }
+    final sow = _findSow(code);
+    if (sow != null && sow.imageBase64.trim().isNotEmpty) {
+      return sow.imageBase64.trim();
+    }
+    return '';
+  }
+
+  bool _isAnimalSaleOwnedByCurrentUser(AnimalSaleListing listing) {
+    final currentId = _currentUser.id.trim().toLowerCase();
+    final sellerId = listing.sellerId.trim().toLowerCase();
+    if (sellerId.isNotEmpty && sellerId == currentId) {
+      return true;
+    }
+    return listing.sellerName.trim().toLowerCase() ==
+        _currentUser.name.trim().toLowerCase();
+  }
+
+  bool _canManageAnimalSaleListing(AnimalSaleListing listing) {
+    if (_currentUser.role == Roles.admin ||
+        _currentUser.role == Roles.inseminator) {
+      return true;
+    }
+    if (_currentUser.role == Roles.breeder) {
+      return _isAnimalSaleOwnedByCurrentUser(listing);
+    }
+    return false;
+  }
+
+  Color _animalSaleStatusColor(String status) {
+    final normalized = _normalizeLookup(status);
+    if (normalized.contains('vendu')) {
+      return const Color(0xFF475569);
+    }
+    if (normalized.contains('reserve')) {
+      return const Color(0xFFB45309);
+    }
+    if (normalized.contains('disponible')) {
+      return const Color(0xFF15803D);
+    }
+    return const Color(0xFF2563EB);
+  }
+
   void _attemptLogin() {
     final login = _loginController.text.trim().toLowerCase();
     final password = _passwordController.text;
@@ -14029,6 +15136,89 @@ class _MainScreenState extends State<MainScreen> {
     _showInfo('Ravitaillement supprimé.');
   }
 
+  Future<void> _toggleAnimalSalePublication(String listingId) async {
+    final index = _animalSaleListings.indexWhere(
+      (listing) => listing.id == listingId,
+    );
+    if (index < 0) {
+      return;
+    }
+    final listing = _animalSaleListings[index];
+    if (!_canManageAnimalSaleListing(listing)) {
+      _showError('Vous ne pouvez pas modifier cette annonce.');
+      return;
+    }
+
+    final nextPublished = !listing.isPublished;
+    final updated = AnimalSaleListing(
+      id: listing.id,
+      category: listing.category,
+      animalCode: listing.animalCode,
+      animalName: listing.animalName,
+      breed: listing.breed,
+      quantity: listing.quantity,
+      unitPrice: listing.unitPrice,
+      weightKg: listing.weightKg,
+      publishedDate: nextPublished ? _currentDate() : listing.publishedDate,
+      sellerId: listing.sellerId,
+      sellerName: listing.sellerName,
+      contact: listing.contact,
+      location: listing.location,
+      status: listing.status,
+      isPublished: nextPublished,
+      description: listing.description,
+      imageBase64: listing.imageBase64,
+    );
+
+    setState(() => _animalSaleListings[index] = updated);
+    _addAuditLog(
+      module: 'COMMERCIAL',
+      action: nextPublished
+          ? 'PUBLISH_ANIMAL_LISTING'
+          : 'UNPUBLISH_ANIMAL_LISTING',
+      detail:
+          '${updated.category} ${updated.animalCode} (${nextPublished ? 'publiée' : 'retirée'})',
+    );
+    _persistState();
+    _showInfo(
+      nextPublished
+          ? 'Annonce publiée sur le marché.'
+          : 'Annonce retirée du marché.',
+    );
+  }
+
+  Future<void> _deleteAnimalSaleListing(String listingId) async {
+    final index = _animalSaleListings.indexWhere(
+      (listing) => listing.id == listingId,
+    );
+    if (index < 0) {
+      return;
+    }
+    final listing = _animalSaleListings[index];
+    if (!_canManageAnimalSaleListing(listing)) {
+      _showError('Vous ne pouvez pas supprimer cette annonce.');
+      return;
+    }
+
+    final confirmed = await _confirmDeletion(
+      title: 'Supprimer cette annonce ?',
+      message:
+          '${listing.category} ${listing.animalCode} - ${listing.animalName}.',
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+    setState(() => _animalSaleListings.removeAt(index));
+    _addAuditLog(
+      module: 'COMMERCIAL',
+      action: 'DELETE_ANIMAL_LISTING',
+      detail: '${listing.category} ${listing.animalCode} supprimée',
+      severity: 'WARN',
+    );
+    _persistState();
+    _showInfo('Annonce supprimée.');
+  }
+
   Future<void> _deleteUser(String userId) async {
     final index = _users.indexWhere((user) => user.id == userId);
     if (index < 0) {
@@ -14363,7 +15553,7 @@ class _MainScreenState extends State<MainScreen> {
         subtitle: '${_users.length} utilisateur(s)',
         preview: groupLast == null
             ? 'Aucun message pour le moment.'
-            : _clipText(groupLast.text, 64),
+            : _clipText(_chatMessagePreview(groupLast), 64),
         lastMessageAt: groupLast?.sentAt,
         unreadCount: _unreadCountForConversation(_teamConversationId),
         avatarLabel: 'EQ',
@@ -14384,7 +15574,7 @@ class _MainScreenState extends State<MainScreen> {
           subtitle: '${peer.role} • ${peer.code}',
           preview: last == null
               ? 'Démarrer la conversation'
-              : _clipText(last.text, 64),
+              : _clipText(_chatMessagePreview(last), 64),
           lastMessageAt: last?.sentAt,
           unreadCount: _unreadCountForConversation(conversationId),
           avatarLabel: peer.avatar,
@@ -14434,28 +15624,19 @@ class _MainScreenState extends State<MainScreen> {
       return;
     }
 
-    final targetConversationId = conversationId.trim().isEmpty
-        ? _teamConversationId
-        : conversationId.trim();
-    final sentAt = DateTime.now();
-    final message = ChatMessage(
-      id: _newId('MSG'),
-      conversationId: targetConversationId,
-      senderId: _currentUser.id,
-      senderName: _currentUser.name,
-      text: text,
-      sentAt: sentAt,
-      readByUserIds: [_currentUser.id],
+    final targetConversationId = _resolveChatConversationId(conversationId);
+    _appendChatMessage(
+      ChatMessage(
+        id: _newId('MSG'),
+        conversationId: targetConversationId,
+        senderId: _currentUser.id,
+        senderName: _currentUser.name,
+        text: text,
+        sentAt: DateTime.now(),
+        readByUserIds: [_currentUser.id],
+      ),
+      clearComposer: true,
     );
-
-    setState(() {
-      _chatMessages.add(message);
-      if (_chatMessages.length > 2500) {
-        _chatMessages.removeRange(0, _chatMessages.length - 2500);
-      }
-      _activeChatConversationId = targetConversationId;
-    });
-    _chatComposerController.clear();
     _addAuditLog(
       module: 'MESSAGERIE',
       action: 'SEND_MESSAGE',
@@ -14463,6 +15644,432 @@ class _MainScreenState extends State<MainScreen> {
           'Message envoyé (${targetConversationId == _teamConversationId ? 'Canal équipe' : 'conversation directe'})',
     );
     _persistState();
+  }
+
+  String _resolveChatConversationId(String conversationId) {
+    final normalized = conversationId.trim();
+    return normalized.isEmpty ? _teamConversationId : normalized;
+  }
+
+  void _appendChatMessage(ChatMessage message, {bool clearComposer = false}) {
+    setState(() {
+      _chatMessages.add(message);
+      if (_chatMessages.length > 2500) {
+        _chatMessages.removeRange(0, _chatMessages.length - 2500);
+      }
+      _activeChatConversationId = message.conversationId;
+      _markConversationAsReadInState(message.conversationId);
+    });
+    if (clearComposer) {
+      _chatComposerController.clear();
+    }
+    _persistState();
+  }
+
+  Future<void> _pickAndSendChatAttachment(
+    String conversationId,
+    String messageType,
+  ) async {
+    FileType pickerType = FileType.custom;
+    List<String>? allowedExtensions;
+    var maxBytes = _chatImageMaxBytes;
+    var label = 'Pièce jointe';
+
+    switch (messageType) {
+      case 'image':
+        pickerType = FileType.image;
+        maxBytes = _chatImageMaxBytes;
+        label = 'Image';
+        break;
+      case 'video':
+        pickerType = FileType.custom;
+        allowedExtensions = const ['mp4', 'mov', 'avi', 'mkv', 'webm'];
+        maxBytes = _chatVideoMaxBytes;
+        label = 'Vidéo';
+        break;
+      case 'audio':
+        pickerType = FileType.custom;
+        allowedExtensions = const ['mp3', 'wav', 'm4a', 'aac', 'ogg'];
+        maxBytes = _chatAudioMaxBytes;
+        label = 'Audio';
+        break;
+      default:
+        _showError('Type de pièce jointe non supporté.');
+        return;
+    }
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: pickerType,
+        allowedExtensions: allowedExtensions,
+        withData: true,
+        allowMultiple: false,
+      );
+      if (result == null || result.files.isEmpty) {
+        return;
+      }
+      final file = result.files.single;
+      final bytes = file.bytes;
+      if (bytes == null || bytes.isEmpty) {
+        _showError('$label invalide. Réessayez avec un autre fichier.');
+        return;
+      }
+      if (bytes.length > maxBytes) {
+        final maxLabel = _formatFileSize(maxBytes);
+        _showError(
+          '$label trop lourd (${_formatFileSize(bytes.length)}). Limite: $maxLabel.',
+        );
+        return;
+      }
+
+      final name = file.name.trim().isEmpty ? '$label.bin' : file.name.trim();
+      final extension = file.extension == null
+          ? _fileExtensionFromName(name)
+          : file.extension!.toLowerCase();
+      final mimeType = _chatMimeTypeForAttachment(
+        messageType: messageType,
+        extension: extension,
+      );
+
+      _sendChatAttachment(
+        conversationId: conversationId,
+        messageType: messageType,
+        mediaBase64: base64Encode(bytes),
+        mediaName: name,
+        mediaMimeType: mimeType,
+        mediaSizeBytes: bytes.length,
+      );
+    } catch (_) {
+      _showError('Impossible de charger la pièce jointe.');
+    }
+  }
+
+  String _fileExtensionFromName(String filename) {
+    final index = filename.lastIndexOf('.');
+    if (index < 0 || index >= filename.length - 1) {
+      return '';
+    }
+    return filename.substring(index + 1).toLowerCase();
+  }
+
+  String _chatMimeTypeForAttachment({
+    required String messageType,
+    required String extension,
+  }) {
+    switch (messageType) {
+      case 'image':
+        switch (extension) {
+          case 'jpg':
+          case 'jpeg':
+            return 'image/jpeg';
+          case 'png':
+            return 'image/png';
+          case 'webp':
+            return 'image/webp';
+          case 'gif':
+            return 'image/gif';
+          default:
+            return 'image/*';
+        }
+      case 'video':
+        switch (extension) {
+          case 'mp4':
+            return 'video/mp4';
+          case 'mov':
+            return 'video/quicktime';
+          case 'avi':
+            return 'video/x-msvideo';
+          case 'mkv':
+            return 'video/x-matroska';
+          case 'webm':
+            return 'video/webm';
+          default:
+            return 'video/*';
+        }
+      case 'audio':
+        switch (extension) {
+          case 'mp3':
+            return 'audio/mpeg';
+          case 'wav':
+            return 'audio/wav';
+          case 'm4a':
+            return 'audio/mp4';
+          case 'aac':
+            return 'audio/aac';
+          case 'ogg':
+            return 'audio/ogg';
+          default:
+            return 'audio/*';
+        }
+      default:
+        return 'application/octet-stream';
+    }
+  }
+
+  void _sendChatAttachment({
+    required String conversationId,
+    required String messageType,
+    required String mediaBase64,
+    required String mediaName,
+    required String mediaMimeType,
+    required int mediaSizeBytes,
+  }) {
+    final targetConversationId = _resolveChatConversationId(conversationId);
+    final label = switch (messageType) {
+      'image' => 'Image',
+      'video' => 'Vidéo',
+      'audio' => 'Audio',
+      _ => 'Pièce jointe',
+    };
+
+    _appendChatMessage(
+      ChatMessage(
+        id: _newId('MSG'),
+        conversationId: targetConversationId,
+        senderId: _currentUser.id,
+        senderName: _currentUser.name,
+        text: '$label envoyé',
+        sentAt: DateTime.now(),
+        readByUserIds: [_currentUser.id],
+        messageType: messageType,
+        mediaBase64: mediaBase64,
+        mediaName: mediaName,
+        mediaMimeType: mediaMimeType,
+        mediaSizeBytes: mediaSizeBytes,
+      ),
+    );
+    _addAuditLog(
+      module: 'MESSAGERIE',
+      action: 'SEND_MEDIA',
+      detail:
+          '$label envoyé (${targetConversationId == _teamConversationId ? 'Canal équipe' : 'conversation directe'})',
+    );
+    _persistState();
+    _showInfo('$label envoyé.');
+  }
+
+  Future<void> _startChatCall(String conversationId, String callType) async {
+    final targetConversationId = _resolveChatConversationId(conversationId);
+    final callLabel = callType == 'video' ? 'vidéo' : 'audio';
+    final title = targetConversationId == _teamConversationId
+        ? 'Canal Équipe'
+        : _conversationTitleById(targetConversationId);
+
+    _appendChatMessage(
+      ChatMessage(
+        id: _newId('MSG'),
+        conversationId: targetConversationId,
+        senderId: _currentUser.id,
+        senderName: _currentUser.name,
+        text: 'Appel $callLabel lancé',
+        sentAt: DateTime.now(),
+        readByUserIds: [_currentUser.id],
+        messageType: 'call',
+        callType: callType,
+        callStatus: 'En cours',
+      ),
+    );
+    _addAuditLog(
+      module: 'MESSAGERIE',
+      action: 'START_CALL',
+      detail: 'Appel $callLabel lancé ($title)',
+    );
+    _persistState();
+
+    final durationSeconds = await _showActiveCallDialog(
+      callType: callType,
+      title: title,
+    );
+    if (!mounted) {
+      return;
+    }
+
+    final callStatus = durationSeconds == null ? 'Manqué' : 'Terminé';
+    final text = durationSeconds == null
+        ? 'Appel $callLabel manqué'
+        : 'Appel $callLabel terminé (${_formatDuration(durationSeconds)})';
+    _appendChatMessage(
+      ChatMessage(
+        id: _newId('MSG'),
+        conversationId: targetConversationId,
+        senderId: _currentUser.id,
+        senderName: _currentUser.name,
+        text: text,
+        sentAt: DateTime.now(),
+        readByUserIds: [_currentUser.id],
+        messageType: 'call',
+        callType: callType,
+        callStatus: callStatus,
+        callDurationSeconds: durationSeconds ?? 0,
+      ),
+    );
+    _addAuditLog(
+      module: 'MESSAGERIE',
+      action: durationSeconds == null ? 'MISS_CALL' : 'END_CALL',
+      detail: durationSeconds == null
+          ? 'Appel $callLabel non abouti ($title)'
+          : 'Appel $callLabel terminé ($title, ${_formatDuration(durationSeconds)})',
+    );
+    _persistState();
+    if (durationSeconds == null) {
+      _showError('Appel $callLabel non abouti.');
+    } else {
+      _showInfo(
+        'Appel $callLabel terminé (${_formatDuration(durationSeconds)}).',
+      );
+    }
+  }
+
+  String _conversationTitleById(String conversationId) {
+    if (conversationId == _teamConversationId) {
+      return 'Canal Équipe';
+    }
+    for (final user in _users) {
+      if (conversationId.contains(user.id) && user.id != _currentUser.id) {
+        return user.name;
+      }
+    }
+    return 'Conversation directe';
+  }
+
+  Future<int?> _showActiveCallDialog({
+    required String callType,
+    required String title,
+  }) async {
+    var elapsedSeconds = 0;
+    Timer? ticker;
+    var tickerStarted = false;
+    final isVideo = callType == 'video';
+
+    final result = await showDialog<int>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            if (!tickerStarted) {
+              tickerStarted = true;
+              ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+                if (!context.mounted) {
+                  ticker?.cancel();
+                  return;
+                }
+                setModalState(() => elapsedSeconds++);
+              });
+            }
+
+            return AlertDialog(
+              title: Text(
+                isVideo ? 'Appel vidéo en cours' : 'Appel audio en cours',
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(
+                    radius: 34,
+                    backgroundColor: const Color(
+                      0xFF0F766E,
+                    ).withValues(alpha: 0.12),
+                    child: Icon(
+                      isVideo ? Icons.videocam_outlined : Icons.call_outlined,
+                      color: const Color(0xFF0F766E),
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _formatDuration(elapsedSeconds),
+                    style: const TextStyle(
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Simulation locale: journal d’appel enregistré dans la messagerie.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(0xFF64748B),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(null),
+                  child: const Text('Appel manqué'),
+                ),
+                FilledButton.icon(
+                  onPressed: () =>
+                      Navigator.of(dialogContext).pop(elapsedSeconds),
+                  icon: const Icon(Icons.call_end, size: 16),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFB91C1C),
+                    foregroundColor: Colors.white,
+                  ),
+                  label: const Text('Terminer'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    ticker?.cancel();
+    return result;
+  }
+
+  String _formatDuration(int totalSeconds) {
+    final safeSeconds = totalSeconds < 0 ? 0 : totalSeconds;
+    final minutes = (safeSeconds ~/ 60).toString().padLeft(2, '0');
+    final seconds = (safeSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  String _chatMessagePreview(ChatMessage message) {
+    switch (message.messageType) {
+      case 'image':
+        final imageName = message.mediaName.trim().isEmpty
+            ? 'Image'
+            : message.mediaName.trim();
+        return 'Image: $imageName';
+      case 'video':
+        final videoName = message.mediaName.trim().isEmpty
+            ? 'Vidéo'
+            : message.mediaName.trim();
+        return 'Vidéo: $videoName';
+      case 'audio':
+        final audioName = message.mediaName.trim().isEmpty
+            ? 'Audio'
+            : message.mediaName.trim();
+        return 'Audio: $audioName';
+      case 'call':
+        final callLabel = message.callType == 'video'
+            ? 'Appel vidéo'
+            : 'Appel audio';
+        final status = message.callStatus.trim().isEmpty
+            ? ''
+            : ' ${message.callStatus.trim()}';
+        final duration = message.callDurationSeconds > 0
+            ? ' (${_formatDuration(message.callDurationSeconds)})'
+            : '';
+        return '$callLabel$status$duration';
+      default:
+        final text = message.text.trim();
+        return text.isEmpty ? 'Message' : text;
+    }
   }
 
   String _messageDeliveryLabel(ChatMessage message, String conversationId) {
@@ -14473,6 +16080,230 @@ class _MainScreenState extends State<MainScreen> {
       return readByOthers > 0 ? 'Lu par $readByOthers' : 'Envoyé';
     }
     return readByOthers > 0 ? 'Lu' : 'Envoyé';
+  }
+
+  Widget _buildChatMessageContent({
+    required ChatMessage message,
+    required bool isMine,
+  }) {
+    final textColor = isMine ? Colors.white : const Color(0xFF0F172A);
+    final subTextColor = isMine ? Colors.white70 : const Color(0xFF64748B);
+    final messageType = message.messageType.trim().toLowerCase();
+
+    if (messageType == 'image') {
+      if (message.mediaBase64.trim().isEmpty) {
+        return Text(
+          message.text.trim().isEmpty ? 'Image indisponible.' : message.text,
+          style: TextStyle(
+            color: textColor,
+            height: 1.35,
+            fontWeight: FontWeight.w600,
+          ),
+        );
+      }
+      try {
+        final bytes = base64Decode(message.mediaBase64);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (message.text.trim().isNotEmpty &&
+                message.text.trim() != 'Image envoyé')
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  message.text,
+                  style: TextStyle(
+                    color: textColor,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.memory(
+                bytes,
+                width: 220,
+                height: 170,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              message.mediaName.trim().isEmpty ? 'Image' : message.mediaName,
+              style: TextStyle(
+                color: textColor,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+            if (message.mediaSizeBytes > 0)
+              Text(
+                _formatFileSize(message.mediaSizeBytes),
+                style: TextStyle(
+                  color: subTextColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 11,
+                ),
+              ),
+          ],
+        );
+      } catch (_) {
+        return Text(
+          'Image corrompue ou non lisible.',
+          style: TextStyle(
+            color: textColor,
+            height: 1.35,
+            fontWeight: FontWeight.w600,
+          ),
+        );
+      }
+    }
+
+    if (messageType == 'video' || messageType == 'audio') {
+      final isVideo = messageType == 'video';
+      final title = isVideo ? 'Vidéo jointe' : 'Audio joint';
+      return Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: isMine
+              ? Colors.white.withValues(alpha: 0.14)
+              : const Color(0xFFE2E8F0),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isVideo
+                  ? Icons.videocam_outlined
+                  : Icons.multitrack_audio_outlined,
+              color: textColor,
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: textColor,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
+                  ),
+                  Text(
+                    message.mediaName.trim().isEmpty
+                        ? (isVideo ? 'video.bin' : 'audio.bin')
+                        : message.mediaName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: subTextColor,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                    ),
+                  ),
+                  if (message.mediaSizeBytes > 0)
+                    Text(
+                      _formatFileSize(message.mediaSizeBytes),
+                      style: TextStyle(
+                        color: subTextColor,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 11,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (messageType == 'call') {
+      final isVideo = message.callType.trim().toLowerCase() == 'video';
+      final callLabel = isVideo ? 'Appel vidéo' : 'Appel audio';
+      final status = message.callStatus.trim().isEmpty
+          ? 'Journal'
+          : message.callStatus.trim();
+      final duration = message.callDurationSeconds > 0
+          ? ' • ${_formatDuration(message.callDurationSeconds)}'
+          : '';
+      final bodyText = message.text.trim().isEmpty
+          ? '$callLabel $status$duration'
+          : message.text.trim();
+
+      return Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: isMine
+              ? Colors.white.withValues(alpha: 0.14)
+              : const Color(0xFFE2E8F0),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isVideo ? Icons.videocam_outlined : Icons.call_outlined,
+              color: textColor,
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    bodyText,
+                    style: TextStyle(
+                      color: textColor,
+                      height: 1.25,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    'Statut: $status',
+                    style: TextStyle(
+                      color: subTextColor,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Text(
+      message.text,
+      style: TextStyle(
+        color: textColor,
+        height: 1.35,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes <= 0) {
+      return '-';
+    }
+    if (bytes < 1024) {
+      return '$bytes o';
+    }
+    final kb = bytes / 1024;
+    if (kb < 1024) {
+      return '${kb.toStringAsFixed(kb >= 100 ? 0 : 1)} KB';
+    }
+    final mb = kb / 1024;
+    return '${mb.toStringAsFixed(mb >= 10 ? 1 : 2)} MB';
   }
 
   String _chatTimeLabel(DateTime dateTime) {
@@ -14727,7 +16558,106 @@ class _MainScreenState extends State<MainScreen> {
       }
     }
 
+    final protocolTemplates =
+        <
+          ({
+            int dayOffset,
+            String eventType,
+            String matchKeyword,
+            String detail,
+            Color color,
+            IconData icon,
+          })
+        >[
+          (
+            dayOffset: 0,
+            eventType: 'Colostrum',
+            matchKeyword: 'colostrum',
+            detail: 'Prise colostrum + désinfection ombilic',
+            color: const Color(0xFF0F766E),
+            icon: LucideIcons.piggyBank,
+          ),
+          (
+            dayOffset: 1,
+            eventType: 'Coupe dents',
+            matchKeyword: 'dent',
+            detail: 'Coupe des dents et contrôle vitalité',
+            color: const Color(0xFF2563EB),
+            icon: Icons.content_cut,
+          ),
+          (
+            dayOffset: 3,
+            eventType: 'Supplémentation fer',
+            matchKeyword: 'fer',
+            detail: 'Injection fer porcelets J3',
+            color: const Color(0xFFB45309),
+            icon: LucideIcons.syringe,
+          ),
+          (
+            dayOffset: 7,
+            eventType: 'Castration',
+            matchKeyword: 'castration',
+            detail: 'Castration mâles + analgésie',
+            color: const Color(0xFF7C3AED),
+            icon: LucideIcons.badgeInfo,
+          ),
+          (
+            dayOffset: 21,
+            eventType: 'Vaccination porcelets',
+            matchKeyword: 'vaccin',
+            detail: 'Vaccination porcelets',
+            color: const Color(0xFF15803D),
+            icon: LucideIcons.shieldCheck,
+          ),
+          (
+            dayOffset: 28,
+            eventType: 'Sevrage',
+            matchKeyword: 'sevrage',
+            detail: 'Sevrage et transfert post-sevrage',
+            color: const Color(0xFFEA580C),
+            icon: LucideIcons.piggyBank,
+          ),
+        ];
+
     final today = _currentDate();
+    for (final farrowing in _farrowingRecords) {
+      for (final template in protocolTemplates) {
+        final protocolDate = _normalizeDate(
+          farrowing.farrowingDate.add(Duration(days: template.dayOffset)),
+        );
+        final alreadyLogged = _pigletCareRecords.any((record) {
+          return _normalizeLookup(record.animalCode) ==
+                  _normalizeLookup(farrowing.sowCode) &&
+              _isSameDate(_normalizeDate(record.eventDate), protocolDate) &&
+              _normalizeLookup(
+                record.eventType,
+              ).contains(_normalizeLookup(template.matchKeyword));
+        });
+        if (alreadyLogged) {
+          continue;
+        }
+
+        addEvent(
+          date: protocolDate,
+          label:
+              'Protocole ${template.eventType} - Portée ${farrowing.sowCode} (J${template.dayOffset} • ${template.detail})',
+          type: 'PROTO',
+          color: template.color,
+          icon: template.icon,
+        );
+        if (protocolDate.isBefore(today)) {
+          addEvent(
+            date: today,
+            label:
+                'Retard protocole ${template.eventType} - Portée ${farrowing.sowCode}',
+            type: 'ALERTE',
+            color: const Color(0xFFB91C1C),
+            icon: LucideIcons.alertTriangle,
+          );
+        }
+      }
+    }
+
     for (final record in _pigletCareRecords) {
       if (record.nextDate == null) {
         continue;
