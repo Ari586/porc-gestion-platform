@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:crypto/crypto.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
@@ -332,6 +333,108 @@ class GrowthRecord {
   });
 }
 
+class PigletCareRecord {
+  final String id;
+  final String animalCode;
+  final String groupName;
+  final DateTime eventDate;
+  final String eventType;
+  final String details;
+  final String responsible;
+  final DateTime? nextDate;
+
+  const PigletCareRecord({
+    required this.id,
+    required this.animalCode,
+    required this.groupName,
+    required this.eventDate,
+    required this.eventType,
+    required this.details,
+    required this.responsible,
+    this.nextDate,
+  });
+}
+
+class FarrowingRecord {
+  final String id;
+  final String sowCode;
+  final DateTime farrowingDate;
+  final int totalBorn;
+  final int bornAlive;
+  final int stillborn;
+  final int mummified;
+  final int weaned;
+  final int preWeaningDeaths;
+  final double avgBirthWeight;
+  final String majorIssue;
+  final String responsible;
+  final String notes;
+
+  const FarrowingRecord({
+    required this.id,
+    required this.sowCode,
+    required this.farrowingDate,
+    required this.totalBorn,
+    required this.bornAlive,
+    required this.stillborn,
+    required this.mummified,
+    required this.weaned,
+    required this.preWeaningDeaths,
+    required this.avgBirthWeight,
+    this.majorIssue = '',
+    required this.responsible,
+    this.notes = '',
+  });
+}
+
+class SemenQualityRecord {
+  final String id;
+  final String lotCode;
+  final String boarCode;
+  final DateTime collectionDate;
+  final double concentration;
+  final double motilityPercent;
+  final double temperatureC;
+  final int storageHours;
+  final String approvedBy;
+  final String notes;
+
+  const SemenQualityRecord({
+    required this.id,
+    required this.lotCode,
+    required this.boarCode,
+    required this.collectionDate,
+    required this.concentration,
+    required this.motilityPercent,
+    required this.temperatureC,
+    required this.storageHours,
+    required this.approvedBy,
+    this.notes = '',
+  });
+}
+
+class AuditLogEntry {
+  final String id;
+  final DateTime timestamp;
+  final String actorCode;
+  final String actorName;
+  final String module;
+  final String action;
+  final String detail;
+  final String severity;
+
+  const AuditLogEntry({
+    required this.id,
+    required this.timestamp,
+    required this.actorCode,
+    required this.actorName,
+    required this.module,
+    required this.action,
+    required this.detail,
+    required this.severity,
+  });
+}
+
 const List<UserProfile> initialUsers = [
   UserProfile(
     id: 'U1',
@@ -403,6 +506,8 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
+  static const String _passwordHashPrefix = 'sha256:';
+  static const int _maxSessionHours = 12;
   static const String _prefsUsersKey = 'porc_users_v1';
   static const String _prefsBoarsKey = 'porc_boars_v1';
   static const String _prefsSowsKey = 'porc_sows_v1';
@@ -412,14 +517,26 @@ class _MainScreenState extends State<MainScreen> {
   static const String _prefsSuppliersKey = 'porc_suppliers_v1';
   static const String _prefsSalesKey = 'porc_sales_v1';
   static const String _prefsSuppliesKey = 'porc_supplies_v1';
+  static const String _prefsBuildingsKey = 'porc_buildings_v1';
+  static const String _prefsBatchesKey = 'porc_batches_v1';
+  static const String _prefsGrowthKey = 'porc_growth_v1';
+  static const String _prefsPigletCareKey = 'porc_piglet_care_v1';
+  static const String _prefsFarrowingKey = 'porc_farrowing_v1';
+  static const String _prefsSemenQualityKey = 'porc_semen_quality_v1';
+  static const String _prefsAuditLogsKey = 'porc_audit_logs_v1';
+  static const String _prefsTaskDoneKey = 'porc_task_done_v1';
   static const String _prefsPreferredBoarCodeKey = 'porc_preferred_boar_v1';
   static const String _prefsCurrentUserIdKey = 'porc_current_user_v1';
   static const String _prefsSalesFilterKey = 'porc_sales_filter_v1';
   static const String _prefsActiveTabKey = 'porc_active_tab_v1';
   static const String _prefsAuthenticatedKey = 'porc_authenticated_v1';
+  static const String _prefsLastAuthAtKey = 'porc_last_auth_at_v1';
   static const String _prefsGestationMonthKey = 'porc_gestation_month_v1';
   static const String _prefsSelectedGestationDateKey =
       'porc_gestation_selected_date_v1';
+  static const String _prefsPigletMonthKey = 'porc_piglet_month_v1';
+  static const String _prefsSelectedPigletDateKey =
+      'porc_piglet_selected_date_v1';
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _loginController = TextEditingController();
@@ -431,9 +548,16 @@ class _MainScreenState extends State<MainScreen> {
   bool _isAuthenticated = false;
   bool _hidePassword = true;
   String? _authError;
+  DateTime? _lastAuthAt;
   DateTime _gestationCalendarMonth = DateTime.now();
   DateTime? _selectedGestationDate;
+  DateTime _pigletCalendarMonth = DateTime.now();
+  DateTime? _selectedPigletDate;
   String? _preferredBoarCode;
+  final Map<String, bool> _taskDoneById = <String, bool>{};
+  final List<AuditLogEntry> _auditLogs = [];
+  int _failedLoginAttempts = 0;
+  DateTime? _loginLockedUntil;
   bool _stateLoading = true;
 
   final List<Boar> _boars = [
@@ -692,7 +816,7 @@ class _MainScreenState extends State<MainScreen> {
     ),
   ];
 
-  final List<BuildingRecord> _buildings = const [
+  final List<BuildingRecord> _buildings = [
     BuildingRecord(
       id: 'BLD1',
       name: 'Bâtiment A',
@@ -774,6 +898,85 @@ class _MainScreenState extends State<MainScreen> {
     ),
   ];
 
+  final List<PigletCareRecord> _pigletCareRecords = [
+    PigletCareRecord(
+      id: 'PC1',
+      animalCode: 'TR-2001',
+      groupName: 'Portée Nova',
+      eventDate: DateTime.now().subtract(const Duration(days: 1)),
+      eventType: 'Colostrum',
+      details: 'Contrôle prise colostrum des porcelets',
+      responsible: 'Marc Éleveur',
+      nextDate: DateTime.now().add(const Duration(days: 2)),
+    ),
+    PigletCareRecord(
+      id: 'PC2',
+      animalCode: 'TR-2002',
+      groupName: 'Portée Luna',
+      eventDate: DateTime.now().add(const Duration(days: 4)),
+      eventType: 'Supplémentation fer',
+      details: 'Injection fer porcelets J3',
+      responsible: 'Marc Éleveur',
+    ),
+  ];
+
+  final List<FarrowingRecord> _farrowingRecords = [
+    FarrowingRecord(
+      id: 'FAR1',
+      sowCode: 'TR-2001',
+      farrowingDate: DateTime.now().subtract(const Duration(days: 18)),
+      totalBorn: 14,
+      bornAlive: 12,
+      stillborn: 1,
+      mummified: 1,
+      weaned: 11,
+      preWeaningDeaths: 1,
+      avgBirthWeight: 1.42,
+      majorIssue: 'Léger écrasement J2',
+      responsible: 'Marc Éleveur',
+    ),
+    FarrowingRecord(
+      id: 'FAR2',
+      sowCode: 'TR-2002',
+      farrowingDate: DateTime.now().subtract(const Duration(days: 39)),
+      totalBorn: 13,
+      bornAlive: 11,
+      stillborn: 2,
+      mummified: 0,
+      weaned: 10,
+      preWeaningDeaths: 1,
+      avgBirthWeight: 1.36,
+      responsible: 'Marc Éleveur',
+    ),
+  ];
+
+  final List<SemenQualityRecord> _semenQualityRecords = [
+    SemenQualityRecord(
+      id: 'SQ1',
+      lotCode: 'LOT-IA-2405',
+      boarCode: 'VR-1001',
+      collectionDate: DateTime.now().subtract(const Duration(days: 9)),
+      concentration: 2.9,
+      motilityPercent: 82,
+      temperatureC: 16.5,
+      storageHours: 24,
+      approvedBy: 'Lucie Véto',
+      notes: 'Conforme protocole',
+    ),
+    SemenQualityRecord(
+      id: 'SQ2',
+      lotCode: 'LOT-IA-2406',
+      boarCode: 'VR-1002',
+      collectionDate: DateTime.now().subtract(const Duration(days: 4)),
+      concentration: 2.4,
+      motilityPercent: 69,
+      temperatureC: 18.7,
+      storageHours: 36,
+      approvedBy: 'Lucie Véto',
+      notes: 'Surveillance renforcée',
+    ),
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -842,12 +1045,15 @@ class _MainScreenState extends State<MainScreen> {
     if (_users.isNotEmpty) {
       _currentUser = _users.first;
     }
+    _migrateLegacyPasswords();
     if (_boars.isNotEmpty) {
       _preferredBoarCode = _boars.first.code;
     }
     final today = _currentDate();
     _gestationCalendarMonth = DateTime(today.year, today.month, 1);
     _selectedGestationDate = today;
+    _pigletCalendarMonth = DateTime(today.year, today.month, 1);
+    _selectedPigletDate = today;
   }
 
   Future<void> _loadPersistedState() async {
@@ -871,6 +1077,30 @@ class _MainScreenState extends State<MainScreen> {
       final salesRaw = _decodeObjectListOrNull(prefs.getString(_prefsSalesKey));
       final suppliesRaw = _decodeObjectListOrNull(
         prefs.getString(_prefsSuppliesKey),
+      );
+      final buildingsRaw = _decodeObjectListOrNull(
+        prefs.getString(_prefsBuildingsKey),
+      );
+      final batchesRaw = _decodeObjectListOrNull(
+        prefs.getString(_prefsBatchesKey),
+      );
+      final growthRaw = _decodeObjectListOrNull(
+        prefs.getString(_prefsGrowthKey),
+      );
+      final pigletCareRaw = _decodeObjectListOrNull(
+        prefs.getString(_prefsPigletCareKey),
+      );
+      final farrowingRaw = _decodeObjectListOrNull(
+        prefs.getString(_prefsFarrowingKey),
+      );
+      final semenQualityRaw = _decodeObjectListOrNull(
+        prefs.getString(_prefsSemenQualityKey),
+      );
+      final auditRaw = _decodeObjectListOrNull(
+        prefs.getString(_prefsAuditLogsKey),
+      );
+      final taskDoneRaw = _decodeObjectMapOrNull(
+        prefs.getString(_prefsTaskDoneKey),
       );
 
       if (!mounted) {
@@ -942,6 +1172,73 @@ class _MainScreenState extends State<MainScreen> {
             );
         }
 
+        if (buildingsRaw != null) {
+          _buildings
+            ..clear()
+            ..addAll(
+              buildingsRaw.map(_buildingFromJson).whereType<BuildingRecord>(),
+            );
+        }
+
+        if (batchesRaw != null) {
+          _batchRecords
+            ..clear()
+            ..addAll(batchesRaw.map(_batchFromJson).whereType<BatchRecord>());
+        }
+
+        if (growthRaw != null) {
+          _growthRecords
+            ..clear()
+            ..addAll(growthRaw.map(_growthFromJson).whereType<GrowthRecord>());
+        }
+
+        if (pigletCareRaw != null) {
+          _pigletCareRecords
+            ..clear()
+            ..addAll(
+              pigletCareRaw
+                  .map(_pigletCareFromJson)
+                  .whereType<PigletCareRecord>(),
+            );
+        }
+
+        if (farrowingRaw != null) {
+          _farrowingRecords
+            ..clear()
+            ..addAll(
+              farrowingRaw.map(_farrowingFromJson).whereType<FarrowingRecord>(),
+            );
+        }
+
+        if (semenQualityRaw != null) {
+          _semenQualityRecords
+            ..clear()
+            ..addAll(
+              semenQualityRaw
+                  .map(_semenQualityFromJson)
+                  .whereType<SemenQualityRecord>(),
+            );
+        }
+
+        if (auditRaw != null) {
+          _auditLogs
+            ..clear()
+            ..addAll(
+              auditRaw.map(_auditLogFromJson).whereType<AuditLogEntry>(),
+            );
+        }
+
+        if (taskDoneRaw != null) {
+          _taskDoneById
+            ..clear()
+            ..addAll(
+              taskDoneRaw.map(
+                (key, value) =>
+                    MapEntry(key, value.toString().toLowerCase() == 'true'),
+              ),
+            );
+        }
+
         final savedUserId = _readString(
           prefs.getString(_prefsCurrentUserIdKey),
         );
@@ -980,7 +1277,36 @@ class _MainScreenState extends State<MainScreen> {
           _selectedGestationDate = savedSelectedDate;
         }
 
+        final savedPigletMonth = _parseDateFromString(
+          prefs.getString(_prefsPigletMonthKey),
+        );
+        if (savedPigletMonth != null) {
+          _pigletCalendarMonth = DateTime(
+            savedPigletMonth.year,
+            savedPigletMonth.month,
+            1,
+          );
+        }
+
+        final savedSelectedPigletDate = _parseDateFromString(
+          prefs.getString(_prefsSelectedPigletDateKey),
+        );
+        if (savedSelectedPigletDate != null) {
+          _selectedPigletDate = savedSelectedPigletDate;
+        }
+
         _isAuthenticated = prefs.getBool(_prefsAuthenticatedKey) ?? false;
+        _lastAuthAt = _parseDateTimeFromString(
+          prefs.getString(_prefsLastAuthAtKey),
+        );
+        if (_isAuthenticated &&
+            _lastAuthAt != null &&
+            DateTime.now().difference(_lastAuthAt!).inHours >=
+                _maxSessionHours) {
+          _isAuthenticated = false;
+          _authError =
+              'Session expirée (plus de ${_maxSessionHours}h). Veuillez vous reconnecter.';
+        }
 
         final savedTab = prefs.getString(_prefsActiveTabKey);
         if (savedTab != null && savedTab.trim().isNotEmpty) {
@@ -990,6 +1316,11 @@ class _MainScreenState extends State<MainScreen> {
 
         _stateLoading = false;
       });
+
+      final migrated = _migrateLegacyPasswords();
+      if (migrated) {
+        _persistState();
+      }
     } catch (_) {
       if (!mounted) {
         return;
@@ -1040,6 +1371,35 @@ class _MainScreenState extends State<MainScreen> {
         _prefsSuppliesKey,
         jsonEncode(_supplyRecords.map(_supplyToJson).toList()),
       );
+      await prefs.setString(
+        _prefsBuildingsKey,
+        jsonEncode(_buildings.map(_buildingToJson).toList()),
+      );
+      await prefs.setString(
+        _prefsBatchesKey,
+        jsonEncode(_batchRecords.map(_batchToJson).toList()),
+      );
+      await prefs.setString(
+        _prefsGrowthKey,
+        jsonEncode(_growthRecords.map(_growthToJson).toList()),
+      );
+      await prefs.setString(
+        _prefsPigletCareKey,
+        jsonEncode(_pigletCareRecords.map(_pigletCareToJson).toList()),
+      );
+      await prefs.setString(
+        _prefsFarrowingKey,
+        jsonEncode(_farrowingRecords.map(_farrowingToJson).toList()),
+      );
+      await prefs.setString(
+        _prefsSemenQualityKey,
+        jsonEncode(_semenQualityRecords.map(_semenQualityToJson).toList()),
+      );
+      await prefs.setString(
+        _prefsAuditLogsKey,
+        jsonEncode(_auditLogs.map(_auditLogToJson).toList()),
+      );
+      await prefs.setString(_prefsTaskDoneKey, jsonEncode(_taskDoneById));
       if (_preferredBoarCode == null || _preferredBoarCode!.trim().isEmpty) {
         await prefs.remove(_prefsPreferredBoarCodeKey);
       } else {
@@ -1049,6 +1409,14 @@ class _MainScreenState extends State<MainScreen> {
       await prefs.setString(_prefsSalesFilterKey, _salesFilter);
       await prefs.setString(_prefsActiveTabKey, _activeTab);
       await prefs.setBool(_prefsAuthenticatedKey, _isAuthenticated);
+      if (_lastAuthAt == null) {
+        await prefs.remove(_prefsLastAuthAtKey);
+      } else {
+        await prefs.setString(
+          _prefsLastAuthAtKey,
+          _lastAuthAt!.toIso8601String(),
+        );
+      }
       await prefs.setString(
         _prefsGestationMonthKey,
         _normalizeDate(_gestationCalendarMonth).toIso8601String(),
@@ -1059,6 +1427,18 @@ class _MainScreenState extends State<MainScreen> {
         await prefs.setString(
           _prefsSelectedGestationDateKey,
           _normalizeDate(_selectedGestationDate!).toIso8601String(),
+        );
+      }
+      await prefs.setString(
+        _prefsPigletMonthKey,
+        _normalizeDate(_pigletCalendarMonth).toIso8601String(),
+      );
+      if (_selectedPigletDate == null) {
+        await prefs.remove(_prefsSelectedPigletDateKey);
+      } else {
+        await prefs.setString(
+          _prefsSelectedPigletDateKey,
+          _normalizeDate(_selectedPigletDate!).toIso8601String(),
         );
       }
     } catch (_) {
@@ -1082,6 +1462,21 @@ class _MainScreenState extends State<MainScreen> {
         }
       }
       return items;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Map<String, dynamic>? _decodeObjectMapOrNull(String? raw) {
+    if (raw == null) {
+      return null;
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) {
+        return null;
+      }
+      return Map<String, dynamic>.from(decoded);
     } catch (_) {
       return null;
     }
@@ -1117,6 +1512,13 @@ class _MainScreenState extends State<MainScreen> {
       return null;
     }
     return DateTime(parsed.year, parsed.month, parsed.day);
+  }
+
+  DateTime? _parseDateTimeFromString(String? raw) {
+    if (raw == null || raw.trim().isEmpty) {
+      return null;
+    }
+    return DateTime.tryParse(raw.trim());
   }
 
   String? _resolvePreferredBoarCode(String? rawCode) {
@@ -1528,6 +1930,307 @@ class _MainScreenState extends State<MainScreen> {
       date: date,
       amount: amount,
       notes: _readString(json['notes']),
+    );
+  }
+
+  Map<String, dynamic> _buildingToJson(BuildingRecord building) {
+    return {
+      'id': building.id,
+      'name': building.name,
+      'type': building.type,
+      'capacity': building.capacity,
+      'occupied': building.occupied,
+    };
+  }
+
+  BuildingRecord? _buildingFromJson(Map<String, dynamic> json) {
+    final id = _readString(json['id']).trim();
+    final name = _readString(json['name']).trim();
+    final type = _readString(json['type']).trim();
+    final capacity = _readInt(json['capacity']);
+    final occupied = _readInt(json['occupied']);
+    if (id.isEmpty ||
+        name.isEmpty ||
+        type.isEmpty ||
+        capacity <= 0 ||
+        occupied < 0) {
+      return null;
+    }
+    return BuildingRecord(
+      id: id,
+      name: name,
+      type: type,
+      capacity: capacity,
+      occupied: occupied > capacity ? capacity : occupied,
+    );
+  }
+
+  Map<String, dynamic> _batchToJson(BatchRecord batch) {
+    return {
+      'id': batch.id,
+      'name': batch.name,
+      'stage': batch.stage,
+      'startDate': batch.startDate.toIso8601String(),
+      'animals': batch.animals,
+      'avgWeight': batch.avgWeight,
+    };
+  }
+
+  BatchRecord? _batchFromJson(Map<String, dynamic> json) {
+    final id = _readString(json['id']).trim();
+    final name = _readString(json['name']).trim();
+    final stage = _readString(json['stage']).trim();
+    final startDate = _parseDateFromString(_readString(json['startDate']));
+    final animals = _readInt(json['animals']);
+    final avgWeight = _readDouble(json['avgWeight']);
+    if (id.isEmpty ||
+        name.isEmpty ||
+        stage.isEmpty ||
+        startDate == null ||
+        animals <= 0 ||
+        avgWeight < 0) {
+      return null;
+    }
+    return BatchRecord(
+      id: id,
+      name: name,
+      stage: stage,
+      startDate: startDate,
+      animals: animals,
+      avgWeight: avgWeight,
+    );
+  }
+
+  Map<String, dynamic> _growthToJson(GrowthRecord growth) {
+    return {
+      'id': growth.id,
+      'batchId': growth.batchId,
+      'date': growth.date.toIso8601String(),
+      'avgWeight': growth.avgWeight,
+      'dailyGain': growth.dailyGain,
+    };
+  }
+
+  GrowthRecord? _growthFromJson(Map<String, dynamic> json) {
+    final id = _readString(json['id']).trim();
+    final batchId = _readString(json['batchId']).trim();
+    final date = _parseDateFromString(_readString(json['date']));
+    final avgWeight = _readDouble(json['avgWeight']);
+    final dailyGain = _readDouble(json['dailyGain']);
+    if (id.isEmpty ||
+        batchId.isEmpty ||
+        date == null ||
+        avgWeight < 0 ||
+        dailyGain < 0) {
+      return null;
+    }
+    return GrowthRecord(
+      id: id,
+      batchId: batchId,
+      date: date,
+      avgWeight: avgWeight,
+      dailyGain: dailyGain,
+    );
+  }
+
+  Map<String, dynamic> _pigletCareToJson(PigletCareRecord record) {
+    return {
+      'id': record.id,
+      'animalCode': record.animalCode,
+      'groupName': record.groupName,
+      'eventDate': record.eventDate.toIso8601String(),
+      'eventType': record.eventType,
+      'details': record.details,
+      'responsible': record.responsible,
+      'nextDate': record.nextDate?.toIso8601String(),
+    };
+  }
+
+  PigletCareRecord? _pigletCareFromJson(Map<String, dynamic> json) {
+    final id = _readString(json['id']).trim();
+    final animalCode = _readString(json['animalCode']).trim();
+    final groupName = _readString(json['groupName']).trim();
+    final eventDate = _parseDateFromString(_readString(json['eventDate']));
+    final eventType = _readString(json['eventType']).trim();
+    final details = _readString(json['details']).trim();
+    final responsible = _readString(json['responsible']).trim();
+    if (id.isEmpty ||
+        animalCode.isEmpty ||
+        groupName.isEmpty ||
+        eventDate == null ||
+        eventType.isEmpty ||
+        details.isEmpty ||
+        responsible.isEmpty) {
+      return null;
+    }
+    return PigletCareRecord(
+      id: id,
+      animalCode: animalCode,
+      groupName: groupName,
+      eventDate: eventDate,
+      eventType: eventType,
+      details: details,
+      responsible: responsible,
+      nextDate: _parseDateFromString(_readString(json['nextDate'])),
+    );
+  }
+
+  Map<String, dynamic> _farrowingToJson(FarrowingRecord record) {
+    return {
+      'id': record.id,
+      'sowCode': record.sowCode,
+      'farrowingDate': record.farrowingDate.toIso8601String(),
+      'totalBorn': record.totalBorn,
+      'bornAlive': record.bornAlive,
+      'stillborn': record.stillborn,
+      'mummified': record.mummified,
+      'weaned': record.weaned,
+      'preWeaningDeaths': record.preWeaningDeaths,
+      'avgBirthWeight': record.avgBirthWeight,
+      'majorIssue': record.majorIssue,
+      'responsible': record.responsible,
+      'notes': record.notes,
+    };
+  }
+
+  FarrowingRecord? _farrowingFromJson(Map<String, dynamic> json) {
+    final id = _readString(json['id']).trim();
+    final sowCode = _readString(json['sowCode']).trim();
+    final farrowingDate = _parseDateFromString(
+      _readString(json['farrowingDate']),
+    );
+    final totalBorn = _readInt(json['totalBorn']);
+    final bornAlive = _readInt(json['bornAlive']);
+    final stillborn = _readInt(json['stillborn']);
+    final mummified = _readInt(json['mummified']);
+    final weaned = _readInt(json['weaned']);
+    final preWeaningDeaths = _readInt(json['preWeaningDeaths']);
+    final avgBirthWeight = _readDouble(json['avgBirthWeight']);
+    final responsible = _readString(json['responsible']).trim();
+
+    if (id.isEmpty ||
+        sowCode.isEmpty ||
+        farrowingDate == null ||
+        totalBorn < 0 ||
+        bornAlive < 0 ||
+        stillborn < 0 ||
+        mummified < 0 ||
+        weaned < 0 ||
+        preWeaningDeaths < 0 ||
+        avgBirthWeight < 0 ||
+        responsible.isEmpty) {
+      return null;
+    }
+
+    return FarrowingRecord(
+      id: id,
+      sowCode: sowCode,
+      farrowingDate: farrowingDate,
+      totalBorn: totalBorn,
+      bornAlive: bornAlive,
+      stillborn: stillborn,
+      mummified: mummified,
+      weaned: weaned,
+      preWeaningDeaths: preWeaningDeaths,
+      avgBirthWeight: avgBirthWeight,
+      majorIssue: _readString(json['majorIssue']).trim(),
+      responsible: responsible,
+      notes: _readString(json['notes']).trim(),
+    );
+  }
+
+  Map<String, dynamic> _semenQualityToJson(SemenQualityRecord record) {
+    return {
+      'id': record.id,
+      'lotCode': record.lotCode,
+      'boarCode': record.boarCode,
+      'collectionDate': record.collectionDate.toIso8601String(),
+      'concentration': record.concentration,
+      'motilityPercent': record.motilityPercent,
+      'temperatureC': record.temperatureC,
+      'storageHours': record.storageHours,
+      'approvedBy': record.approvedBy,
+      'notes': record.notes,
+    };
+  }
+
+  SemenQualityRecord? _semenQualityFromJson(Map<String, dynamic> json) {
+    final id = _readString(json['id']).trim();
+    final lotCode = _readString(json['lotCode']).trim();
+    final boarCode = _readString(json['boarCode']).trim();
+    final collectionDate = _parseDateFromString(
+      _readString(json['collectionDate']),
+    );
+    final concentration = _readDouble(json['concentration']);
+    final motilityPercent = _readDouble(json['motilityPercent']);
+    final temperatureC = _readDouble(json['temperatureC']);
+    final storageHours = _readInt(json['storageHours']);
+    final approvedBy = _readString(json['approvedBy']).trim();
+    if (id.isEmpty ||
+        lotCode.isEmpty ||
+        boarCode.isEmpty ||
+        collectionDate == null ||
+        concentration <= 0 ||
+        motilityPercent < 0 ||
+        temperatureC <= 0 ||
+        storageHours < 0 ||
+        approvedBy.isEmpty) {
+      return null;
+    }
+    return SemenQualityRecord(
+      id: id,
+      lotCode: lotCode,
+      boarCode: boarCode,
+      collectionDate: collectionDate,
+      concentration: concentration,
+      motilityPercent: motilityPercent,
+      temperatureC: temperatureC,
+      storageHours: storageHours,
+      approvedBy: approvedBy,
+      notes: _readString(json['notes']).trim(),
+    );
+  }
+
+  Map<String, dynamic> _auditLogToJson(AuditLogEntry entry) {
+    return {
+      'id': entry.id,
+      'timestamp': entry.timestamp.toIso8601String(),
+      'actorCode': entry.actorCode,
+      'actorName': entry.actorName,
+      'module': entry.module,
+      'action': entry.action,
+      'detail': entry.detail,
+      'severity': entry.severity,
+    };
+  }
+
+  AuditLogEntry? _auditLogFromJson(Map<String, dynamic> json) {
+    final id = _readString(json['id']).trim();
+    final timestamp = _parseDateTimeFromString(_readString(json['timestamp']));
+    final actorCode = _readString(json['actorCode']).trim();
+    final actorName = _readString(json['actorName']).trim();
+    final module = _readString(json['module']).trim();
+    final action = _readString(json['action']).trim();
+    final detail = _readString(json['detail']).trim();
+    final severity = _readString(json['severity']).trim();
+    if (id.isEmpty ||
+        timestamp == null ||
+        actorCode.isEmpty ||
+        actorName.isEmpty ||
+        module.isEmpty ||
+        action.isEmpty ||
+        severity.isEmpty) {
+      return null;
+    }
+    return AuditLogEntry(
+      id: id,
+      timestamp: timestamp,
+      actorCode: actorCode,
+      actorName: actorName,
+      module: module,
+      action: action,
+      detail: detail,
+      severity: severity,
     );
   }
 
@@ -2047,6 +2750,8 @@ class _MainScreenState extends State<MainScreen> {
     final inseminatorRecaps = _computeInseminatorRecaps();
     final breederIaRecaps = _computeBreederIaRecaps();
     final breederControlRecaps = _computeBreederControlRecaps();
+    final districtRecaps = _computeDistrictPerformanceRecaps();
+    final qualityRecaps = _computeBreederDataQualityRecaps();
 
     final clientRows = _clients
         .map(
@@ -2188,6 +2893,87 @@ class _MainScreenState extends State<MainScreen> {
           ),
         )
         .toList();
+    final districtRows = districtRecaps
+        .map(
+          (recap) => DataRow(
+            cells: [
+              DataCell(Text(recap.region)),
+              DataCell(Text(recap.district)),
+              DataCell(Text('${recap.inseminators}')),
+              DataCell(Text('${recap.totalIa}')),
+              DataCell(
+                Text(
+                  '${recap.successRate}%',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              DataCell(Text('${recap.overdueDiagnosis}')),
+            ],
+          ),
+        )
+        .toList();
+    final qualityRows = qualityRecaps
+        .map(
+          (recap) => DataRow(
+            cells: [
+              DataCell(Text(recap.user.code)),
+              DataCell(Text(recap.user.name)),
+              DataCell(Text(_territoryLabel(recap.user))),
+              DataCell(
+                Text('${recap.sowsWithCompletePedigree}/${recap.sowCount}'),
+              ),
+              DataCell(Text('${recap.sowsWithIaPlan}/${recap.sowCount}')),
+              DataCell(Text('${recap.healthCoverageRate}%')),
+              DataCell(
+                Text(
+                  '${recap.qualityScore}%',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              DataCell(
+                Text(
+                  recap.qualityStatus,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: recap.qualityScore >= 80
+                        ? const Color(0xFF15803D)
+                        : recap.qualityScore >= 60
+                        ? const Color(0xFFB45309)
+                        : const Color(0xFFB91C1C),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        )
+        .toList();
+    final auditRows = _auditLogs
+        .take(60)
+        .map(
+          (entry) => DataRow(
+            cells: [
+              DataCell(Text(_formatDateTime(entry.timestamp))),
+              DataCell(Text(entry.actorCode)),
+              DataCell(Text(entry.module)),
+              DataCell(Text(entry.action)),
+              DataCell(Text(entry.detail.isEmpty ? '-' : entry.detail)),
+              DataCell(
+                Text(
+                  entry.severity,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: entry.severity == 'WARN'
+                        ? const Color(0xFFB45309)
+                        : entry.severity == 'ERROR'
+                        ? const Color(0xFFB91C1C)
+                        : const Color(0xFF15803D),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        )
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2306,6 +3092,55 @@ class _MainScreenState extends State<MainScreen> {
             DataColumn(label: Text('NIVEAU CONTRÔLE')),
           ],
           rows: breederControlRows,
+        ),
+        const SizedBox(height: 16),
+        _buildDataTableSection(
+          title: 'Performance terrain par district',
+          subtitle:
+              'Suivi inséminateurs terrain par district/région avec taux de réussite et retards',
+          emptyMessage: 'Aucune performance terrain disponible.',
+          columns: const [
+            DataColumn(label: Text('RÉGION')),
+            DataColumn(label: Text('DISTRICT')),
+            DataColumn(label: Text('INSÉMINATEURS')),
+            DataColumn(label: Text('IA RÉALISÉES')),
+            DataColumn(label: Text('TAUX RÉUSSITE IA')),
+            DataColumn(label: Text('DIAG EN RETARD')),
+          ],
+          rows: districtRows,
+        ),
+        const SizedBox(height: 16),
+        _buildDataTableSection(
+          title: 'Qualité des données par éleveur',
+          subtitle:
+              'Complétude pedigree, plan IA, couverture santé et score qualité opérationnelle',
+          emptyMessage: 'Aucun score qualité disponible.',
+          columns: const [
+            DataColumn(label: Text('CODE ÉLEVEUR')),
+            DataColumn(label: Text('NOM')),
+            DataColumn(label: Text('LOCALISATION')),
+            DataColumn(label: Text('PEDIGREE')),
+            DataColumn(label: Text('PLAN IA')),
+            DataColumn(label: Text('COUVERTURE SANTÉ')),
+            DataColumn(label: Text('SCORE')),
+            DataColumn(label: Text('STATUT')),
+          ],
+          rows: qualityRows,
+        ),
+        const SizedBox(height: 16),
+        _buildDataTableSection(
+          title: 'Journal d\'audit opérationnel',
+          subtitle: 'Traçabilité des actions critiques utilisateurs et terrain',
+          emptyMessage: 'Aucun événement d\'audit.',
+          columns: const [
+            DataColumn(label: Text('DATE/HEURE')),
+            DataColumn(label: Text('ACTEUR')),
+            DataColumn(label: Text('MODULE')),
+            DataColumn(label: Text('ACTION')),
+            DataColumn(label: Text('DÉTAIL')),
+            DataColumn(label: Text('SÉVÉRITÉ')),
+          ],
+          rows: auditRows,
         ),
         const SizedBox(height: 16),
         _buildDataTableSection(
@@ -2980,7 +3815,32 @@ class _MainScreenState extends State<MainScreen> {
               DataCell(Text('${building.occupied}')),
               DataCell(
                 Text(
-                  '${((building.occupied / building.capacity) * 100).round()}%',
+                  building.capacity <= 0
+                      ? '-'
+                      : '${((building.occupied / building.capacity) * 100).round()}%',
+                ),
+              ),
+              DataCell(
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Modifier bâtiment',
+                      onPressed: () => _showEditBuildingDialog(building),
+                      icon: const Icon(
+                        Icons.edit_outlined,
+                        color: Color(0xFF2563EB),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Supprimer bâtiment',
+                      onPressed: () => _deleteBuilding(building.id),
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: Color(0xFFB91C1C),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -2997,6 +3857,29 @@ class _MainScreenState extends State<MainScreen> {
               DataCell(Text(_formatDate(batch.startDate))),
               DataCell(Text('${batch.animals}')),
               DataCell(Text('${batch.avgWeight.toStringAsFixed(1)} kg')),
+              DataCell(
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Modifier bande',
+                      onPressed: () => _showEditBatchDialog(batch),
+                      icon: const Icon(
+                        Icons.edit_outlined,
+                        color: Color(0xFF2563EB),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Supprimer bande',
+                      onPressed: () => _deleteBatch(batch.id),
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: Color(0xFFB91C1C),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         )
@@ -3010,6 +3893,113 @@ class _MainScreenState extends State<MainScreen> {
               DataCell(Text(_formatDate(growth.date))),
               DataCell(Text('${growth.avgWeight.toStringAsFixed(1)} kg')),
               DataCell(Text('${growth.dailyGain.toStringAsFixed(2)} kg/j')),
+              DataCell(
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Modifier suivi croissance',
+                      onPressed: () => _showEditGrowthDialog(growth),
+                      icon: const Icon(
+                        Icons.edit_outlined,
+                        color: Color(0xFF2563EB),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Supprimer suivi croissance',
+                      onPressed: () => _deleteGrowthRecord(growth.id),
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: Color(0xFFB91C1C),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        )
+        .toList();
+
+    final farrowingRows = _farrowingRecords
+        .map(
+          (record) => DataRow(
+            cells: [
+              DataCell(Text(_formatDate(record.farrowingDate))),
+              DataCell(Text(record.sowCode)),
+              DataCell(Text('${record.totalBorn}')),
+              DataCell(Text('${record.bornAlive}')),
+              DataCell(Text('${record.stillborn}')),
+              DataCell(Text('${record.mummified}')),
+              DataCell(Text('${record.weaned}')),
+              DataCell(Text('${record.preWeaningDeaths}')),
+              DataCell(Text('${record.avgBirthWeight.toStringAsFixed(2)} kg')),
+              DataCell(Text(record.responsible)),
+              DataCell(
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Modifier portée',
+                      onPressed: () => _showEditFarrowingDialog(record),
+                      icon: const Icon(
+                        Icons.edit_outlined,
+                        color: Color(0xFF2563EB),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Supprimer portée',
+                      onPressed: () => _deleteFarrowingRecord(record.id),
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: Color(0xFFB91C1C),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        )
+        .toList();
+
+    final pigletRows = _pigletCareRecords
+        .map(
+          (record) => DataRow(
+            cells: [
+              DataCell(Text(_formatDate(record.eventDate))),
+              DataCell(Text(record.groupName)),
+              DataCell(Text(record.animalCode)),
+              DataCell(Text(record.eventType)),
+              DataCell(Text(record.responsible)),
+              DataCell(
+                Text(
+                  record.nextDate == null ? '-' : _formatDate(record.nextDate!),
+                ),
+              ),
+              DataCell(
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Modifier prise en charge',
+                      onPressed: () => _showEditPigletCareDialog(record),
+                      icon: const Icon(
+                        Icons.edit_outlined,
+                        color: Color(0xFF2563EB),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Supprimer prise en charge',
+                      onPressed: () => _deletePigletCareRecord(record.id),
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: Color(0xFFB91C1C),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         )
@@ -3053,29 +4043,58 @@ class _MainScreenState extends State<MainScreen> {
           title: 'Gestion d\'Élevage Porcin',
           subtitle:
               'Porcherie / bâtiment, cycle de production, bandes et performance de croissance',
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: const [
-              Chip(label: Text('Porcherie / Bâtiment')),
-              Chip(label: Text('Cycle de production')),
-              Chip(label: Text('Gestion des bandes')),
-              Chip(label: Text('Suivi de croissance')),
-              Chip(label: Text('Inventaire des animaux')),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: const [
+                  Chip(label: Text('Porcherie / Bâtiment')),
+                  Chip(label: Text('Cycle de production')),
+                  Chip(label: Text('Gestion des bandes')),
+                  Chip(label: Text('Suivi de croissance')),
+                  Chip(label: Text('Maternité / Portées')),
+                  Chip(label: Text('Calendrier de gestation')),
+                  Chip(label: Text('Prise en charge porcelets')),
+                  Chip(label: Text('Inventaire des animaux')),
+                ],
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Les éleveurs peuvent ajouter et modifier les données d\'élevage '
+                '(bâtiments, bandes, croissance, soins porcelets) directement ici.',
+                style: TextStyle(
+                  color: Color(0xFF334155),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
         ),
+        const SizedBox(height: 16),
+        _buildGestationCalendarSection(),
+        const SizedBox(height: 16),
+        _buildPigletCareCalendarSection(),
         const SizedBox(height: 16),
         _buildDataTableSection(
           title: 'Porcherie / Bâtiment',
           subtitle: 'Capacité et occupation par bâtiment',
           emptyMessage: 'Aucun bâtiment renseigné.',
+          actions: [
+            FilledButton.icon(
+              onPressed: _showAddBuildingDialog,
+              icon: const Icon(LucideIcons.plus, size: 16),
+              label: const Text('Ajouter bâtiment'),
+            ),
+          ],
           columns: const [
             DataColumn(label: Text('BÂTIMENT')),
             DataColumn(label: Text('TYPE')),
             DataColumn(label: Text('CAPACITÉ')),
             DataColumn(label: Text('OCCUPÉS')),
             DataColumn(label: Text('TAUX OCCUPATION')),
+            DataColumn(label: Text('ACTIONS')),
           ],
           rows: buildingRows,
         ),
@@ -3099,12 +4118,20 @@ class _MainScreenState extends State<MainScreen> {
           title: 'Gestion des bandes',
           subtitle: 'Suivi des lots de production',
           emptyMessage: 'Aucune bande disponible.',
+          actions: [
+            FilledButton.icon(
+              onPressed: _showAddBatchDialog,
+              icon: const Icon(LucideIcons.plus, size: 16),
+              label: const Text('Ajouter bande'),
+            ),
+          ],
           columns: const [
             DataColumn(label: Text('BANDE')),
             DataColumn(label: Text('STADE')),
             DataColumn(label: Text('DÉBUT')),
             DataColumn(label: Text('ANIMAUX')),
             DataColumn(label: Text('POIDS MOYEN')),
+            DataColumn(label: Text('ACTIONS')),
           ],
           rows: batchRows,
         ),
@@ -3113,13 +4140,73 @@ class _MainScreenState extends State<MainScreen> {
           title: 'Suivi de croissance',
           subtitle: 'Poids moyen et gain moyen quotidien',
           emptyMessage: 'Aucune mesure de croissance.',
+          actions: [
+            FilledButton.icon(
+              onPressed: _showAddGrowthDialog,
+              icon: const Icon(LucideIcons.plus, size: 16),
+              label: const Text('Ajouter suivi croissance'),
+            ),
+          ],
           columns: const [
             DataColumn(label: Text('BANDE')),
             DataColumn(label: Text('DATE')),
             DataColumn(label: Text('POIDS MOYEN')),
             DataColumn(label: Text('GMQ')),
+            DataColumn(label: Text('ACTIONS')),
           ],
           rows: growthRows,
+        ),
+        const SizedBox(height: 16),
+        _buildDataTableSection(
+          title: 'Maternité / Portées',
+          subtitle:
+              'Suivi mise-bas, nés vivants, pertes néonatales, sevrage et poids naissance',
+          emptyMessage: 'Aucune mise-bas enregistrée.',
+          actions: [
+            FilledButton.icon(
+              onPressed: _showAddFarrowingDialog,
+              icon: const Icon(LucideIcons.plus, size: 16),
+              label: const Text('Ajouter mise-bas'),
+            ),
+          ],
+          columns: const [
+            DataColumn(label: Text('DATE')),
+            DataColumn(label: Text('TRUIE')),
+            DataColumn(label: Text('NÉS TOTAL')),
+            DataColumn(label: Text('NÉS VIVANTS')),
+            DataColumn(label: Text('MORT-NÉS')),
+            DataColumn(label: Text('MOMIFIÉS')),
+            DataColumn(label: Text('SEVRÉS')),
+            DataColumn(label: Text('MORT PRÉ-SEVRAGE')),
+            DataColumn(label: Text('POIDS NAISSANCE')),
+            DataColumn(label: Text('RESPONSABLE')),
+            DataColumn(label: Text('ACTIONS')),
+          ],
+          rows: farrowingRows,
+        ),
+        const SizedBox(height: 16),
+        _buildDataTableSection(
+          title: 'Prise en charge des porcelets',
+          subtitle:
+              'Interventions post-mise-bas: colostrum, soins néonataux, supplémentation',
+          emptyMessage: 'Aucune prise en charge porcelets enregistrée.',
+          actions: [
+            FilledButton.icon(
+              onPressed: _showAddPigletCareDialog,
+              icon: const Icon(LucideIcons.plus, size: 16),
+              label: const Text('Ajouter prise en charge'),
+            ),
+          ],
+          columns: const [
+            DataColumn(label: Text('DATE')),
+            DataColumn(label: Text('PORTÉE / GROUPE')),
+            DataColumn(label: Text('TRUIE')),
+            DataColumn(label: Text('TYPE SOIN')),
+            DataColumn(label: Text('RESPONSABLE')),
+            DataColumn(label: Text('PROCHAINE DATE')),
+            DataColumn(label: Text('ACTIONS')),
+          ],
+          rows: pigletRows,
         ),
         const SizedBox(height: 16),
         _buildDataTableSection(
@@ -3449,6 +4536,8 @@ class _MainScreenState extends State<MainScreen> {
       return daysToFarrowing >= 0 && daysToFarrowing <= 14;
     }).length;
     final actionPlan = _computeBreedingActions();
+    final zootechKpis = _computeZootechKpis();
+    final operationalTasks = _buildOperationalTasks();
     final expertTips = _buildExpertRecommendations(
       successRate: successRate,
       overdueDiagnosisCount: overdueDiagnosisCount,
@@ -3548,6 +4637,10 @@ class _MainScreenState extends State<MainScreen> {
         ),
         const SizedBox(height: 16),
         _buildBreedingActionPlanCard(actionPlan),
+        const SizedBox(height: 16),
+        _buildZootechKpiSection(zootechKpis),
+        const SizedBox(height: 16),
+        _buildOperationalTasksSection(operationalTasks),
         const SizedBox(height: 20),
         LayoutBuilder(
           builder: (context, constraints) {
@@ -3866,6 +4959,359 @@ class _MainScreenState extends State<MainScreen> {
                 );
               },
             ),
+    );
+  }
+
+  List<_ZootechKpi> _computeZootechKpis() {
+    final litterCount = _farrowingRecords.length;
+    final totalBornAlive = _farrowingRecords.fold<int>(
+      0,
+      (sum, record) => sum + record.bornAlive,
+    );
+    final totalWeaned = _farrowingRecords.fold<int>(
+      0,
+      (sum, record) => sum + record.weaned,
+    );
+    final totalPreWeaningDeaths = _farrowingRecords.fold<int>(
+      0,
+      (sum, record) => sum + record.preWeaningDeaths,
+    );
+    final avgBornAlive = litterCount == 0 ? 0 : totalBornAlive / litterCount;
+    final avgWeaned = litterCount == 0 ? 0 : totalWeaned / litterCount;
+    final preWeaningMortality = totalBornAlive <= 0
+        ? 0
+        : (totalPreWeaningDeaths / totalBornAlive) * 100;
+
+    final successfulIa = _inseminations
+        .where((record) => _isSuccessfulStatus(record.status))
+        .length;
+    final iaFarrowingRate = _inseminations.isEmpty
+        ? 0
+        : (successfulIa / _inseminations.length) * 100;
+
+    final averageBirthWeight = litterCount == 0
+        ? 0
+        : _farrowingRecords.fold<double>(
+                0,
+                (sum, record) => sum + record.avgBirthWeight,
+              ) /
+              litterCount;
+
+    return [
+      _ZootechKpi(
+        label: 'Taux mise-bas / IA',
+        value: '${iaFarrowingRate.toStringAsFixed(1)}%',
+        target: '>= 80%',
+        color: iaFarrowingRate >= 80
+            ? const Color(0xFF15803D)
+            : const Color(0xFFB45309),
+      ),
+      _ZootechKpi(
+        label: 'Nés vivants / portée',
+        value: avgBornAlive.toStringAsFixed(1),
+        target: '>= 11',
+        color: avgBornAlive >= 11
+            ? const Color(0xFF15803D)
+            : const Color(0xFFB45309),
+      ),
+      _ZootechKpi(
+        label: 'Sevrés / portée',
+        value: avgWeaned.toStringAsFixed(1),
+        target: '>= 10',
+        color: avgWeaned >= 10
+            ? const Color(0xFF15803D)
+            : const Color(0xFFB45309),
+      ),
+      _ZootechKpi(
+        label: 'Mortalité pré-sevrage',
+        value: '${preWeaningMortality.toStringAsFixed(1)}%',
+        target: '<= 10%',
+        color: preWeaningMortality <= 10
+            ? const Color(0xFF15803D)
+            : const Color(0xFFB91C1C),
+      ),
+      _ZootechKpi(
+        label: 'Poids naissance moyen',
+        value: '${averageBirthWeight.toStringAsFixed(2)} kg',
+        target: '>= 1.30 kg',
+        color: averageBirthWeight >= 1.30
+            ? const Color(0xFF15803D)
+            : const Color(0xFFB45309),
+      ),
+    ];
+  }
+
+  Widget _buildZootechKpiSection(List<_ZootechKpi> kpis) {
+    return _buildSectionCard(
+      title: 'KPI Zootechniques',
+      subtitle:
+          'Mise-bas, prolificité, sevrage, mortalité pré-sevrage et poids naissance',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final crossAxisCount = width > 1100
+              ? 5
+              : width > 860
+              ? 3
+              : width > 560
+              ? 2
+              : 1;
+          return GridView.count(
+            crossAxisCount: crossAxisCount,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio: 2.2,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            children: kpis
+                .map(
+                  (kpi) => Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: kpi.color.withValues(alpha: 0.09),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: kpi.color.withValues(alpha: 0.25),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          kpi.label,
+                          style: const TextStyle(
+                            color: Color(0xFF334155),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          kpi.value,
+                          style: TextStyle(
+                            color: kpi.color,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 22,
+                          ),
+                        ),
+                        Text(
+                          'Cible ${kpi.target}',
+                          style: const TextStyle(
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(),
+          );
+        },
+      ),
+    );
+  }
+
+  List<_OperationalTaskItem> _buildOperationalTasks() {
+    final tasks = <_OperationalTaskItem>[];
+
+    void addTask({
+      required String id,
+      required DateTime dueDate,
+      required String module,
+      required String title,
+      required String responsible,
+      required _ActionPriority priority,
+    }) {
+      tasks.add(
+        _OperationalTaskItem(
+          id: id,
+          dueDate: _normalizeDate(dueDate),
+          module: module,
+          title: title,
+          responsible: responsible,
+          priority: priority,
+          done: _taskDoneById[id] ?? false,
+        ),
+      );
+    }
+
+    for (final ia in _inseminations) {
+      final ref = '${ia.sowCode}-${ia.boarCode}-${_formatDate(ia.dose1Date)}';
+      if (!_isSuccessfulStatus(ia.status) && !_isFailedStatus(ia.status)) {
+        final j21 = _expectedHeatReturnDate(ia);
+        final j28 = _expectedPregnancyCheckDate(ia);
+        final j35 = ia.dose1Date.add(const Duration(days: 35));
+        addTask(
+          id: 'TASK-IA-J21-$ref',
+          dueDate: j21,
+          module: 'Reproduction',
+          title: 'Contrôle retour chaleur J21 - ${ia.sowCode}',
+          responsible: ia.inseminator,
+          priority: _priorityFromDueDate(j21),
+        );
+        addTask(
+          id: 'TASK-IA-J28-$ref',
+          dueDate: j28,
+          module: 'Reproduction',
+          title: 'Diagnostic gestation J28 - ${ia.sowCode}',
+          responsible: ia.inseminator,
+          priority: _priorityFromDueDate(j28),
+        );
+        addTask(
+          id: 'TASK-IA-J35-$ref',
+          dueDate: j35,
+          module: 'Reproduction',
+          title: 'Validation gestation J35 - ${ia.sowCode}',
+          responsible: ia.inseminator,
+          priority: _priorityFromDueDate(j35),
+        );
+      }
+      if (_isSuccessfulStatus(ia.status)) {
+        final j114 = _expectedFarrowingDate(ia);
+        addTask(
+          id: 'TASK-IA-J114-$ref',
+          dueDate: j114,
+          module: 'Maternité',
+          title: 'Préparer mise-bas J114 - ${ia.sowCode}',
+          responsible: _firstUserNameByRole(Roles.breeder),
+          priority: _priorityFromDueDate(j114),
+        );
+      }
+    }
+
+    for (final record in _pigletCareRecords) {
+      if (record.nextDate == null) {
+        continue;
+      }
+      final taskId =
+          'TASK-PC-${record.id}-${_formatDate(record.nextDate!)}-${record.eventType}';
+      addTask(
+        id: taskId,
+        dueDate: record.nextDate!,
+        module: 'Porcelets',
+        title: 'Rappel ${record.eventType} - ${record.groupName}',
+        responsible: record.responsible,
+        priority: _priorityFromDueDate(record.nextDate!),
+      );
+    }
+
+    for (final health in _healthRecords) {
+      if (health.nextDate == null) {
+        continue;
+      }
+      final taskId =
+          'TASK-H-${health.id}-${_formatDate(health.nextDate!)}-${health.eventType}';
+      addTask(
+        id: taskId,
+        dueDate: health.nextDate!,
+        module: 'Santé',
+        title:
+            '${health.eventType} ${health.animalType} ${health.animalCode} (${health.product})',
+        responsible: health.responsible,
+        priority: _priorityFromDueDate(health.nextDate!),
+      );
+    }
+
+    for (final farrowing in _farrowingRecords) {
+      final weaningDate = farrowing.farrowingDate.add(const Duration(days: 28));
+      addTask(
+        id: 'TASK-FAR-SEVRAGE-${farrowing.id}-${_formatDate(weaningDate)}',
+        dueDate: weaningDate,
+        module: 'Maternité',
+        title: 'Sevrage portée ${farrowing.sowCode}',
+        responsible: farrowing.responsible,
+        priority: _priorityFromDueDate(weaningDate),
+      );
+      if (farrowing.preWeaningDeaths > 0 ||
+          farrowing.majorIssue.trim().isNotEmpty) {
+        final reviewDate = farrowing.farrowingDate.add(const Duration(days: 1));
+        addTask(
+          id: 'TASK-FAR-REVUE-${farrowing.id}-${_formatDate(reviewDate)}',
+          dueDate: reviewDate,
+          module: 'Maternité',
+          title: 'Revue pertes néonatales ${farrowing.sowCode}',
+          responsible: _firstUserNameByRole(Roles.vet),
+          priority: _ActionPriority.high,
+        );
+      }
+    }
+
+    tasks.sort((a, b) {
+      final byDone = a.done == b.done
+          ? 0
+          : (a.done ? 1 : -1); // open tasks first
+      if (byDone != 0) {
+        return byDone;
+      }
+      return a.dueDate.compareTo(b.dueDate);
+    });
+    return tasks;
+  }
+
+  void _toggleOperationalTask(_OperationalTaskItem task, bool done) {
+    setState(() => _taskDoneById[task.id] = done);
+    _addAuditLog(
+      module: 'TASKS',
+      action: done ? 'TASK_DONE' : 'TASK_REOPEN',
+      detail: '${task.module} • ${task.title}',
+      severity: done ? 'INFO' : 'WARN',
+    );
+    _persistState();
+  }
+
+  Widget _buildOperationalTasksSection(List<_OperationalTaskItem> tasks) {
+    final rows = tasks
+        .take(20)
+        .map(
+          (task) => DataRow(
+            cells: [
+              DataCell(Text(_formatDate(task.dueDate))),
+              DataCell(Text(task.module)),
+              DataCell(
+                Text(
+                  task.title,
+                  style: TextStyle(
+                    fontWeight: task.done ? FontWeight.w500 : FontWeight.w700,
+                    decoration: task.done
+                        ? TextDecoration.lineThrough
+                        : TextDecoration.none,
+                  ),
+                ),
+              ),
+              DataCell(Text(task.responsible)),
+              DataCell(_buildPriorityBadge(task.priority)),
+              DataCell(
+                Checkbox(
+                  value: task.done,
+                  onChanged: (value) {
+                    if (value == null) {
+                      return;
+                    }
+                    _toggleOperationalTask(task, value);
+                  },
+                ),
+              ),
+            ],
+          ),
+        )
+        .toList();
+
+    return _buildDataTableSection(
+      title: 'Tâches opérationnelles (terrain)',
+      subtitle:
+          'Pilotage exécution: J21/J28/J35/J114, rappels santé et prise en charge porcelets',
+      emptyMessage: 'Aucune tâche générée.',
+      columns: const [
+        DataColumn(label: Text('ÉCHÉANCE')),
+        DataColumn(label: Text('MODULE')),
+        DataColumn(label: Text('ACTION')),
+        DataColumn(label: Text('RESPONSABLE')),
+        DataColumn(label: Text('PRIORITÉ')),
+        DataColumn(label: Text('FAIT')),
+      ],
+      rows: rows,
     );
   }
 
@@ -4324,6 +5770,137 @@ class _MainScreenState extends State<MainScreen> {
     return controlRows;
   }
 
+  List<_DistrictPerformanceRecap> _computeDistrictPerformanceRecaps() {
+    final recapsByDistrict = <String, _DistrictPerformanceAccumulator>{};
+    final today = _currentDate();
+
+    for (final inseminator in _users.where(
+      (user) => user.role == Roles.inseminator,
+    )) {
+      final district = inseminator.district.trim().isEmpty
+          ? 'District non renseigné'
+          : inseminator.district.trim();
+      final region = inseminator.region.trim().isEmpty
+          ? 'Région non renseignée'
+          : inseminator.region.trim();
+      final key = '${region.toLowerCase()}|${district.toLowerCase()}';
+      final acc = recapsByDistrict.putIfAbsent(
+        key,
+        () =>
+            _DistrictPerformanceAccumulator(region: region, district: district),
+      );
+      acc.inseminators.add(inseminator.id);
+
+      final records = _inseminations
+          .where((record) => _recordMatchesInseminator(record, inseminator))
+          .toList();
+      for (final record in records) {
+        acc.totalIa++;
+        if (_isSuccessfulStatus(record.status)) {
+          acc.successIa++;
+        }
+        if (_isFailedStatus(record.status)) {
+          acc.failedIa++;
+        }
+        if (!_isSuccessfulStatus(record.status) &&
+            !_isFailedStatus(record.status)) {
+          final diagnosisLimit = _expectedPregnancyCheckDate(
+            record,
+          ).add(const Duration(days: 7));
+          if (today.isAfter(diagnosisLimit)) {
+            acc.overdueDiagnosis++;
+          }
+        }
+      }
+    }
+
+    final result = recapsByDistrict.values
+        .map(
+          (acc) => _DistrictPerformanceRecap(
+            region: acc.region,
+            district: acc.district,
+            inseminators: acc.inseminators.length,
+            totalIa: acc.totalIa,
+            successIa: acc.successIa,
+            failedIa: acc.failedIa,
+            overdueDiagnosis: acc.overdueDiagnosis,
+          ),
+        )
+        .toList();
+    result.sort((a, b) {
+      final byIa = b.totalIa.compareTo(a.totalIa);
+      if (byIa != 0) {
+        return byIa;
+      }
+      return a.district.compareTo(b.district);
+    });
+    return result;
+  }
+
+  List<_BreederQualityRecap> _computeBreederDataQualityRecaps() {
+    final breeders = _users
+        .where((user) => user.role == Roles.breeder)
+        .toList();
+    final recaps = <_BreederQualityRecap>[];
+
+    for (final breeder in breeders) {
+      final sows = _sows
+          .where((sow) => sow.breederId.trim() == breeder.id.trim())
+          .toList();
+      final completePedigree = sows
+          .where(
+            (sow) =>
+                sow.sireCode.trim().isNotEmpty && sow.damCode.trim().isNotEmpty,
+          )
+          .length;
+
+      final sowsWithIaPlan = sows.where((sow) {
+        final latest = _latestInseminationForSow(sow.code);
+        return latest != null;
+      }).length;
+
+      final healthRecordsForBreeder = _healthRecords.where((record) {
+        final breederId = _breederIdForAnimal(
+          animalType: record.animalType,
+          animalCode: record.animalCode,
+        );
+        return breederId == breeder.id;
+      }).toList();
+      final healthWithNext = healthRecordsForBreeder
+          .where((record) => record.nextDate != null)
+          .length;
+      final healthCoverage = healthRecordsForBreeder.isEmpty
+          ? 0
+          : ((healthWithNext / healthRecordsForBreeder.length) * 100).round();
+
+      final pedigreeScore = sows.isEmpty
+          ? 0
+          : ((completePedigree / sows.length) * 100).round();
+      final iaPlanScore = sows.isEmpty
+          ? 0
+          : ((sowsWithIaPlan / sows.length) * 100).round();
+      final qualityScore =
+          ((pedigreeScore * 0.4) +
+                  (iaPlanScore * 0.35) +
+                  (healthCoverage * 0.25))
+              .round();
+
+      recaps.add(
+        _BreederQualityRecap(
+          user: breeder,
+          sowCount: sows.length,
+          sowsWithCompletePedigree: completePedigree,
+          sowsWithIaPlan: sowsWithIaPlan,
+          healthCoverageRate: healthCoverage,
+          qualityScore: qualityScore,
+        ),
+      );
+    }
+
+    recaps.sort((a, b) => b.qualityScore.compareTo(a.qualityScore));
+    return recaps;
+  }
+
   String _territoryLabel(UserProfile user) {
     final parts = <String>[
       user.fokontany.trim(),
@@ -4569,6 +6146,60 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildInseminationManagement() {
     final semenLotRecaps = _computeSemenLotRecaps();
+    final semenQualityRows = _semenQualityRecords
+        .map(
+          (record) => DataRow(
+            cells: [
+              DataCell(Text(_formatDate(record.collectionDate))),
+              DataCell(Text(record.lotCode)),
+              DataCell(Text(record.boarCode)),
+              DataCell(
+                Text('${record.concentration.toStringAsFixed(2)} Md/ml'),
+              ),
+              DataCell(Text('${record.motilityPercent.toStringAsFixed(0)}%')),
+              DataCell(Text('${record.temperatureC.toStringAsFixed(1)} °C')),
+              DataCell(Text('${record.storageHours} h')),
+              DataCell(Text(record.approvedBy)),
+              DataCell(
+                Text(
+                  _semenQualityStatus(record),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: _semenQualityStatus(record) == 'Conforme'
+                        ? const Color(0xFF15803D)
+                        : _semenQualityStatus(record) == 'Surveiller'
+                        ? const Color(0xFFB45309)
+                        : const Color(0xFFB91C1C),
+                  ),
+                ),
+              ),
+              DataCell(
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Modifier contrôle semence',
+                      onPressed: () => _showEditSemenQualityDialog(record),
+                      icon: const Icon(
+                        Icons.edit_outlined,
+                        color: Color(0xFF2563EB),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Supprimer contrôle semence',
+                      onPressed: () => _deleteSemenQualityRecord(record.id),
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: Color(0xFFB91C1C),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        )
+        .toList();
     final rows = _inseminations.map((record) {
       final boar = _findBoar(record.boarCode);
       final expectedHeatReturn = _expectedHeatReturnDate(record);
@@ -4644,6 +6275,33 @@ class _MainScreenState extends State<MainScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildGestationCalendarSection(),
+        const SizedBox(height: 16),
+        _buildDataTableSection(
+          title: 'Qualité semence (contrôle laboratoire)',
+          subtitle:
+              'Chaîne froide, concentration, motilité et durée de conservation par lot',
+          emptyMessage: 'Aucun contrôle qualité semence.',
+          actions: [
+            FilledButton.icon(
+              onPressed: _showAddSemenQualityDialog,
+              icon: const Icon(LucideIcons.plus, size: 16),
+              label: const Text('Ajouter contrôle semence'),
+            ),
+          ],
+          columns: const [
+            DataColumn(label: Text('DATE COLLECTE')),
+            DataColumn(label: Text('LOT')),
+            DataColumn(label: Text('VERRAT')),
+            DataColumn(label: Text('CONCENTRATION')),
+            DataColumn(label: Text('MOTILITÉ')),
+            DataColumn(label: Text('TEMPÉRATURE')),
+            DataColumn(label: Text('STOCKAGE')),
+            DataColumn(label: Text('VALIDÉ PAR')),
+            DataColumn(label: Text('STATUT')),
+            DataColumn(label: Text('ACTIONS')),
+          ],
+          rows: semenQualityRows,
+        ),
         const SizedBox(height: 16),
         _buildDataTableSection(
           title: 'Suivi semence (lots IA)',
@@ -4878,6 +6536,222 @@ class _MainScreenState extends State<MainScreen> {
                               ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFF0F172A),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                '${dayEvents.length}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const Spacer(),
+                      if (dayEvents.isNotEmpty)
+                        Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          children: dayEvents
+                              .take(4)
+                              .map((event) => _buildDayMarker(event.color))
+                              .toList(),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 14),
+          _buildSelectedGestationDayCard(selectedDate, selectedEvents),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPigletCareCalendarSection() {
+    final monthStart = DateTime(
+      _pigletCalendarMonth.year,
+      _pigletCalendarMonth.month,
+      1,
+    );
+    final daysInMonth = DateTime(monthStart.year, monthStart.month + 1, 0).day;
+    final leadingEmptyCells = monthStart.weekday - 1;
+    final totalCells = leadingEmptyCells + daysInMonth;
+    final rowCount = (totalCells / 7).ceil();
+    final eventsByDay = _buildPigletCareCalendarEvents();
+    final selectedDate = _selectedPigletDate == null
+        ? _currentDate()
+        : _normalizeDate(_selectedPigletDate!);
+    final selectedEvents =
+        eventsByDay[_normalizeDate(selectedDate)] ??
+        const <_GestationCalendarEvent>[];
+    const weekDays = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+
+    return _buildSectionCard(
+      title: 'Calendrier prise en charge porcelets',
+      subtitle:
+          'Vue mensuelle des soins néonataux, rappels et actions de sevrage',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                tooltip: 'Mois précédent',
+                onPressed: () => _changePigletCalendarMonth(-1),
+                icon: const Icon(LucideIcons.chevronLeft),
+              ),
+              Expanded(
+                child: Text(
+                  DateFormat('MMMM yyyy', 'fr_FR').format(monthStart),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Mois suivant',
+                onPressed: () => _changePigletCalendarMonth(1),
+                icon: const Icon(LucideIcons.chevronRight),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton(
+                onPressed: () {
+                  final today = _currentDate();
+                  setState(() {
+                    _pigletCalendarMonth = DateTime(today.year, today.month, 1);
+                    _selectedPigletDate = today;
+                  });
+                  _persistState();
+                },
+                child: const Text('Aujourd\'hui'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildGestationLegendChip(
+                label: 'Soin',
+                color: const Color(0xFF0F766E),
+              ),
+              _buildGestationLegendChip(
+                label: 'Rappel',
+                color: const Color(0xFFB45309),
+              ),
+              _buildGestationLegendChip(
+                label: 'Alerte',
+                color: const Color(0xFFB91C1C),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: weekDays
+                .map(
+                  (dayName) => Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Text(
+                        dayName,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: rowCount * 7,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 7,
+              childAspectRatio: 1.0,
+              crossAxisSpacing: 6,
+              mainAxisSpacing: 6,
+            ),
+            itemBuilder: (context, index) {
+              final dayNumber = index - leadingEmptyCells + 1;
+              if (dayNumber < 1 || dayNumber > daysInMonth) {
+                return Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                );
+              }
+
+              final dayDate = DateTime(
+                monthStart.year,
+                monthStart.month,
+                dayNumber,
+              );
+              final normalizedDay = _normalizeDate(dayDate);
+              final dayEvents =
+                  eventsByDay[normalizedDay] ??
+                  const <_GestationCalendarEvent>[];
+              final isSelected = _isSameDate(normalizedDay, selectedDate);
+              final isToday = _isSameDate(normalizedDay, _currentDate());
+
+              return InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () {
+                  setState(() => _selectedPigletDate = normalizedDay);
+                  _persistState();
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? const Color(0xFFFFF7ED)
+                        : const Color(0xFFFFFFFF),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isSelected
+                          ? const Color(0xFFEA580C)
+                          : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '$dayNumber',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: isToday
+                                    ? const Color(0xFFEA580C)
+                                    : const Color(0xFF0F172A),
+                              ),
+                            ),
+                          ),
+                          if (dayEvents.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF7C2D12),
                                 borderRadius: BorderRadius.circular(999),
                               ),
                               child: Text(
@@ -5646,7 +7520,6 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildUsersManagement() {
-    final adminCount = _users.where((user) => user.role == Roles.admin).length;
     final rows = _users
         .map(
           (user) => DataRow(
@@ -5658,7 +7531,17 @@ class _MainScreenState extends State<MainScreen> {
               DataCell(Text(_territoryLabel(user))),
               DataCell(Text(user.role)),
               DataCell(Text(user.login)),
-              const DataCell(Text('********')),
+              DataCell(
+                Text(
+                  _authStateLabel(user),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: _authStateLabel(user) == 'Hashé'
+                        ? const Color(0xFF15803D)
+                        : const Color(0xFFB45309),
+                  ),
+                ),
+              ),
               DataCell(
                 Text(
                   user.id == _currentUser.id ? 'Session active' : '-',
@@ -5723,8 +7606,9 @@ class _MainScreenState extends State<MainScreen> {
                   color: const Color(0xFF0284C7),
                 ),
                 _buildMiniIndicator(
-                  label: 'Administrateurs',
-                  value: '$adminCount',
+                  label: 'MDP hashés',
+                  value:
+                      '${_users.where((user) => _isHashedPassword(user.password)).length}/${_users.length}',
                   color: const Color(0xFF7C3AED),
                 ),
                 _buildMiniIndicator(
@@ -5778,7 +7662,7 @@ class _MainScreenState extends State<MainScreen> {
             DataColumn(label: Text('ZONE TERRAIN')),
             DataColumn(label: Text('RÔLE')),
             DataColumn(label: Text('LOGIN')),
-            DataColumn(label: Text('MOT DE PASSE')),
+            DataColumn(label: Text('SÉCURITÉ MDP')),
             DataColumn(label: Text('SESSION')),
             DataColumn(label: Text('ACTIONS')),
           ],
@@ -5977,7 +7861,6 @@ class _MainScreenState extends State<MainScreen> {
       AppTabs.users,
       AppTabs.administration,
       AppTabs.services,
-      AppTabs.elevage,
       AppTabs.commercial,
       AppTabs.logiciel,
     }.contains(tabId);
@@ -5994,6 +7877,8 @@ class _MainScreenState extends State<MainScreen> {
         return LucideIcons.piggyBank;
       case AppTabs.pedigree:
         return LucideIcons.dna;
+      case AppTabs.elevage:
+        return LucideIcons.layers;
       case AppTabs.health:
         return LucideIcons.shieldCheck;
       default:
@@ -6012,6 +7897,8 @@ class _MainScreenState extends State<MainScreen> {
         return 'Ajouter Truie';
       case AppTabs.pedigree:
         return 'Ajouter Animal';
+      case AppTabs.elevage:
+        return 'Ajouter donnée élevage';
       case AppTabs.health:
         return 'Ajouter Acte Santé';
       default:
@@ -6037,6 +7924,9 @@ class _MainScreenState extends State<MainScreen> {
         break;
       case AppTabs.pedigree:
         _showAddAnimalDialogFromPedigree();
+        break;
+      case AppTabs.elevage:
+        _showAddElevageActionSheet();
         break;
       case AppTabs.health:
         _showAddHealthDialog();
@@ -6068,6 +7958,61 @@ class _MainScreenState extends State<MainScreen> {
                 onTap: () {
                   Navigator.of(context).pop();
                   _showAddSowDialog();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showAddElevageActionSheet() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.home_outlined),
+                title: const Text('Ajouter un bâtiment'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _showAddBuildingDialog();
+                },
+              ),
+              ListTile(
+                leading: const Icon(LucideIcons.layers),
+                title: const Text('Ajouter une bande'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _showAddBatchDialog();
+                },
+              ),
+              ListTile(
+                leading: const Icon(LucideIcons.trendingUp),
+                title: const Text('Ajouter un suivi croissance'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _showAddGrowthDialog();
+                },
+              ),
+              ListTile(
+                leading: const Icon(LucideIcons.piggyBank),
+                title: const Text('Ajouter une mise-bas'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _showAddFarrowingDialog();
+                },
+              ),
+              ListTile(
+                leading: const Icon(LucideIcons.piggyBank),
+                title: const Text('Ajouter une prise en charge porcelets'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _showAddPigletCareDialog();
                 },
               ),
             ],
@@ -6943,6 +8888,1867 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  void _showAddBuildingDialog() {
+    final nameCtrl = TextEditingController();
+    final typeCtrl = TextEditingController(text: 'Gestation');
+    final capacityCtrl = TextEditingController();
+    final occupiedCtrl = TextEditingController(text: '0');
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Nouveau bâtiment'),
+          content: SizedBox(
+            width: _dialogWidth(dialogContext),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _dialogField(nameCtrl, 'Nom bâtiment *', hint: 'Bâtiment D'),
+                _dialogField(
+                  typeCtrl,
+                  'Type *',
+                  hint: 'Maternité / Gestation / Post-sevrage',
+                ),
+                _dialogField(
+                  capacityCtrl,
+                  'Capacité *',
+                  keyboardType: TextInputType.number,
+                ),
+                _dialogField(
+                  occupiedCtrl,
+                  'Occupés *',
+                  keyboardType: TextInputType.number,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final name = nameCtrl.text.trim();
+                final type = typeCtrl.text.trim();
+                final capacity = int.tryParse(capacityCtrl.text.trim());
+                final occupied = int.tryParse(occupiedCtrl.text.trim());
+
+                if (name.isEmpty ||
+                    type.isEmpty ||
+                    capacity == null ||
+                    occupied == null) {
+                  _showError(
+                    'Veuillez renseigner nom, type, capacité et occupés.',
+                  );
+                  return;
+                }
+                if (capacity <= 0) {
+                  _showError('La capacité doit être > 0.');
+                  return;
+                }
+                if (occupied < 0 || occupied > capacity) {
+                  _showError('Le nombre occupé doit être entre 0 et capacité.');
+                  return;
+                }
+
+                setState(() {
+                  _buildings.insert(
+                    0,
+                    BuildingRecord(
+                      id: _newId('BLD'),
+                      name: name,
+                      type: type,
+                      capacity: capacity,
+                      occupied: occupied,
+                    ),
+                  );
+                });
+                _persistState();
+                Navigator.of(dialogContext).pop();
+                _showInfo('Bâtiment ajouté.');
+              },
+              child: const Text('Enregistrer'),
+            ),
+          ],
+        );
+      },
+    ).then(
+      (_) =>
+          _disposeControllers([nameCtrl, typeCtrl, capacityCtrl, occupiedCtrl]),
+    );
+  }
+
+  void _showEditBuildingDialog(BuildingRecord building) {
+    final nameCtrl = TextEditingController(text: building.name);
+    final typeCtrl = TextEditingController(text: building.type);
+    final capacityCtrl = TextEditingController(text: '${building.capacity}');
+    final occupiedCtrl = TextEditingController(text: '${building.occupied}');
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('Modifier ${building.name}'),
+          content: SizedBox(
+            width: _dialogWidth(dialogContext),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _dialogField(nameCtrl, 'Nom bâtiment *'),
+                _dialogField(typeCtrl, 'Type *'),
+                _dialogField(
+                  capacityCtrl,
+                  'Capacité *',
+                  keyboardType: TextInputType.number,
+                ),
+                _dialogField(
+                  occupiedCtrl,
+                  'Occupés *',
+                  keyboardType: TextInputType.number,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final index = _buildings.indexWhere(
+                  (item) => item.id == building.id,
+                );
+                if (index < 0) {
+                  Navigator.of(dialogContext).pop();
+                  _showError('Bâtiment introuvable.');
+                  return;
+                }
+
+                final name = nameCtrl.text.trim();
+                final type = typeCtrl.text.trim();
+                final capacity = int.tryParse(capacityCtrl.text.trim());
+                final occupied = int.tryParse(occupiedCtrl.text.trim());
+
+                if (name.isEmpty ||
+                    type.isEmpty ||
+                    capacity == null ||
+                    occupied == null) {
+                  _showError(
+                    'Veuillez renseigner nom, type, capacité et occupés.',
+                  );
+                  return;
+                }
+                if (capacity <= 0) {
+                  _showError('La capacité doit être > 0.');
+                  return;
+                }
+                if (occupied < 0 || occupied > capacity) {
+                  _showError('Le nombre occupé doit être entre 0 et capacité.');
+                  return;
+                }
+
+                setState(() {
+                  _buildings[index] = BuildingRecord(
+                    id: building.id,
+                    name: name,
+                    type: type,
+                    capacity: capacity,
+                    occupied: occupied,
+                  );
+                });
+                _persistState();
+                Navigator.of(dialogContext).pop();
+                _showInfo('Bâtiment mis à jour.');
+              },
+              child: const Text('Mettre à jour'),
+            ),
+          ],
+        );
+      },
+    ).then(
+      (_) =>
+          _disposeControllers([nameCtrl, typeCtrl, capacityCtrl, occupiedCtrl]),
+    );
+  }
+
+  void _showAddBatchDialog() {
+    final nameCtrl = TextEditingController();
+    final stageCtrl = TextEditingController(text: 'Maternité');
+    final startDateCtrl = TextEditingController();
+    final animalsCtrl = TextEditingController();
+    final avgWeightCtrl = TextEditingController();
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Nouvelle bande'),
+          content: SizedBox(
+            width: _dialogWidth(dialogContext),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _dialogField(nameCtrl, 'Nom bande *', hint: 'Bande Avr-26'),
+                  _dialogField(
+                    stageCtrl,
+                    'Stade *',
+                    hint: 'Maternité / Post-sevrage / Croissance',
+                  ),
+                  _dialogField(
+                    startDateCtrl,
+                    'Date début *',
+                    hint: 'YYYY-MM-DD ou DD/MM/YYYY',
+                  ),
+                  _dialogField(
+                    animalsCtrl,
+                    'Nombre animaux *',
+                    keyboardType: TextInputType.number,
+                  ),
+                  _dialogField(
+                    avgWeightCtrl,
+                    'Poids moyen (kg) *',
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final name = nameCtrl.text.trim();
+                final stage = stageCtrl.text.trim();
+                final startDate = _tryParseDate(startDateCtrl.text.trim());
+                final animals = int.tryParse(animalsCtrl.text.trim());
+                final avgWeight = _tryParseAmount(avgWeightCtrl.text.trim());
+
+                if (name.isEmpty ||
+                    stage.isEmpty ||
+                    startDate == null ||
+                    animals == null ||
+                    avgWeight == null) {
+                  _showError(
+                    'Veuillez renseigner nom, stade, date valide, effectif et poids.',
+                  );
+                  return;
+                }
+                if (animals <= 0) {
+                  _showError('Le nombre d\'animaux doit être > 0.');
+                  return;
+                }
+                if (avgWeight < 0) {
+                  _showError('Le poids moyen doit être >= 0.');
+                  return;
+                }
+
+                setState(() {
+                  _batchRecords.insert(
+                    0,
+                    BatchRecord(
+                      id: _newId('BT'),
+                      name: name,
+                      stage: stage,
+                      startDate: startDate,
+                      animals: animals,
+                      avgWeight: avgWeight,
+                    ),
+                  );
+                });
+                _persistState();
+                Navigator.of(dialogContext).pop();
+                _showInfo('Bande ajoutée.');
+              },
+              child: const Text('Enregistrer'),
+            ),
+          ],
+        );
+      },
+    ).then(
+      (_) => _disposeControllers([
+        nameCtrl,
+        stageCtrl,
+        startDateCtrl,
+        animalsCtrl,
+        avgWeightCtrl,
+      ]),
+    );
+  }
+
+  void _showEditBatchDialog(BatchRecord batch) {
+    final nameCtrl = TextEditingController(text: batch.name);
+    final stageCtrl = TextEditingController(text: batch.stage);
+    final startDateCtrl = TextEditingController(
+      text: _formatDate(batch.startDate),
+    );
+    final animalsCtrl = TextEditingController(text: '${batch.animals}');
+    final avgWeightCtrl = TextEditingController(
+      text: batch.avgWeight.toStringAsFixed(1),
+    );
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('Modifier ${batch.name}'),
+          content: SizedBox(
+            width: _dialogWidth(dialogContext),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _dialogField(nameCtrl, 'Nom bande *'),
+                  _dialogField(stageCtrl, 'Stade *'),
+                  _dialogField(
+                    startDateCtrl,
+                    'Date début *',
+                    hint: 'YYYY-MM-DD ou DD/MM/YYYY',
+                  ),
+                  _dialogField(
+                    animalsCtrl,
+                    'Nombre animaux *',
+                    keyboardType: TextInputType.number,
+                  ),
+                  _dialogField(
+                    avgWeightCtrl,
+                    'Poids moyen (kg) *',
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final index = _batchRecords.indexWhere(
+                  (item) => item.id == batch.id,
+                );
+                if (index < 0) {
+                  Navigator.of(dialogContext).pop();
+                  _showError('Bande introuvable.');
+                  return;
+                }
+
+                final name = nameCtrl.text.trim();
+                final stage = stageCtrl.text.trim();
+                final startDate = _tryParseDate(startDateCtrl.text.trim());
+                final animals = int.tryParse(animalsCtrl.text.trim());
+                final avgWeight = _tryParseAmount(avgWeightCtrl.text.trim());
+
+                if (name.isEmpty ||
+                    stage.isEmpty ||
+                    startDate == null ||
+                    animals == null ||
+                    avgWeight == null) {
+                  _showError(
+                    'Veuillez renseigner nom, stade, date valide, effectif et poids.',
+                  );
+                  return;
+                }
+                if (animals <= 0) {
+                  _showError('Le nombre d\'animaux doit être > 0.');
+                  return;
+                }
+                if (avgWeight < 0) {
+                  _showError('Le poids moyen doit être >= 0.');
+                  return;
+                }
+
+                setState(() {
+                  _batchRecords[index] = BatchRecord(
+                    id: batch.id,
+                    name: name,
+                    stage: stage,
+                    startDate: startDate,
+                    animals: animals,
+                    avgWeight: avgWeight,
+                  );
+                });
+                _persistState();
+                Navigator.of(dialogContext).pop();
+                _showInfo('Bande mise à jour.');
+              },
+              child: const Text('Mettre à jour'),
+            ),
+          ],
+        );
+      },
+    ).then(
+      (_) => _disposeControllers([
+        nameCtrl,
+        stageCtrl,
+        startDateCtrl,
+        animalsCtrl,
+        avgWeightCtrl,
+      ]),
+    );
+  }
+
+  void _showAddGrowthDialog() {
+    if (_batchRecords.isEmpty) {
+      _showError('Ajoutez d\'abord une bande.');
+      return;
+    }
+
+    final dateCtrl = TextEditingController();
+    final avgWeightCtrl = TextEditingController();
+    final dailyGainCtrl = TextEditingController();
+    String selectedBatchId = _batchRecords.first.id;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: const Text('Nouveau suivi croissance'),
+              content: SizedBox(
+                width: _dialogWidth(dialogContext),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedBatchId,
+                        decoration: const InputDecoration(
+                          labelText: 'Bande *',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: _batchRecords
+                            .map(
+                              (batch) => DropdownMenuItem(
+                                value: batch.id,
+                                child: Text(batch.name),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setModalState(() => selectedBatchId = value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _dialogField(
+                        dateCtrl,
+                        'Date mesure *',
+                        hint: 'YYYY-MM-DD ou DD/MM/YYYY',
+                      ),
+                      _dialogField(
+                        avgWeightCtrl,
+                        'Poids moyen (kg) *',
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                      _dialogField(
+                        dailyGainCtrl,
+                        'GMQ (kg/j) *',
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Annuler'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final date = _tryParseDate(dateCtrl.text.trim());
+                    final avgWeight = _tryParseAmount(
+                      avgWeightCtrl.text.trim(),
+                    );
+                    final dailyGain = _tryParseAmount(
+                      dailyGainCtrl.text.trim(),
+                    );
+
+                    if (date == null ||
+                        avgWeight == null ||
+                        dailyGain == null) {
+                      _showError(
+                        'Veuillez renseigner une date valide, poids moyen et GMQ.',
+                      );
+                      return;
+                    }
+                    if (avgWeight < 0 || dailyGain < 0) {
+                      _showError('Le poids moyen et GMQ doivent être >= 0.');
+                      return;
+                    }
+
+                    setState(() {
+                      _growthRecords.insert(
+                        0,
+                        GrowthRecord(
+                          id: _newId('GR'),
+                          batchId: selectedBatchId,
+                          date: date,
+                          avgWeight: avgWeight,
+                          dailyGain: dailyGain,
+                        ),
+                      );
+                    });
+                    _persistState();
+                    Navigator.of(dialogContext).pop();
+                    _showInfo('Suivi croissance ajouté.');
+                  },
+                  child: const Text('Enregistrer'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then(
+      (_) => _disposeControllers([dateCtrl, avgWeightCtrl, dailyGainCtrl]),
+    );
+  }
+
+  void _showEditGrowthDialog(GrowthRecord growth) {
+    if (_batchRecords.isEmpty) {
+      _showError('Aucune bande disponible pour ce suivi.');
+      return;
+    }
+
+    final dateCtrl = TextEditingController(text: _formatDate(growth.date));
+    final avgWeightCtrl = TextEditingController(
+      text: growth.avgWeight.toStringAsFixed(1),
+    );
+    final dailyGainCtrl = TextEditingController(
+      text: growth.dailyGain.toStringAsFixed(2),
+    );
+    String selectedBatchId =
+        _batchRecords.any((item) => item.id == growth.batchId)
+        ? growth.batchId
+        : _batchRecords.first.id;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: const Text('Modifier suivi croissance'),
+              content: SizedBox(
+                width: _dialogWidth(dialogContext),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedBatchId,
+                        decoration: const InputDecoration(
+                          labelText: 'Bande *',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: _batchRecords
+                            .map(
+                              (batch) => DropdownMenuItem(
+                                value: batch.id,
+                                child: Text(batch.name),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setModalState(() => selectedBatchId = value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _dialogField(
+                        dateCtrl,
+                        'Date mesure *',
+                        hint: 'YYYY-MM-DD ou DD/MM/YYYY',
+                      ),
+                      _dialogField(
+                        avgWeightCtrl,
+                        'Poids moyen (kg) *',
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                      _dialogField(
+                        dailyGainCtrl,
+                        'GMQ (kg/j) *',
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Annuler'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final index = _growthRecords.indexWhere(
+                      (item) => item.id == growth.id,
+                    );
+                    if (index < 0) {
+                      Navigator.of(dialogContext).pop();
+                      _showError('Suivi croissance introuvable.');
+                      return;
+                    }
+
+                    final date = _tryParseDate(dateCtrl.text.trim());
+                    final avgWeight = _tryParseAmount(
+                      avgWeightCtrl.text.trim(),
+                    );
+                    final dailyGain = _tryParseAmount(
+                      dailyGainCtrl.text.trim(),
+                    );
+
+                    if (date == null ||
+                        avgWeight == null ||
+                        dailyGain == null) {
+                      _showError(
+                        'Veuillez renseigner une date valide, poids moyen et GMQ.',
+                      );
+                      return;
+                    }
+                    if (avgWeight < 0 || dailyGain < 0) {
+                      _showError('Le poids moyen et GMQ doivent être >= 0.');
+                      return;
+                    }
+
+                    setState(() {
+                      _growthRecords[index] = GrowthRecord(
+                        id: growth.id,
+                        batchId: selectedBatchId,
+                        date: date,
+                        avgWeight: avgWeight,
+                        dailyGain: dailyGain,
+                      );
+                    });
+                    _persistState();
+                    Navigator.of(dialogContext).pop();
+                    _showInfo('Suivi croissance mis à jour.');
+                  },
+                  child: const Text('Mettre à jour'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then(
+      (_) => _disposeControllers([dateCtrl, avgWeightCtrl, dailyGainCtrl]),
+    );
+  }
+
+  String _semenQualityStatus(SemenQualityRecord record) {
+    var score = 0;
+    if (record.concentration >= 2.5) {
+      score++;
+    }
+    if (record.motilityPercent >= 70) {
+      score++;
+    }
+    if (record.temperatureC >= 15 && record.temperatureC <= 18) {
+      score++;
+    }
+    if (record.storageHours <= 24) {
+      score++;
+    }
+    if (score >= 4) {
+      return 'Conforme';
+    }
+    if (score >= 2) {
+      return 'Surveiller';
+    }
+    return 'Critique';
+  }
+
+  void _showAddSemenQualityDialog() {
+    if (_boars.isEmpty) {
+      _showError('Ajoutez d\'abord un verrat.');
+      return;
+    }
+    final lotCtrl = TextEditingController();
+    final dateCtrl = TextEditingController();
+    final concentrationCtrl = TextEditingController();
+    final motilityCtrl = TextEditingController();
+    final tempCtrl = TextEditingController(text: '16.0');
+    final storageCtrl = TextEditingController(text: '24');
+    final approvedByCtrl = TextEditingController(
+      text: _firstUserNameByRole(Roles.vet),
+    );
+    final notesCtrl = TextEditingController();
+    String selectedBoarCode = _boars.first.code;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: const Text('Nouveau contrôle semence'),
+              content: SizedBox(
+                width: _dialogWidth(dialogContext),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _dialogField(
+                        lotCtrl,
+                        'Lot semence *',
+                        hint: 'LOT-IA-2412',
+                      ),
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedBoarCode,
+                        decoration: const InputDecoration(
+                          labelText: 'Verrat *',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: _boars
+                            .map(
+                              (boar) => DropdownMenuItem(
+                                value: boar.code,
+                                child: Text('${boar.code} - ${boar.name}'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setModalState(() => selectedBoarCode = value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _dialogField(
+                        dateCtrl,
+                        'Date collecte *',
+                        hint: 'YYYY-MM-DD ou DD/MM/YYYY',
+                      ),
+                      _dialogField(
+                        concentrationCtrl,
+                        'Concentration (Md/ml) *',
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                      _dialogField(
+                        motilityCtrl,
+                        'Motilité (%) *',
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                      _dialogField(
+                        tempCtrl,
+                        'Température stockage (°C) *',
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                      _dialogField(
+                        storageCtrl,
+                        'Durée stockage (heures) *',
+                        keyboardType: TextInputType.number,
+                      ),
+                      _dialogField(approvedByCtrl, 'Validé par *'),
+                      _dialogField(notesCtrl, 'Notes', maxLines: 2),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Annuler'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final lot = lotCtrl.text.trim();
+                    final date = _tryParseDate(dateCtrl.text.trim());
+                    final concentration = _tryParseAmount(
+                      concentrationCtrl.text.trim(),
+                    );
+                    final motility = _tryParseAmount(motilityCtrl.text.trim());
+                    final temperature = _tryParseAmount(tempCtrl.text.trim());
+                    final storage = int.tryParse(storageCtrl.text.trim());
+                    final approvedBy = approvedByCtrl.text.trim();
+
+                    if (lot.isEmpty ||
+                        date == null ||
+                        concentration == null ||
+                        motility == null ||
+                        temperature == null ||
+                        storage == null ||
+                        approvedBy.isEmpty) {
+                      _showError(
+                        'Veuillez remplir lot, date valide, mesures et validateur.',
+                      );
+                      return;
+                    }
+                    if (concentration <= 0 ||
+                        motility < 0 ||
+                        motility > 100 ||
+                        temperature <= 0 ||
+                        storage < 0) {
+                      _showError(
+                        'Mesures invalides: concentration > 0, motilité 0-100, température > 0, stockage >= 0.',
+                      );
+                      return;
+                    }
+
+                    final record = SemenQualityRecord(
+                      id: _newId('SQ'),
+                      lotCode: lot,
+                      boarCode: selectedBoarCode,
+                      collectionDate: date,
+                      concentration: concentration,
+                      motilityPercent: motility,
+                      temperatureC: temperature,
+                      storageHours: storage,
+                      approvedBy: approvedBy,
+                      notes: notesCtrl.text.trim(),
+                    );
+                    setState(() => _semenQualityRecords.insert(0, record));
+                    _addAuditLog(
+                      module: 'SEMENCE',
+                      action: 'CREATE_SEMEN_QUALITY',
+                      detail:
+                          'Lot ${record.lotCode} • statut ${_semenQualityStatus(record)}',
+                    );
+                    _persistState();
+                    Navigator.of(dialogContext).pop();
+                    _showInfo('Contrôle semence ajouté.');
+                  },
+                  child: const Text('Enregistrer'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then(
+      (_) => _disposeControllers([
+        lotCtrl,
+        dateCtrl,
+        concentrationCtrl,
+        motilityCtrl,
+        tempCtrl,
+        storageCtrl,
+        approvedByCtrl,
+        notesCtrl,
+      ]),
+    );
+  }
+
+  void _showEditSemenQualityDialog(SemenQualityRecord record) {
+    if (_boars.isEmpty) {
+      _showError('Aucun verrat disponible.');
+      return;
+    }
+    final lotCtrl = TextEditingController(text: record.lotCode);
+    final dateCtrl = TextEditingController(
+      text: _formatDate(record.collectionDate),
+    );
+    final concentrationCtrl = TextEditingController(
+      text: record.concentration.toStringAsFixed(2),
+    );
+    final motilityCtrl = TextEditingController(
+      text: record.motilityPercent.toStringAsFixed(0),
+    );
+    final tempCtrl = TextEditingController(
+      text: record.temperatureC.toStringAsFixed(1),
+    );
+    final storageCtrl = TextEditingController(text: '${record.storageHours}');
+    final approvedByCtrl = TextEditingController(text: record.approvedBy);
+    final notesCtrl = TextEditingController(text: record.notes);
+    String selectedBoarCode = _boars.any((boar) => boar.code == record.boarCode)
+        ? record.boarCode
+        : _boars.first.code;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: const Text('Modifier contrôle semence'),
+              content: SizedBox(
+                width: _dialogWidth(dialogContext),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _dialogField(lotCtrl, 'Lot semence *'),
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedBoarCode,
+                        decoration: const InputDecoration(
+                          labelText: 'Verrat *',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: _boars
+                            .map(
+                              (boar) => DropdownMenuItem(
+                                value: boar.code,
+                                child: Text('${boar.code} - ${boar.name}'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setModalState(() => selectedBoarCode = value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _dialogField(dateCtrl, 'Date collecte *'),
+                      _dialogField(
+                        concentrationCtrl,
+                        'Concentration (Md/ml) *',
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                      _dialogField(
+                        motilityCtrl,
+                        'Motilité (%) *',
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                      _dialogField(
+                        tempCtrl,
+                        'Température stockage (°C) *',
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                      _dialogField(
+                        storageCtrl,
+                        'Durée stockage (heures) *',
+                        keyboardType: TextInputType.number,
+                      ),
+                      _dialogField(approvedByCtrl, 'Validé par *'),
+                      _dialogField(notesCtrl, 'Notes', maxLines: 2),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Annuler'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final index = _semenQualityRecords.indexWhere(
+                      (item) => item.id == record.id,
+                    );
+                    if (index < 0) {
+                      Navigator.of(dialogContext).pop();
+                      _showError('Contrôle semence introuvable.');
+                      return;
+                    }
+                    final lot = lotCtrl.text.trim();
+                    final date = _tryParseDate(dateCtrl.text.trim());
+                    final concentration = _tryParseAmount(
+                      concentrationCtrl.text.trim(),
+                    );
+                    final motility = _tryParseAmount(motilityCtrl.text.trim());
+                    final temperature = _tryParseAmount(tempCtrl.text.trim());
+                    final storage = int.tryParse(storageCtrl.text.trim());
+                    final approvedBy = approvedByCtrl.text.trim();
+
+                    if (lot.isEmpty ||
+                        date == null ||
+                        concentration == null ||
+                        motility == null ||
+                        temperature == null ||
+                        storage == null ||
+                        approvedBy.isEmpty) {
+                      _showError(
+                        'Veuillez remplir lot, date valide, mesures et validateur.',
+                      );
+                      return;
+                    }
+                    if (concentration <= 0 ||
+                        motility < 0 ||
+                        motility > 100 ||
+                        temperature <= 0 ||
+                        storage < 0) {
+                      _showError(
+                        'Mesures invalides: concentration > 0, motilité 0-100, température > 0, stockage >= 0.',
+                      );
+                      return;
+                    }
+
+                    final updated = SemenQualityRecord(
+                      id: record.id,
+                      lotCode: lot,
+                      boarCode: selectedBoarCode,
+                      collectionDate: date,
+                      concentration: concentration,
+                      motilityPercent: motility,
+                      temperatureC: temperature,
+                      storageHours: storage,
+                      approvedBy: approvedBy,
+                      notes: notesCtrl.text.trim(),
+                    );
+                    setState(() => _semenQualityRecords[index] = updated);
+                    _addAuditLog(
+                      module: 'SEMENCE',
+                      action: 'UPDATE_SEMEN_QUALITY',
+                      detail: 'Lot ${updated.lotCode} mis à jour',
+                    );
+                    _persistState();
+                    Navigator.of(dialogContext).pop();
+                    _showInfo('Contrôle semence mis à jour.');
+                  },
+                  child: const Text('Mettre à jour'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then(
+      (_) => _disposeControllers([
+        lotCtrl,
+        dateCtrl,
+        concentrationCtrl,
+        motilityCtrl,
+        tempCtrl,
+        storageCtrl,
+        approvedByCtrl,
+        notesCtrl,
+      ]),
+    );
+  }
+
+  void _showAddPigletCareDialog() {
+    if (_sows.isEmpty) {
+      _showError('Ajoutez d\'abord une truie pour lier la portée.');
+      return;
+    }
+
+    final groupNameCtrl = TextEditingController(text: 'Portée');
+    final eventDateCtrl = TextEditingController();
+    final detailsCtrl = TextEditingController();
+    final responsibleCtrl = TextEditingController(text: _currentUser.name);
+    final nextDateCtrl = TextEditingController();
+
+    String selectedSowCode = _sows.first.code;
+    String selectedEventType = 'Colostrum';
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: const Text('Nouvelle prise en charge porcelets'),
+              content: SizedBox(
+                width: _dialogWidth(dialogContext),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedSowCode,
+                        decoration: const InputDecoration(
+                          labelText: 'Truie / portée *',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: _sows
+                            .map(
+                              (sow) => DropdownMenuItem(
+                                value: sow.code,
+                                child: Text('${sow.code} - ${sow.name}'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setModalState(() => selectedSowCode = value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _dialogField(groupNameCtrl, 'Nom portée / groupe *'),
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedEventType,
+                        decoration: const InputDecoration(
+                          labelText: 'Type soin *',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'Colostrum',
+                            child: Text('Colostrum'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Supplémentation fer',
+                            child: Text('Supplémentation fer'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Vaccination porcelets',
+                            child: Text('Vaccination porcelets'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Traitement',
+                            child: Text('Traitement'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Sevrage',
+                            child: Text('Sevrage'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            setModalState(() => selectedEventType = value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _dialogField(
+                        eventDateCtrl,
+                        'Date soin *',
+                        hint: 'YYYY-MM-DD ou DD/MM/YYYY',
+                      ),
+                      _dialogField(
+                        nextDateCtrl,
+                        'Prochaine date (optionnel)',
+                        hint: 'YYYY-MM-DD ou DD/MM/YYYY',
+                      ),
+                      _dialogField(responsibleCtrl, 'Responsable *'),
+                      _dialogField(
+                        detailsCtrl,
+                        'Détails / observations *',
+                        maxLines: 2,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Annuler'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final groupName = groupNameCtrl.text.trim();
+                    final eventDate = _tryParseDate(eventDateCtrl.text.trim());
+                    final responsible = responsibleCtrl.text.trim();
+                    final details = detailsCtrl.text.trim();
+                    DateTime? nextDate;
+
+                    if (groupName.isEmpty ||
+                        eventDate == null ||
+                        responsible.isEmpty ||
+                        details.isEmpty) {
+                      _showError(
+                        'Veuillez renseigner portée, date valide, responsable et détails.',
+                      );
+                      return;
+                    }
+
+                    if (nextDateCtrl.text.trim().isNotEmpty) {
+                      nextDate = _tryParseDate(nextDateCtrl.text.trim());
+                      if (nextDate == null) {
+                        _showError('Date de rappel invalide.');
+                        return;
+                      }
+                    }
+
+                    setState(() {
+                      _pigletCareRecords.insert(
+                        0,
+                        PigletCareRecord(
+                          id: _newId('PC'),
+                          animalCode: selectedSowCode,
+                          groupName: groupName,
+                          eventDate: eventDate,
+                          eventType: selectedEventType,
+                          details: details,
+                          responsible: responsible,
+                          nextDate: nextDate,
+                        ),
+                      );
+                    });
+                    _persistState();
+                    Navigator.of(dialogContext).pop();
+                    _showInfo('Prise en charge porcelets ajoutée.');
+                  },
+                  child: const Text('Enregistrer'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then(
+      (_) => _disposeControllers([
+        groupNameCtrl,
+        eventDateCtrl,
+        detailsCtrl,
+        responsibleCtrl,
+        nextDateCtrl,
+      ]),
+    );
+  }
+
+  void _showEditPigletCareDialog(PigletCareRecord record) {
+    if (_sows.isEmpty) {
+      _showError('Aucune truie disponible.');
+      return;
+    }
+
+    final groupNameCtrl = TextEditingController(text: record.groupName);
+    final eventDateCtrl = TextEditingController(
+      text: _formatDate(record.eventDate),
+    );
+    final detailsCtrl = TextEditingController(text: record.details);
+    final responsibleCtrl = TextEditingController(text: record.responsible);
+    final nextDateCtrl = TextEditingController(
+      text: record.nextDate == null ? '' : _formatDate(record.nextDate!),
+    );
+
+    String selectedSowCode = _sows.any((sow) => sow.code == record.animalCode)
+        ? record.animalCode
+        : _sows.first.code;
+    String selectedEventType = record.eventType;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: const Text('Modifier prise en charge porcelets'),
+              content: SizedBox(
+                width: _dialogWidth(dialogContext),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedSowCode,
+                        decoration: const InputDecoration(
+                          labelText: 'Truie / portée *',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: _sows
+                            .map(
+                              (sow) => DropdownMenuItem(
+                                value: sow.code,
+                                child: Text('${sow.code} - ${sow.name}'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setModalState(() => selectedSowCode = value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _dialogField(groupNameCtrl, 'Nom portée / groupe *'),
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedEventType,
+                        decoration: const InputDecoration(
+                          labelText: 'Type soin *',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'Colostrum',
+                            child: Text('Colostrum'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Supplémentation fer',
+                            child: Text('Supplémentation fer'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Vaccination porcelets',
+                            child: Text('Vaccination porcelets'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Traitement',
+                            child: Text('Traitement'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Sevrage',
+                            child: Text('Sevrage'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            setModalState(() => selectedEventType = value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _dialogField(
+                        eventDateCtrl,
+                        'Date soin *',
+                        hint: 'YYYY-MM-DD ou DD/MM/YYYY',
+                      ),
+                      _dialogField(
+                        nextDateCtrl,
+                        'Prochaine date (optionnel)',
+                        hint: 'YYYY-MM-DD ou DD/MM/YYYY',
+                      ),
+                      _dialogField(responsibleCtrl, 'Responsable *'),
+                      _dialogField(
+                        detailsCtrl,
+                        'Détails / observations *',
+                        maxLines: 2,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Annuler'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final index = _pigletCareRecords.indexWhere(
+                      (item) => item.id == record.id,
+                    );
+                    if (index < 0) {
+                      Navigator.of(dialogContext).pop();
+                      _showError('Prise en charge introuvable.');
+                      return;
+                    }
+
+                    final groupName = groupNameCtrl.text.trim();
+                    final eventDate = _tryParseDate(eventDateCtrl.text.trim());
+                    final responsible = responsibleCtrl.text.trim();
+                    final details = detailsCtrl.text.trim();
+                    DateTime? nextDate;
+
+                    if (groupName.isEmpty ||
+                        eventDate == null ||
+                        responsible.isEmpty ||
+                        details.isEmpty) {
+                      _showError(
+                        'Veuillez renseigner portée, date valide, responsable et détails.',
+                      );
+                      return;
+                    }
+
+                    if (nextDateCtrl.text.trim().isNotEmpty) {
+                      nextDate = _tryParseDate(nextDateCtrl.text.trim());
+                      if (nextDate == null) {
+                        _showError('Date de rappel invalide.');
+                        return;
+                      }
+                    }
+
+                    setState(() {
+                      _pigletCareRecords[index] = PigletCareRecord(
+                        id: record.id,
+                        animalCode: selectedSowCode,
+                        groupName: groupName,
+                        eventDate: eventDate,
+                        eventType: selectedEventType,
+                        details: details,
+                        responsible: responsible,
+                        nextDate: nextDate,
+                      );
+                    });
+                    _persistState();
+                    Navigator.of(dialogContext).pop();
+                    _showInfo('Prise en charge mise à jour.');
+                  },
+                  child: const Text('Mettre à jour'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then(
+      (_) => _disposeControllers([
+        groupNameCtrl,
+        eventDateCtrl,
+        detailsCtrl,
+        responsibleCtrl,
+        nextDateCtrl,
+      ]),
+    );
+  }
+
+  void _showAddFarrowingDialog() {
+    if (_sows.isEmpty) {
+      _showError('Ajoutez d\'abord une truie.');
+      return;
+    }
+
+    final dateCtrl = TextEditingController();
+    final totalCtrl = TextEditingController();
+    final aliveCtrl = TextEditingController();
+    final stillCtrl = TextEditingController(text: '0');
+    final mumCtrl = TextEditingController(text: '0');
+    final weanedCtrl = TextEditingController();
+    final preWeaningCtrl = TextEditingController(text: '0');
+    final weightCtrl = TextEditingController(text: '1.30');
+    final issueCtrl = TextEditingController();
+    final responsibleCtrl = TextEditingController(text: _currentUser.name);
+    final notesCtrl = TextEditingController();
+    String selectedSowCode = _sows.first.code;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: const Text('Nouvelle mise-bas'),
+              content: SizedBox(
+                width: _dialogWidth(dialogContext),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedSowCode,
+                        decoration: const InputDecoration(
+                          labelText: 'Truie *',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: _sows
+                            .map(
+                              (sow) => DropdownMenuItem(
+                                value: sow.code,
+                                child: Text('${sow.code} - ${sow.name}'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setModalState(() => selectedSowCode = value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _dialogField(
+                        dateCtrl,
+                        'Date mise-bas *',
+                        hint: 'YYYY-MM-DD ou DD/MM/YYYY',
+                      ),
+                      _dialogField(
+                        totalCtrl,
+                        'Nés total *',
+                        keyboardType: TextInputType.number,
+                      ),
+                      _dialogField(
+                        aliveCtrl,
+                        'Nés vivants *',
+                        keyboardType: TextInputType.number,
+                      ),
+                      _dialogField(
+                        stillCtrl,
+                        'Mort-nés',
+                        keyboardType: TextInputType.number,
+                      ),
+                      _dialogField(
+                        mumCtrl,
+                        'Momifiés',
+                        keyboardType: TextInputType.number,
+                      ),
+                      _dialogField(
+                        weanedCtrl,
+                        'Sevrés *',
+                        keyboardType: TextInputType.number,
+                      ),
+                      _dialogField(
+                        preWeaningCtrl,
+                        'Mortalité pré-sevrage',
+                        keyboardType: TextInputType.number,
+                      ),
+                      _dialogField(
+                        weightCtrl,
+                        'Poids naissance moyen (kg) *',
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                      _dialogField(issueCtrl, 'Problème majeur'),
+                      _dialogField(responsibleCtrl, 'Responsable *'),
+                      _dialogField(notesCtrl, 'Notes', maxLines: 2),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Annuler'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final date = _tryParseDate(dateCtrl.text.trim());
+                    final total = int.tryParse(totalCtrl.text.trim());
+                    final alive = int.tryParse(aliveCtrl.text.trim());
+                    final still = int.tryParse(stillCtrl.text.trim()) ?? 0;
+                    final mum = int.tryParse(mumCtrl.text.trim()) ?? 0;
+                    final weaned = int.tryParse(weanedCtrl.text.trim());
+                    final pre = int.tryParse(preWeaningCtrl.text.trim()) ?? 0;
+                    final weight = _tryParseAmount(weightCtrl.text.trim());
+                    final responsible = responsibleCtrl.text.trim();
+
+                    if (date == null ||
+                        total == null ||
+                        alive == null ||
+                        weaned == null ||
+                        weight == null ||
+                        responsible.isEmpty) {
+                      _showError(
+                        'Veuillez renseigner date valide, effectifs, poids et responsable.',
+                      );
+                      return;
+                    }
+                    if (total < 0 ||
+                        alive < 0 ||
+                        still < 0 ||
+                        mum < 0 ||
+                        weaned < 0 ||
+                        pre < 0) {
+                      _showError('Les effectifs doivent être positifs.');
+                      return;
+                    }
+                    if (alive + still + mum > total) {
+                      _showError(
+                        'Incohérence: vivants + mort-nés + momifiés > nés total.',
+                      );
+                      return;
+                    }
+                    if (weaned > alive) {
+                      _showError(
+                        'Le nombre sevré ne peut pas dépasser les nés vivants.',
+                      );
+                      return;
+                    }
+                    if (pre > alive) {
+                      _showError(
+                        'La mortalité pré-sevrage ne peut pas dépasser les nés vivants.',
+                      );
+                      return;
+                    }
+                    if (weight <= 0) {
+                      _showError('Le poids naissance moyen doit être > 0.');
+                      return;
+                    }
+
+                    final record = FarrowingRecord(
+                      id: _newId('FAR'),
+                      sowCode: selectedSowCode,
+                      farrowingDate: date,
+                      totalBorn: total,
+                      bornAlive: alive,
+                      stillborn: still,
+                      mummified: mum,
+                      weaned: weaned,
+                      preWeaningDeaths: pre,
+                      avgBirthWeight: weight,
+                      majorIssue: issueCtrl.text.trim(),
+                      responsible: responsible,
+                      notes: notesCtrl.text.trim(),
+                    );
+                    setState(() => _farrowingRecords.insert(0, record));
+                    _addAuditLog(
+                      module: 'MATERNITE',
+                      action: 'CREATE_FARROWING',
+                      detail:
+                          'Mise-bas ${record.sowCode} (${record.bornAlive} nés vivants)',
+                    );
+                    _persistState();
+                    Navigator.of(dialogContext).pop();
+                    _showInfo('Mise-bas enregistrée.');
+                  },
+                  child: const Text('Enregistrer'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then(
+      (_) => _disposeControllers([
+        dateCtrl,
+        totalCtrl,
+        aliveCtrl,
+        stillCtrl,
+        mumCtrl,
+        weanedCtrl,
+        preWeaningCtrl,
+        weightCtrl,
+        issueCtrl,
+        responsibleCtrl,
+        notesCtrl,
+      ]),
+    );
+  }
+
+  void _showEditFarrowingDialog(FarrowingRecord record) {
+    if (_sows.isEmpty) {
+      _showError('Aucune truie disponible.');
+      return;
+    }
+
+    final dateCtrl = TextEditingController(
+      text: _formatDate(record.farrowingDate),
+    );
+    final totalCtrl = TextEditingController(text: '${record.totalBorn}');
+    final aliveCtrl = TextEditingController(text: '${record.bornAlive}');
+    final stillCtrl = TextEditingController(text: '${record.stillborn}');
+    final mumCtrl = TextEditingController(text: '${record.mummified}');
+    final weanedCtrl = TextEditingController(text: '${record.weaned}');
+    final preWeaningCtrl = TextEditingController(
+      text: '${record.preWeaningDeaths}',
+    );
+    final weightCtrl = TextEditingController(
+      text: record.avgBirthWeight.toStringAsFixed(2),
+    );
+    final issueCtrl = TextEditingController(text: record.majorIssue);
+    final responsibleCtrl = TextEditingController(text: record.responsible);
+    final notesCtrl = TextEditingController(text: record.notes);
+    String selectedSowCode = _sows.any((sow) => sow.code == record.sowCode)
+        ? record.sowCode
+        : _sows.first.code;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: const Text('Modifier mise-bas'),
+              content: SizedBox(
+                width: _dialogWidth(dialogContext),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedSowCode,
+                        decoration: const InputDecoration(
+                          labelText: 'Truie *',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: _sows
+                            .map(
+                              (sow) => DropdownMenuItem(
+                                value: sow.code,
+                                child: Text('${sow.code} - ${sow.name}'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setModalState(() => selectedSowCode = value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _dialogField(dateCtrl, 'Date mise-bas *'),
+                      _dialogField(
+                        totalCtrl,
+                        'Nés total *',
+                        keyboardType: TextInputType.number,
+                      ),
+                      _dialogField(
+                        aliveCtrl,
+                        'Nés vivants *',
+                        keyboardType: TextInputType.number,
+                      ),
+                      _dialogField(
+                        stillCtrl,
+                        'Mort-nés',
+                        keyboardType: TextInputType.number,
+                      ),
+                      _dialogField(
+                        mumCtrl,
+                        'Momifiés',
+                        keyboardType: TextInputType.number,
+                      ),
+                      _dialogField(
+                        weanedCtrl,
+                        'Sevrés *',
+                        keyboardType: TextInputType.number,
+                      ),
+                      _dialogField(
+                        preWeaningCtrl,
+                        'Mortalité pré-sevrage',
+                        keyboardType: TextInputType.number,
+                      ),
+                      _dialogField(
+                        weightCtrl,
+                        'Poids naissance moyen (kg) *',
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                      _dialogField(issueCtrl, 'Problème majeur'),
+                      _dialogField(responsibleCtrl, 'Responsable *'),
+                      _dialogField(notesCtrl, 'Notes', maxLines: 2),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Annuler'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final index = _farrowingRecords.indexWhere(
+                      (item) => item.id == record.id,
+                    );
+                    if (index < 0) {
+                      Navigator.of(dialogContext).pop();
+                      _showError('Mise-bas introuvable.');
+                      return;
+                    }
+
+                    final date = _tryParseDate(dateCtrl.text.trim());
+                    final total = int.tryParse(totalCtrl.text.trim());
+                    final alive = int.tryParse(aliveCtrl.text.trim());
+                    final still = int.tryParse(stillCtrl.text.trim()) ?? 0;
+                    final mum = int.tryParse(mumCtrl.text.trim()) ?? 0;
+                    final weaned = int.tryParse(weanedCtrl.text.trim());
+                    final pre = int.tryParse(preWeaningCtrl.text.trim()) ?? 0;
+                    final weight = _tryParseAmount(weightCtrl.text.trim());
+                    final responsible = responsibleCtrl.text.trim();
+
+                    if (date == null ||
+                        total == null ||
+                        alive == null ||
+                        weaned == null ||
+                        weight == null ||
+                        responsible.isEmpty) {
+                      _showError(
+                        'Veuillez renseigner date valide, effectifs, poids et responsable.',
+                      );
+                      return;
+                    }
+                    if (total < 0 ||
+                        alive < 0 ||
+                        still < 0 ||
+                        mum < 0 ||
+                        weaned < 0 ||
+                        pre < 0) {
+                      _showError('Les effectifs doivent être positifs.');
+                      return;
+                    }
+                    if (alive + still + mum > total) {
+                      _showError(
+                        'Incohérence: vivants + mort-nés + momifiés > nés total.',
+                      );
+                      return;
+                    }
+                    if (weaned > alive) {
+                      _showError(
+                        'Le nombre sevré ne peut pas dépasser les nés vivants.',
+                      );
+                      return;
+                    }
+                    if (pre > alive) {
+                      _showError(
+                        'La mortalité pré-sevrage ne peut pas dépasser les nés vivants.',
+                      );
+                      return;
+                    }
+                    if (weight <= 0) {
+                      _showError('Le poids naissance moyen doit être > 0.');
+                      return;
+                    }
+
+                    final updated = FarrowingRecord(
+                      id: record.id,
+                      sowCode: selectedSowCode,
+                      farrowingDate: date,
+                      totalBorn: total,
+                      bornAlive: alive,
+                      stillborn: still,
+                      mummified: mum,
+                      weaned: weaned,
+                      preWeaningDeaths: pre,
+                      avgBirthWeight: weight,
+                      majorIssue: issueCtrl.text.trim(),
+                      responsible: responsible,
+                      notes: notesCtrl.text.trim(),
+                    );
+                    setState(() => _farrowingRecords[index] = updated);
+                    _addAuditLog(
+                      module: 'MATERNITE',
+                      action: 'UPDATE_FARROWING',
+                      detail: 'Mise-bas ${updated.sowCode} mise à jour',
+                    );
+                    _persistState();
+                    Navigator.of(dialogContext).pop();
+                    _showInfo('Mise-bas mise à jour.');
+                  },
+                  child: const Text('Mettre à jour'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then(
+      (_) => _disposeControllers([
+        dateCtrl,
+        totalCtrl,
+        aliveCtrl,
+        stillCtrl,
+        mumCtrl,
+        weanedCtrl,
+        preWeaningCtrl,
+        weightCtrl,
+        issueCtrl,
+        responsibleCtrl,
+        notesCtrl,
+      ]),
+    );
+  }
+
   void _showAddClientDialog() {
     final nameCtrl = TextEditingController();
     final segmentCtrl = TextEditingController(text: 'Charcutier');
@@ -7519,10 +11325,16 @@ class _MainScreenState extends State<MainScreen> {
                       district: district,
                       region: region,
                       login: login,
-                      password: password,
+                      password: _hashPassword(password),
                     );
 
                     setState(() => _users.insert(0, user));
+                    _addAuditLog(
+                      module: 'USERS',
+                      action: 'CREATE_USER',
+                      detail:
+                          'Création utilisateur ${user.code} (${user.role})',
+                    );
                     _persistState();
                     Navigator.of(dialogContext).pop();
                     _showInfo('Utilisateur ajouté.');
@@ -7701,6 +11513,11 @@ class _MainScreenState extends State<MainScreen> {
                       }
                       _ensureActiveTabAccess();
                     });
+                    _addAuditLog(
+                      module: 'USERS',
+                      action: 'UPDATE_USER',
+                      detail: 'Utilisateur ${updated.code} mis à jour',
+                    );
                     _persistState();
 
                     Navigator.of(dialogContext).pop();
@@ -7827,7 +11644,7 @@ class _MainScreenState extends State<MainScreen> {
                       district: user.district,
                       region: user.region,
                       login: user.login,
-                      password: password,
+                      password: _hashPassword(password),
                     );
 
                     setState(() {
@@ -7836,6 +11653,12 @@ class _MainScreenState extends State<MainScreen> {
                         _currentUser = updated;
                       }
                     });
+                    _addAuditLog(
+                      module: 'USERS',
+                      action: 'CHANGE_PASSWORD',
+                      detail: 'Mot de passe modifié pour ${user.code}',
+                      severity: 'WARN',
+                    );
                     _persistState();
                     Navigator.of(dialogContext).pop();
                     _showInfo('Mot de passe mis à jour.');
@@ -8058,6 +11881,19 @@ class _MainScreenState extends State<MainScreen> {
     final login = _loginController.text.trim().toLowerCase();
     final password = _passwordController.text;
 
+    if (_loginLockedUntil != null &&
+        DateTime.now().isBefore(_loginLockedUntil!)) {
+      final remainingMinutes = _loginLockedUntil!
+          .difference(DateTime.now())
+          .inMinutes
+          .clamp(1, 999);
+      setState(
+        () => _authError =
+            'Compte temporairement verrouillé. Réessayez dans $remainingMinutes minute(s).',
+      );
+      return;
+    }
+
     if (login.isEmpty || password.isEmpty) {
       setState(
         () => _authError = 'Veuillez saisir le login et le mot de passe.',
@@ -8074,8 +11910,20 @@ class _MainScreenState extends State<MainScreen> {
       }
     }
 
-    if (matchedUser == null || matchedUser.password != password) {
+    if (matchedUser == null || !_verifyPassword(matchedUser, password)) {
+      _failedLoginAttempts++;
+      if (_failedLoginAttempts >= 5) {
+        _loginLockedUntil = DateTime.now().add(const Duration(minutes: 5));
+        _failedLoginAttempts = 0;
+      }
+      _addAuditLog(
+        module: 'AUTH',
+        action: 'LOGIN_FAIL',
+        detail: 'Tentative échouée pour login=$login',
+        severity: 'WARN',
+      );
       setState(() => _authError = 'Login ou mot de passe invalide.');
+      _persistState();
       return;
     }
 
@@ -8084,7 +11932,15 @@ class _MainScreenState extends State<MainScreen> {
       _isAuthenticated = true;
       _authError = null;
       _activeTab = _defaultTabForCurrentUser();
+      _failedLoginAttempts = 0;
+      _loginLockedUntil = null;
+      _lastAuthAt = DateTime.now();
     });
+    _addAuditLog(
+      module: 'AUTH',
+      action: 'LOGIN_SUCCESS',
+      detail: 'Connexion réussie pour ${_currentUser.code}',
+    );
     _persistState();
     _loginController.clear();
     _passwordController.clear();
@@ -8092,11 +11948,17 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _logout() {
+    _addAuditLog(
+      module: 'AUTH',
+      action: 'LOGOUT',
+      detail: 'Déconnexion utilisateur ${_currentUser.code}',
+    );
     setState(() {
       _isAuthenticated = false;
       _authError = null;
       _activeTab = AppTabs.dashboard;
       _hidePassword = true;
+      _lastAuthAt = null;
     });
     _persistState();
     _loginController.clear();
@@ -8334,6 +12196,191 @@ class _MainScreenState extends State<MainScreen> {
     _showInfo('Truie ${sow.code} supprimée.');
   }
 
+  Future<void> _deleteBuilding(String buildingId) async {
+    final index = _buildings.indexWhere(
+      (building) => building.id == buildingId,
+    );
+    if (index < 0) {
+      return;
+    }
+    final building = _buildings[index];
+
+    if (_buildings.length <= 1) {
+      _showError(
+        'Impossible de supprimer le dernier bâtiment. Gardez au moins une structure.',
+      );
+      return;
+    }
+
+    if (building.occupied > 0) {
+      _showError(
+        'Impossible de supprimer ${building.name}: ${building.occupied} animal(aux) sont encore affectés.',
+      );
+      return;
+    }
+
+    final confirmed = await _confirmDeletion(
+      title: 'Supprimer le bâtiment ${building.name} ?',
+      message: 'Cette suppression est définitive.',
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+    _addAuditLog(
+      module: 'ELEVAGE',
+      action: 'DELETE_BUILDING',
+      detail: 'Bâtiment ${building.name} supprimé',
+      severity: 'WARN',
+    );
+    setState(() => _buildings.removeAt(index));
+    _persistState();
+    _showInfo('Bâtiment ${building.name} supprimé.');
+  }
+
+  Future<void> _deleteBatch(String batchId) async {
+    final index = _batchRecords.indexWhere((batch) => batch.id == batchId);
+    if (index < 0) {
+      return;
+    }
+    final batch = _batchRecords[index];
+
+    final usedInGrowth = _growthRecords.any(
+      (growth) => growth.batchId == batch.id,
+    );
+    if (usedInGrowth) {
+      _showError(
+        'Impossible de supprimer ${batch.name}: des suivis de croissance sont liés à cette bande.',
+      );
+      return;
+    }
+
+    final confirmed = await _confirmDeletion(
+      title: 'Supprimer la bande ${batch.name} ?',
+      message: 'Cette suppression est définitive.',
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+    _addAuditLog(
+      module: 'ELEVAGE',
+      action: 'DELETE_BATCH',
+      detail: 'Bande ${batch.name} supprimée',
+      severity: 'WARN',
+    );
+    setState(() => _batchRecords.removeAt(index));
+    _persistState();
+    _showInfo('Bande ${batch.name} supprimée.');
+  }
+
+  Future<void> _deleteGrowthRecord(String growthId) async {
+    final index = _growthRecords.indexWhere((growth) => growth.id == growthId);
+    if (index < 0) {
+      return;
+    }
+    final growth = _growthRecords[index];
+    final batchName = _batchNameForId(growth.batchId);
+
+    final confirmed = await _confirmDeletion(
+      title: 'Supprimer ce suivi croissance ?',
+      message:
+          '$batchName du ${_formatDate(growth.date)} (${growth.avgWeight.toStringAsFixed(1)} kg).',
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+    _addAuditLog(
+      module: 'ELEVAGE',
+      action: 'DELETE_GROWTH',
+      detail: 'Suivi croissance supprimé ($batchName)',
+      severity: 'WARN',
+    );
+    setState(() => _growthRecords.removeAt(index));
+    _persistState();
+    _showInfo('Suivi croissance supprimé.');
+  }
+
+  Future<void> _deletePigletCareRecord(String recordId) async {
+    final index = _pigletCareRecords.indexWhere(
+      (record) => record.id == recordId,
+    );
+    if (index < 0) {
+      return;
+    }
+    final record = _pigletCareRecords[index];
+
+    final confirmed = await _confirmDeletion(
+      title: 'Supprimer cette prise en charge ?',
+      message:
+          '${record.groupName} / ${record.eventType} du ${_formatDate(record.eventDate)}.',
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+    _addAuditLog(
+      module: 'PORCELETS',
+      action: 'DELETE_PIGLET_CARE',
+      detail: '${record.groupName} / ${record.eventType}',
+      severity: 'WARN',
+    );
+    setState(() => _pigletCareRecords.removeAt(index));
+    _persistState();
+    _showInfo('Prise en charge porcelets supprimée.');
+  }
+
+  Future<void> _deleteSemenQualityRecord(String recordId) async {
+    final index = _semenQualityRecords.indexWhere(
+      (record) => record.id == recordId,
+    );
+    if (index < 0) {
+      return;
+    }
+    final record = _semenQualityRecords[index];
+    final confirmed = await _confirmDeletion(
+      title: 'Supprimer ce contrôle semence ?',
+      message:
+          '${record.lotCode} / ${record.boarCode} (${_formatDate(record.collectionDate)}).',
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+    _addAuditLog(
+      module: 'SEMENCE',
+      action: 'DELETE_SEMEN_QUALITY',
+      detail: 'Lot ${record.lotCode} supprimé',
+      severity: 'WARN',
+    );
+    setState(() => _semenQualityRecords.removeAt(index));
+    _persistState();
+    _showInfo('Contrôle semence supprimé.');
+  }
+
+  Future<void> _deleteFarrowingRecord(String recordId) async {
+    final index = _farrowingRecords.indexWhere(
+      (record) => record.id == recordId,
+    );
+    if (index < 0) {
+      return;
+    }
+    final record = _farrowingRecords[index];
+    final confirmed = await _confirmDeletion(
+      title: 'Supprimer cette mise-bas ?',
+      message:
+          '${record.sowCode} du ${_formatDate(record.farrowingDate)} (nés vivants: ${record.bornAlive}).',
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+    _addAuditLog(
+      module: 'MATERNITE',
+      action: 'DELETE_FARROWING',
+      detail: '${record.sowCode} / ${_formatDate(record.farrowingDate)}',
+      severity: 'WARN',
+    );
+    setState(() => _farrowingRecords.removeAt(index));
+    _persistState();
+    _showInfo('Mise-bas supprimée.');
+  }
+
   Future<void> _deleteHealthRecord(String recordId) async {
     final index = _healthRecords.indexWhere((record) => record.id == recordId);
     if (index < 0) {
@@ -8484,6 +12531,12 @@ class _MainScreenState extends State<MainScreen> {
     if (!confirmed || !mounted) {
       return;
     }
+    _addAuditLog(
+      module: 'USERS',
+      action: 'DELETE_USER',
+      detail: 'Suppression utilisateur ${user.code} (${user.role})',
+      severity: 'WARN',
+    );
     setState(() => _users.removeAt(index));
     _persistState();
     _showInfo('Utilisateur supprimé.');
@@ -8520,6 +12573,84 @@ class _MainScreenState extends State<MainScreen> {
     final hasLetter = RegExp(r'[A-Za-z]').hasMatch(password);
     final hasDigit = RegExp(r'\d').hasMatch(password);
     return hasLetter && hasDigit;
+  }
+
+  bool _isHashedPassword(String value) {
+    return value.startsWith(_passwordHashPrefix) &&
+        value.length > _passwordHashPrefix.length + 16;
+  }
+
+  String _hashPassword(String password) {
+    final hash = sha256.convert(utf8.encode(password)).toString();
+    return '$_passwordHashPrefix$hash';
+  }
+
+  bool _verifyPassword(UserProfile user, String password) {
+    final stored = user.password;
+    if (_isHashedPassword(stored)) {
+      return stored == _hashPassword(password);
+    }
+    return stored == password;
+  }
+
+  bool _migrateLegacyPasswords() {
+    var changed = false;
+    for (var i = 0; i < _users.length; i++) {
+      final user = _users[i];
+      if (_isHashedPassword(user.password)) {
+        continue;
+      }
+      _users[i] = UserProfile(
+        id: user.id,
+        code: user.code,
+        name: user.name,
+        role: user.role,
+        avatar: user.avatar,
+        address: user.address,
+        contact: user.contact,
+        fokontany: user.fokontany,
+        commune: user.commune,
+        district: user.district,
+        region: user.region,
+        login: user.login,
+        password: _hashPassword(user.password),
+      );
+      changed = true;
+    }
+    if (changed) {
+      _currentUser = _findUserById(_currentUser.id) ?? _currentUser;
+    }
+    return changed;
+  }
+
+  void _addAuditLog({
+    required String module,
+    required String action,
+    required String detail,
+    String severity = 'INFO',
+    UserProfile? actor,
+  }) {
+    final user = actor ?? _currentUser;
+    final entry = AuditLogEntry(
+      id: _newId('LOG'),
+      timestamp: DateTime.now(),
+      actorCode: user.code,
+      actorName: user.name,
+      module: module,
+      action: action,
+      detail: detail,
+      severity: severity,
+    );
+    setState(() {
+      _auditLogs.insert(0, entry);
+      if (_auditLogs.length > 500) {
+        _auditLogs.removeRange(500, _auditLogs.length);
+      }
+    });
+  }
+
+  String _authStateLabel(UserProfile user) {
+    return _isHashedPassword(user.password) ? 'Hashé' : 'À migrer';
   }
 
   String _avatarFromName(String name) {
@@ -8650,6 +12781,22 @@ class _MainScreenState extends State<MainScreen> {
     _persistState();
   }
 
+  void _changePigletCalendarMonth(int monthDelta) {
+    final nextMonth = DateTime(
+      _pigletCalendarMonth.year,
+      _pigletCalendarMonth.month + monthDelta,
+      1,
+    );
+    setState(() {
+      _pigletCalendarMonth = nextMonth;
+      final referenceDate = _selectedPigletDate ?? nextMonth;
+      final maxDay = DateTime(nextMonth.year, nextMonth.month + 1, 0).day;
+      final day = math.min(referenceDate.day, maxDay);
+      _selectedPigletDate = DateTime(nextMonth.year, nextMonth.month, day);
+    });
+    _persistState();
+  }
+
   Map<DateTime, List<_GestationCalendarEvent>> _buildGestationCalendarEvents() {
     final events = <DateTime, List<_GestationCalendarEvent>>{};
 
@@ -8747,6 +12894,77 @@ class _MainScreenState extends State<MainScreen> {
         icon: record.eventType == 'Vaccin'
             ? LucideIcons.shieldCheck
             : LucideIcons.pill,
+      );
+    }
+
+    for (final dayEvents in events.values) {
+      dayEvents.sort((a, b) => a.label.compareTo(b.label));
+    }
+
+    return events;
+  }
+
+  Map<DateTime, List<_GestationCalendarEvent>>
+  _buildPigletCareCalendarEvents() {
+    final events = <DateTime, List<_GestationCalendarEvent>>{};
+
+    void addEvent({
+      required DateTime date,
+      required String label,
+      required String type,
+      required Color color,
+      required IconData icon,
+    }) {
+      final key = _normalizeDate(date);
+      final list = events.putIfAbsent(key, () => <_GestationCalendarEvent>[]);
+      list.add(
+        _GestationCalendarEvent(
+          date: key,
+          label: label,
+          type: type,
+          color: color,
+          icon: icon,
+        ),
+      );
+    }
+
+    for (final record in _pigletCareRecords) {
+      addEvent(
+        date: record.eventDate,
+        label:
+            '${record.eventType} - ${record.groupName} (${record.animalCode})',
+        type: 'SOIN',
+        color: const Color(0xFF0F766E),
+        icon: LucideIcons.piggyBank,
+      );
+
+      if (record.nextDate != null) {
+        addEvent(
+          date: record.nextDate!,
+          label:
+              'Rappel ${record.eventType} - ${record.groupName} (${record.animalCode})',
+          type: 'RAPPEL',
+          color: const Color(0xFFB45309),
+          icon: Icons.calendar_month,
+        );
+      }
+    }
+
+    final today = _currentDate();
+    for (final record in _pigletCareRecords) {
+      if (record.nextDate == null) {
+        continue;
+      }
+      if (!record.nextDate!.isBefore(today)) {
+        continue;
+      }
+      addEvent(
+        date: today,
+        label:
+            'Soin en retard: ${record.eventType} - ${record.groupName} (${record.animalCode})',
+        type: 'ALERTE',
+        color: const Color(0xFFB91C1C),
+        icon: LucideIcons.alertTriangle,
       );
     }
 
@@ -9018,6 +13236,10 @@ class _MainScreenState extends State<MainScreen> {
     return DateFormat('dd/MM/yyyy', 'fr_FR').format(date);
   }
 
+  String _formatDateTime(DateTime dateTime) {
+    return DateFormat('dd/MM/yyyy HH:mm', 'fr_FR').format(dateTime);
+  }
+
   DateTime? _tryParseDate(String rawDate) {
     final value = rawDate.trim();
     if (value.isEmpty) {
@@ -9218,6 +13440,77 @@ class _BreederControlRecap {
   }
 }
 
+class _DistrictPerformanceAccumulator {
+  final String region;
+  final String district;
+  final Set<String> inseminators = <String>{};
+  int totalIa = 0;
+  int successIa = 0;
+  int failedIa = 0;
+  int overdueDiagnosis = 0;
+
+  _DistrictPerformanceAccumulator({
+    required this.region,
+    required this.district,
+  });
+}
+
+class _DistrictPerformanceRecap {
+  final String region;
+  final String district;
+  final int inseminators;
+  final int totalIa;
+  final int successIa;
+  final int failedIa;
+  final int overdueDiagnosis;
+
+  const _DistrictPerformanceRecap({
+    required this.region,
+    required this.district,
+    required this.inseminators,
+    required this.totalIa,
+    required this.successIa,
+    required this.failedIa,
+    required this.overdueDiagnosis,
+  });
+
+  int get successRate {
+    final decided = successIa + failedIa;
+    if (decided == 0) {
+      return 0;
+    }
+    return ((successIa / decided) * 100).round();
+  }
+}
+
+class _BreederQualityRecap {
+  final UserProfile user;
+  final int sowCount;
+  final int sowsWithCompletePedigree;
+  final int sowsWithIaPlan;
+  final int healthCoverageRate;
+  final int qualityScore;
+
+  const _BreederQualityRecap({
+    required this.user,
+    required this.sowCount,
+    required this.sowsWithCompletePedigree,
+    required this.sowsWithIaPlan,
+    required this.healthCoverageRate,
+    required this.qualityScore,
+  });
+
+  String get qualityStatus {
+    if (qualityScore >= 80) {
+      return 'Très bon';
+    }
+    if (qualityScore >= 60) {
+      return 'Moyen';
+    }
+    return 'Critique';
+  }
+}
+
 class _SemenLotRecap {
   final String lot;
   final String boarCode;
@@ -9344,6 +13637,40 @@ class _InseminationActionInfo {
   final Color color;
 
   const _InseminationActionInfo({required this.label, required this.color});
+}
+
+class _ZootechKpi {
+  final String label;
+  final String value;
+  final String target;
+  final Color color;
+
+  const _ZootechKpi({
+    required this.label,
+    required this.value,
+    required this.target,
+    required this.color,
+  });
+}
+
+class _OperationalTaskItem {
+  final String id;
+  final DateTime dueDate;
+  final String module;
+  final String title;
+  final String responsible;
+  final _ActionPriority priority;
+  final bool done;
+
+  const _OperationalTaskItem({
+    required this.id,
+    required this.dueDate,
+    required this.module,
+    required this.title,
+    required this.responsible,
+    required this.priority,
+    required this.done,
+  });
 }
 
 class _GestationCalendarEvent {
