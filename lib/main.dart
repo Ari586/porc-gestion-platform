@@ -3611,6 +3611,13 @@ class _MainScreenState extends State<MainScreen> {
   List<_HeaderNotificationEntry> _buildHeaderNotifications() {
     final now = _currentDate();
     final unreadMessages = _chatMessages.where((message) {
+      if (!_isConversationVisibleForCurrentUser(message.conversationId)) {
+        return false;
+      }
+      if (message.conversationId == _teamConversationId &&
+          !_isTeamConversationUserIdAllowed(message.senderId)) {
+        return false;
+      }
       if (message.senderId == _currentUser.id) {
         return false;
       }
@@ -11099,11 +11106,17 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _openMobileMessengerConversation(String conversationId) {
+    final targetConversationId = conversationId.trim().isEmpty
+        ? _teamConversationId
+        : conversationId.trim();
+    if (targetConversationId == _teamConversationId &&
+        !_canCurrentUserAccessTeamConversation()) {
+      _showError(_teamConversationAccessError());
+      return;
+    }
     setState(() {
       _isMobileMessengerThreadOpen = true;
-      _activeChatConversationId = conversationId.trim().isEmpty
-          ? _teamConversationId
-          : conversationId.trim();
+      _activeChatConversationId = targetConversationId;
       _markConversationAsReadInState(_activeChatConversationId);
     });
     _persistState();
@@ -11809,7 +11822,7 @@ class _MainScreenState extends State<MainScreen> {
 
   String _chatThreadSubtitle(_ChatConversationSummary conversation) {
     if (conversation.id == _teamConversationId) {
-      return '${_users.length} participant(s)';
+      return '${_teamConversationParticipantCount()} participant(s)';
     }
     if (conversation.unreadCount > 0) {
       return '${conversation.unreadCount} nouveau(x) message(s)';
@@ -18017,16 +18030,73 @@ class _MainScreenState extends State<MainScreen> {
     return 'DM|${ids[0]}|${ids[1]}';
   }
 
+  bool _isTeamConversationRoleAllowed(String role) {
+    final normalized = _normalizeLookup(role);
+    return normalized == _normalizeLookup(Roles.admin) ||
+        normalized == _normalizeLookup(Roles.inseminator) ||
+        normalized == _normalizeLookup(Roles.vet) ||
+        normalized == 'administrateur' ||
+        normalized == 'admin';
+  }
+
+  bool _isTeamConversationUserAllowed(UserProfile user) {
+    return _isTeamConversationRoleAllowed(user.role);
+  }
+
+  bool _isTeamConversationUserIdAllowed(String userId) {
+    final user = _findUserById(userId.trim());
+    if (user == null) {
+      return false;
+    }
+    return _isTeamConversationUserAllowed(user);
+  }
+
+  bool _canCurrentUserAccessTeamConversation() {
+    return _isTeamConversationUserAllowed(_currentUser);
+  }
+
+  bool _isConversationVisibleForCurrentUser(String conversationId) {
+    if (conversationId == _teamConversationId) {
+      return _canCurrentUserAccessTeamConversation();
+    }
+    if (!conversationId.startsWith('DM|')) {
+      return false;
+    }
+    final parts = conversationId.split('|');
+    if (parts.length != 3) {
+      return false;
+    }
+    return parts[1] == _currentUser.id || parts[2] == _currentUser.id;
+  }
+
+  int _teamConversationParticipantCount() {
+    var total = 0;
+    for (final user in _users) {
+      if (_isTeamConversationUserAllowed(user)) {
+        total++;
+      }
+    }
+    return total;
+  }
+
+  bool _canCurrentUserPostToConversation(String conversationId) {
+    if (conversationId != _teamConversationId) {
+      return true;
+    }
+    return _canCurrentUserAccessTeamConversation();
+  }
+
+  String _teamConversationAccessError() {
+    return 'Canal équipe réservé aux rôles Responsable/Administrateur, Inséminateur et Vétérinaire.';
+  }
+
   bool _isMessageReadByUser(ChatMessage message, String userId) {
     return message.readByUserIds.contains(userId.trim());
   }
 
   int _unreadCountForConversation(String conversationId) {
     var unread = 0;
-    for (final message in _chatMessages) {
-      if (message.conversationId != conversationId) {
-        continue;
-      }
+    for (final message in _messagesForConversation(conversationId)) {
       if (message.senderId == _currentUser.id) {
         continue;
       }
@@ -18043,6 +18113,8 @@ class _MainScreenState extends State<MainScreen> {
     for (var i = 0; i < _chatMessages.length; i++) {
       final message = _chatMessages[i];
       if (message.conversationId != conversationId ||
+          (conversationId == _teamConversationId &&
+              !_isTeamConversationUserIdAllowed(message.senderId)) ||
           message.senderId == _currentUser.id ||
           _isMessageReadByUser(message, _currentUser.id)) {
         continue;
@@ -18078,9 +18150,16 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   List<ChatMessage> _messagesForConversation(String conversationId) {
-    final messages = _chatMessages
-        .where((message) => message.conversationId == conversationId)
-        .toList();
+    final messages = _chatMessages.where((message) {
+      if (message.conversationId != conversationId) {
+        return false;
+      }
+      if (conversationId == _teamConversationId &&
+          !_isTeamConversationUserIdAllowed(message.senderId)) {
+        return false;
+      }
+      return true;
+    }).toList();
     messages.sort((a, b) => a.sentAt.compareTo(b.sentAt));
     return messages;
   }
@@ -18098,23 +18177,25 @@ class _MainScreenState extends State<MainScreen> {
 
   List<_ChatConversationSummary> _buildChatConversationSummaries() {
     final summaries = <_ChatConversationSummary>[];
-    final groupMessages = _messagesForConversation(_teamConversationId);
-    final groupLast = groupMessages.isEmpty ? null : groupMessages.last;
-    summaries.add(
-      _ChatConversationSummary(
-        id: _teamConversationId,
-        title: 'Canal Équipe',
-        subtitle: '${_users.length} utilisateur(s)',
-        preview: groupLast == null
-            ? 'Aucun message pour le moment.'
-            : _clipText(_chatMessagePreview(groupLast), 64),
-        lastMessageAt: groupLast?.sentAt,
-        unreadCount: _unreadCountForConversation(_teamConversationId),
-        avatarLabel: 'EQ',
-        avatarColor: const Color(0xFF0F766E),
-        isGroup: true,
-      ),
-    );
+    if (_canCurrentUserAccessTeamConversation()) {
+      final groupMessages = _messagesForConversation(_teamConversationId);
+      final groupLast = groupMessages.isEmpty ? null : groupMessages.last;
+      summaries.add(
+        _ChatConversationSummary(
+          id: _teamConversationId,
+          title: 'Canal Équipe',
+          subtitle: '${_teamConversationParticipantCount()} utilisateur(s)',
+          preview: groupLast == null
+              ? 'Aucun message pour le moment.'
+              : _clipText(_chatMessagePreview(groupLast), 64),
+          lastMessageAt: groupLast?.sentAt,
+          unreadCount: _unreadCountForConversation(_teamConversationId),
+          avatarLabel: 'EQ',
+          avatarColor: const Color(0xFF0F766E),
+          isGroup: true,
+        ),
+      );
+    }
 
     final peers = _users.where((user) => user.id != _currentUser.id).toList();
     for (final peer in peers) {
@@ -18162,10 +18243,16 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _setActiveChatConversation(String conversationId) {
+    final targetConversationId = conversationId.trim().isEmpty
+        ? _teamConversationId
+        : conversationId.trim();
+    if (targetConversationId == _teamConversationId &&
+        !_canCurrentUserAccessTeamConversation()) {
+      _showError(_teamConversationAccessError());
+      return;
+    }
     setState(() {
-      _activeChatConversationId = conversationId.trim().isEmpty
-          ? _teamConversationId
-          : conversationId.trim();
+      _activeChatConversationId = targetConversationId;
       _markConversationAsReadInState(_activeChatConversationId);
     });
     _persistState();
@@ -18179,6 +18266,10 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     final targetConversationId = _resolveChatConversationId(conversationId);
+    if (!_canCurrentUserPostToConversation(targetConversationId)) {
+      _showError(_teamConversationAccessError());
+      return;
+    }
     _appendChatMessage(
       ChatMessage(
         id: _newId('MSG'),
@@ -18202,7 +18293,18 @@ class _MainScreenState extends State<MainScreen> {
 
   String _resolveChatConversationId(String conversationId) {
     final normalized = conversationId.trim();
-    return normalized.isEmpty ? _teamConversationId : normalized;
+    if (normalized.isNotEmpty) {
+      return normalized;
+    }
+    if (_canCurrentUserAccessTeamConversation()) {
+      return _teamConversationId;
+    }
+    for (final user in _users) {
+      if (user.id != _currentUser.id) {
+        return _directConversationId(_currentUser.id, user.id);
+      }
+    }
+    return _teamConversationId;
   }
 
   void _appendChatMessage(ChatMessage message, {bool clearComposer = false}) {
@@ -18369,6 +18471,10 @@ class _MainScreenState extends State<MainScreen> {
     required int mediaSizeBytes,
   }) {
     final targetConversationId = _resolveChatConversationId(conversationId);
+    if (!_canCurrentUserPostToConversation(targetConversationId)) {
+      _showError(_teamConversationAccessError());
+      return;
+    }
     final label = switch (messageType) {
       'image' => 'Image',
       'video' => 'Vidéo',
@@ -18404,6 +18510,10 @@ class _MainScreenState extends State<MainScreen> {
 
   Future<void> _startChatCall(String conversationId, String callType) async {
     final targetConversationId = _resolveChatConversationId(conversationId);
+    if (!_canCurrentUserPostToConversation(targetConversationId)) {
+      _showError(_teamConversationAccessError());
+      return;
+    }
     final callLabel = callType == 'video' ? 'vidéo' : 'audio';
     final title = targetConversationId == _teamConversationId
         ? 'Canal Équipe'
