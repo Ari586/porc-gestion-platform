@@ -727,6 +727,7 @@ class _MainScreenState extends State<MainScreen> {
   DateTime _pigletCalendarMonth = DateTime.now();
   DateTime? _selectedPigletDate;
   String? _preferredBoarCode;
+  String? _selectedPedigreeAnimalCode;
   String _activeChatConversationId = _teamConversationId;
   bool _isMobileMessengerThreadOpen = false;
   String _messengerConversationFilter = '';
@@ -1406,6 +1407,10 @@ class _MainScreenState extends State<MainScreen> {
     if (_boars.isNotEmpty) {
       _preferredBoarCode = _boars.first.code;
     }
+    _selectedPedigreeAnimalCode = _resolveSelectedPedigreeCode(
+      _selectedPedigreeAnimalCode,
+      _allPedigreeNodes(),
+    );
     final today = _currentDate();
     _gestationCalendarMonth = DateTime(today.year, today.month, 1);
     _selectedGestationDate = today;
@@ -1709,6 +1714,10 @@ class _MainScreenState extends State<MainScreen> {
         if (savedConversation.isNotEmpty) {
           _activeChatConversationId = savedConversation;
         }
+        _selectedPedigreeAnimalCode = _resolveSelectedPedigreeCode(
+          _selectedPedigreeAnimalCode,
+          _allPedigreeNodes(),
+        );
         _ensureActiveTabAccess();
 
         _stateLoading = false;
@@ -1963,6 +1972,67 @@ class _MainScreenState extends State<MainScreen> {
       }
     }
     return _boars.first.code;
+  }
+
+  List<_PedigreeTreeNode> _allPedigreeNodes() {
+    final nodesByCode = <String, _PedigreeTreeNode>{};
+
+    for (final boar in _boars) {
+      final node = _PedigreeTreeNode(
+        code: boar.code,
+        name: boar.name,
+        type: 'Verrat',
+        breed: boar.breed,
+        sireCode: boar.sireCode,
+        damCode: boar.damCode,
+        origin: boar.origin,
+      );
+      nodesByCode[_normalizeLookup(boar.code)] = node;
+    }
+
+    for (final sow in _sows) {
+      final key = _normalizeLookup(sow.code);
+      if (nodesByCode.containsKey(key)) {
+        continue;
+      }
+      nodesByCode[key] = _PedigreeTreeNode(
+        code: sow.code,
+        name: sow.name,
+        type: 'Truie',
+        breed: sow.breed,
+        sireCode: sow.sireCode,
+        damCode: sow.damCode,
+        origin: '',
+      );
+    }
+
+    final nodes = nodesByCode.values.toList()
+      ..sort((a, b) {
+        if (a.type != b.type) {
+          return a.type == 'Verrat' ? -1 : 1;
+        }
+        return a.code.compareTo(b.code);
+      });
+    return nodes;
+  }
+
+  String? _resolveSelectedPedigreeCode(
+    String? rawCode,
+    List<_PedigreeTreeNode> nodes,
+  ) {
+    if (nodes.isEmpty) {
+      return null;
+    }
+    final normalized = _normalizeLookup(_readString(rawCode));
+    if (normalized.isEmpty) {
+      return nodes.first.code;
+    }
+    for (final node in nodes) {
+      if (_normalizeLookup(node.code) == normalized) {
+        return node.code;
+      }
+    }
+    return nodes.first.code;
   }
 
   Map<String, dynamic> _userToJson(UserProfile user) {
@@ -9140,13 +9210,49 @@ class _MainScreenState extends State<MainScreen> {
           ),
         )
         .toList();
+    final pedigreeNodes = _allPedigreeNodes();
+    final selectedPedigreeCode = _resolveSelectedPedigreeCode(
+      _selectedPedigreeAnimalCode,
+      pedigreeNodes,
+    );
+    final selectedNode = selectedPedigreeCode == null
+        ? null
+        : _pedigreeNodeByCode(selectedPedigreeCode);
+    final sireNode = selectedNode == null
+        ? null
+        : _pedigreeNodeByCode(selectedNode.sireCode);
+    final damNode = selectedNode == null
+        ? null
+        : _pedigreeNodeByCode(selectedNode.damCode);
+    final paternalSireNode = sireNode == null
+        ? null
+        : _pedigreeNodeByCode(sireNode.sireCode);
+    final paternalDamNode = sireNode == null
+        ? null
+        : _pedigreeNodeByCode(sireNode.damCode);
+    final maternalSireNode = damNode == null
+        ? null
+        : _pedigreeNodeByCode(damNode.sireCode);
+    final maternalDamNode = damNode == null
+        ? null
+        : _pedigreeNodeByCode(damNode.damCode);
+    final knownAncestors = [
+      sireNode,
+      damNode,
+      paternalSireNode,
+      paternalDamNode,
+      maternalSireNode,
+      maternalDamNode,
+    ].whereType<_PedigreeTreeNode>().length;
+    final missingAncestors = math.max(0, 6 - knownAncestors);
+    final ancestryCoverage = ((knownAncestors / 6) * 100).round();
 
     return Column(
       children: [
         _buildSectionCard(
           title: 'Gestion pedigree',
           subtitle:
-              'Arbre généalogique simplifié (père/mère) pour chaque animal',
+              'Arbre généalogique visuel (animal, parents et grands-parents)',
           child: Row(
             children: const [
               Expanded(
@@ -9158,6 +9264,103 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ],
           ),
+        ),
+        const SizedBox(height: 16),
+        _buildSectionCard(
+          title: 'Arbre généalogique détaillé',
+          subtitle:
+              'Sélectionnez un animal pour visualiser sa lignée complète sur 3 générations',
+          child: pedigreeNodes.isEmpty
+              ? _buildEmptyState(
+                  'Aucun animal disponible pour construire un arbre généalogique.',
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedPedigreeCode,
+                      decoration: const InputDecoration(
+                        labelText: 'Animal racine',
+                        helperText: 'Code, nom et type de l\'animal à analyser',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: pedigreeNodes
+                          .map(
+                            (node) => DropdownMenuItem<String>(
+                              value: node.code,
+                              child: Text(
+                                '${node.code} • ${node.name} (${node.type})',
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value == null) {
+                          return;
+                        }
+                        setState(() => _selectedPedigreeAnimalCode = value);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isWide = constraints.maxWidth > 860;
+                        final indicators = [
+                          _buildMiniIndicator(
+                            label: 'Ascendants trouvés',
+                            value: '$knownAncestors / 6',
+                            color: const Color(0xFF2563EB),
+                          ),
+                          _buildMiniIndicator(
+                            label: 'Liens manquants',
+                            value: '$missingAncestors',
+                            color: const Color(0xFFB45309),
+                          ),
+                          _buildMiniIndicator(
+                            label: 'Couverture lignée',
+                            value: '$ancestryCoverage%',
+                            color: const Color(0xFF15803D),
+                          ),
+                        ];
+                        if (isWide) {
+                          return Row(
+                            children: [
+                              Expanded(child: indicators[0]),
+                              const SizedBox(width: 12),
+                              Expanded(child: indicators[1]),
+                              const SizedBox(width: 12),
+                              Expanded(child: indicators[2]),
+                            ],
+                          );
+                        }
+                        return Column(
+                          children: [
+                            indicators[0],
+                            const SizedBox(height: 10),
+                            indicators[1],
+                            const SizedBox(height: 10),
+                            indicators[2],
+                          ],
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    if (selectedNode == null)
+                      _buildEmptyState(
+                        'Impossible de charger cet animal. Vérifiez son code.',
+                      )
+                    else
+                      _buildPedigreeTreeChart(
+                        root: selectedNode,
+                        sire: sireNode,
+                        dam: damNode,
+                        paternalSire: paternalSireNode,
+                        paternalDam: paternalDamNode,
+                        maternalSire: maternalSireNode,
+                        maternalDam: maternalDamNode,
+                      ),
+                  ],
+                ),
         ),
         const SizedBox(height: 16),
         _buildSectionCard(
@@ -9239,6 +9442,308 @@ class _MainScreenState extends State<MainScreen> {
             DataColumn(label: Text('MOTIF')),
           ],
           rows: alertRows,
+        ),
+      ],
+    );
+  }
+
+  _PedigreeTreeNode? _pedigreeNodeByCode(String code) {
+    final normalizedCode = _normalizeLookup(code);
+    if (normalizedCode.isEmpty) {
+      return null;
+    }
+
+    for (final boar in _boars) {
+      if (_normalizeLookup(boar.code) == normalizedCode) {
+        return _PedigreeTreeNode(
+          code: boar.code,
+          name: boar.name,
+          type: 'Verrat',
+          breed: boar.breed,
+          sireCode: boar.sireCode,
+          damCode: boar.damCode,
+          origin: boar.origin,
+        );
+      }
+    }
+
+    for (final sow in _sows) {
+      if (_normalizeLookup(sow.code) == normalizedCode) {
+        return _PedigreeTreeNode(
+          code: sow.code,
+          name: sow.name,
+          type: 'Truie',
+          breed: sow.breed,
+          sireCode: sow.sireCode,
+          damCode: sow.damCode,
+          origin: '',
+        );
+      }
+    }
+
+    return null;
+  }
+
+  Widget _buildPedigreeTreeChart({
+    required _PedigreeTreeNode root,
+    required _PedigreeTreeNode? sire,
+    required _PedigreeTreeNode? dam,
+    required _PedigreeTreeNode? paternalSire,
+    required _PedigreeTreeNode? paternalDam,
+    required _PedigreeTreeNode? maternalSire,
+    required _PedigreeTreeNode? maternalDam,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 980;
+
+        final parentSection = isWide
+            ? Row(
+                children: [
+                  Expanded(
+                    child: _buildPedigreeNodeCard(
+                      relation: 'Père',
+                      node: sire,
+                      accent: const Color(0xFF2563EB),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildPedigreeNodeCard(
+                      relation: 'Mère',
+                      node: dam,
+                      accent: const Color(0xFFDB2777),
+                    ),
+                  ),
+                ],
+              )
+            : Column(
+                children: [
+                  _buildPedigreeNodeCard(
+                    relation: 'Père',
+                    node: sire,
+                    accent: const Color(0xFF2563EB),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildPedigreeNodeCard(
+                    relation: 'Mère',
+                    node: dam,
+                    accent: const Color(0xFFDB2777),
+                  ),
+                ],
+              );
+
+        final grandParentSection = isWide
+            ? Row(
+                children: [
+                  Expanded(
+                    child: _buildPedigreeNodeCard(
+                      relation: 'Grand-père paternel',
+                      node: paternalSire,
+                      accent: const Color(0xFF0284C7),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildPedigreeNodeCard(
+                      relation: 'Grand-mère paternelle',
+                      node: paternalDam,
+                      accent: const Color(0xFF6366F1),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildPedigreeNodeCard(
+                      relation: 'Grand-père maternel',
+                      node: maternalSire,
+                      accent: const Color(0xFF0891B2),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildPedigreeNodeCard(
+                      relation: 'Grand-mère maternelle',
+                      node: maternalDam,
+                      accent: const Color(0xFFD946EF),
+                    ),
+                  ),
+                ],
+              )
+            : Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildPedigreeNodeCard(
+                          relation: 'Grand-père paternel',
+                          node: paternalSire,
+                          accent: const Color(0xFF0284C7),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _buildPedigreeNodeCard(
+                          relation: 'Grand-mère paternelle',
+                          node: paternalDam,
+                          accent: const Color(0xFF6366F1),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildPedigreeNodeCard(
+                          relation: 'Grand-père maternel',
+                          node: maternalSire,
+                          accent: const Color(0xFF0891B2),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _buildPedigreeNodeCard(
+                          relation: 'Grand-mère maternelle',
+                          node: maternalDam,
+                          accent: const Color(0xFFD946EF),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+
+        final rootCardWidth = math.min(420.0, constraints.maxWidth);
+
+        return Column(
+          children: [
+            Center(
+              child: SizedBox(
+                width: rootCardWidth,
+                child: _buildPedigreeNodeCard(
+                  relation: 'Animal sélectionné',
+                  node: root,
+                  accent: const Color(0xFF0F766E),
+                  highlighted: true,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildPedigreeTreeConnector(widthFactor: isWide ? 0.45 : 0.7),
+            const SizedBox(height: 10),
+            parentSection,
+            const SizedBox(height: 8),
+            _buildPedigreeTreeConnector(widthFactor: isWide ? 0.95 : 0.8),
+            const SizedBox(height: 10),
+            grandParentSection,
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildPedigreeNodeCard({
+    required String relation,
+    required _PedigreeTreeNode? node,
+    required Color accent,
+    bool highlighted = false,
+  }) {
+    final isMissing = node == null;
+    final borderColor = isMissing
+        ? const Color(0xFFDCE4EE)
+        : accent.withValues(alpha: highlighted ? 0.7 : 0.45);
+
+    return Container(
+      constraints: const BoxConstraints(minHeight: 124),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor, width: highlighted ? 1.6 : 1.2),
+        boxShadow: isMissing
+            ? const []
+            : [
+                BoxShadow(
+                  color: accent.withValues(alpha: highlighted ? 0.14 : 0.09),
+                  blurRadius: highlighted ? 16 : 10,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            relation.toUpperCase(),
+            style: TextStyle(
+              color: accent,
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            isMissing ? 'Non renseigné' : '${node.code} • ${node.name}',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: isMissing
+                  ? const Color(0xFF64748B)
+                  : const Color(0xFF0F172A),
+              fontWeight: FontWeight.w900,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            isMissing
+                ? 'Ajoutez la filiation pour compléter la lignée.'
+                : '${node.type} • ${node.breed}',
+            style: const TextStyle(
+              color: Color(0xFF475569),
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+          if (!isMissing) ...[
+            const SizedBox(height: 4),
+            Text(
+              'P: ${node.sireCode.isEmpty ? '-' : node.sireCode} • '
+              'M: ${node.damCode.isEmpty ? '-' : node.damCode}',
+              style: const TextStyle(
+                color: Color(0xFF64748B),
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
+              ),
+            ),
+            if (node.origin.isNotEmpty)
+              Text(
+                'Origine: ${node.origin}',
+                style: const TextStyle(
+                  color: Color(0xFF64748B),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 11,
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPedigreeTreeConnector({
+    required double widthFactor,
+    double verticalHeight = 12,
+  }) {
+    const lineColor = Color(0xFFCBD5E1);
+    final effectiveWidthFactor = widthFactor.clamp(0.15, 1.0).toDouble();
+
+    return Column(
+      children: [
+        Container(width: 2, height: verticalHeight, color: lineColor),
+        FractionallySizedBox(
+          widthFactor: effectiveWidthFactor,
+          child: Container(height: 2, color: lineColor),
         ),
       ],
     );
@@ -19977,6 +20482,26 @@ class _SowIaFollowUp {
     required this.statusColor,
     required this.nextAction,
     required this.nextDateLabel,
+  });
+}
+
+class _PedigreeTreeNode {
+  final String code;
+  final String name;
+  final String type;
+  final String breed;
+  final String sireCode;
+  final String damCode;
+  final String origin;
+
+  const _PedigreeTreeNode({
+    required this.code,
+    required this.name,
+    required this.type,
+    required this.breed,
+    required this.sireCode,
+    required this.damCode,
+    required this.origin,
   });
 }
 
