@@ -8,6 +8,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:crypto/crypto.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
@@ -802,6 +803,11 @@ class _MainScreenState extends State<MainScreen> {
   static const Color _durocChatBackgroundTop = Color(0xFFF9F2EC);
   static const Color _durocChatBackgroundBottom = Color(0xFFF3E8DF);
   static const Color _durocChatInputSurface = Color(0xFFF7EFE8);
+  static const String _geminiModelName = 'gemini-2.0-flash';
+  static const String _geminiSystemPrompt =
+      'Tu es PorkGest AI, assistant spécialisé en élevage porcin. '
+      'Tu réponds en français avec des recommandations pratiques sur '
+      'la santé, la nutrition, la reproduction et l’insémination artificielle.';
   static const String _passwordHashPrefix = 'sha256:';
   static const int _maxSessionHours = 12;
   static const String _teamConversationId = 'GROUP_ALL_USERS';
@@ -869,6 +875,9 @@ class _MainScreenState extends State<MainScreen> {
   final TextEditingController _messengerSearchController =
       TextEditingController();
   final TextEditingController _headerSearchController = TextEditingController();
+  final TextEditingController _aiAssistantInputController =
+      TextEditingController();
+  final ScrollController _aiAssistantScrollController = ScrollController();
   final List<UserProfile> _users = List<UserProfile>.from(initialUsers);
 
   UserProfile _currentUser = initialUsers.first;
@@ -887,6 +896,16 @@ class _MainScreenState extends State<MainScreen> {
   bool _isMobileMessengerThreadOpen = false;
   String _messengerConversationFilter = '';
   String _newsFeedFilter = 'Tous';
+  bool _isAiAssistantOpen = false;
+  bool _isAiAssistantLoading = false;
+  final List<_AIAssistantMessage> _aiAssistantMessages = [
+    const _AIAssistantMessage(
+      role: 'model',
+      text:
+          'Bonjour ! Je suis votre assistant PorkGest. Comment puis-je vous aider '
+          'sur l’élevage ou l’insémination artificielle aujourd’hui ?',
+    ),
+  ];
   bool _chatReadSyncScheduled = false;
   final Map<String, bool> _taskDoneById = <String, bool>{};
   final Map<String, Uint8List> _imageBytesCache = <String, Uint8List>{};
@@ -1471,62 +1490,75 @@ class _MainScreenState extends State<MainScreen> {
               child: Drawer(child: _buildSidebar()),
             ),
       body: SafeArea(
-        child: Row(
+        child: Stack(
           children: [
-            if (isDesktop) SizedBox(width: 280, child: _buildSidebar()),
-            Expanded(
-              child: Column(
-                children: [
-                  if (!isMessengerMobileFullBleed) _buildHeader(isDesktop),
-                  if (!isMessengerMobileFullBleed && _incomingCallOffer != null)
-                    _buildIncomingCallBanner(),
-                  Expanded(
-                    child: isMessengerMobileFullBleed
-                        ? _buildActiveContent()
-                        : SingleChildScrollView(
-                            padding: EdgeInsets.all(contentPadding),
-                            child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 320),
-                              switchInCurve: Curves.easeOutCubic,
-                              switchOutCurve: Curves.easeInCubic,
-                              transitionBuilder: (child, animation) {
-                                final slide =
-                                    Tween<Offset>(
-                                      begin: const Offset(0.025, 0),
-                                      end: Offset.zero,
-                                    ).animate(
-                                      CurvedAnimation(
-                                        parent: animation,
-                                        curve: Curves.easeOutCubic,
+            Row(
+              children: [
+                if (isDesktop) SizedBox(width: 280, child: _buildSidebar()),
+                Expanded(
+                  child: Column(
+                    children: [
+                      if (!isMessengerMobileFullBleed) _buildHeader(isDesktop),
+                      if (!isMessengerMobileFullBleed &&
+                          _incomingCallOffer != null)
+                        _buildIncomingCallBanner(),
+                      Expanded(
+                        child: isMessengerMobileFullBleed
+                            ? _buildActiveContent()
+                            : SingleChildScrollView(
+                                padding: EdgeInsets.all(contentPadding),
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 320),
+                                  switchInCurve: Curves.easeOutCubic,
+                                  switchOutCurve: Curves.easeInCubic,
+                                  transitionBuilder: (child, animation) {
+                                    final slide =
+                                        Tween<Offset>(
+                                          begin: const Offset(0.025, 0),
+                                          end: Offset.zero,
+                                        ).animate(
+                                          CurvedAnimation(
+                                            parent: animation,
+                                            curve: Curves.easeOutCubic,
+                                          ),
+                                        );
+                                    return FadeTransition(
+                                      opacity: animation,
+                                      child: SlideTransition(
+                                        position: slide,
+                                        child: child,
                                       ),
                                     );
-                                return FadeTransition(
-                                  opacity: animation,
-                                  child: SlideTransition(
-                                    position: slide,
-                                    child: child,
+                                  },
+                                  child: KeyedSubtree(
+                                    key: ValueKey<String>(_activeTab),
+                                    child: isDesktop
+                                        ? Align(
+                                            alignment: Alignment.topCenter,
+                                            child: ConstrainedBox(
+                                              constraints: BoxConstraints(
+                                                maxWidth:
+                                                    desktopMaxContentWidth,
+                                              ),
+                                              child: _buildActiveContent(),
+                                            ),
+                                          )
+                                        : _buildActiveContent(),
                                   ),
-                                );
-                              },
-                              child: KeyedSubtree(
-                                key: ValueKey<String>(_activeTab),
-                                child: isDesktop
-                                    ? Align(
-                                        alignment: Alignment.topCenter,
-                                        child: ConstrainedBox(
-                                          constraints: BoxConstraints(
-                                            maxWidth: desktopMaxContentWidth,
-                                          ),
-                                          child: _buildActiveContent(),
-                                        ),
-                                      )
-                                    : _buildActiveContent(),
+                                ),
                               ),
-                            ),
-                          ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
+            ),
+            Positioned(
+              right: isMobile ? AppSpacing.s10 : AppSpacing.s16,
+              bottom: _canAddForTab(_activeTab)
+                  ? (isMobile ? 90 : 92)
+                  : (isMobile ? 24 : 20),
+              child: _buildAIAssistantOverlay(isMobile: isMobile),
             ),
           ],
         ),
@@ -1569,6 +1601,8 @@ class _MainScreenState extends State<MainScreen> {
     _chatComposerController.dispose();
     _messengerSearchController.dispose();
     _headerSearchController.dispose();
+    _aiAssistantInputController.dispose();
+    _aiAssistantScrollController.dispose();
     _cloudSyncDebounceTimer?.cancel();
     _cloudSyncSubscription?.cancel();
     _stopIncomingCallRingtone();
@@ -4260,6 +4294,381 @@ class _MainScreenState extends State<MainScreen> {
           ),
       ],
     );
+  }
+
+  Widget _buildAIAssistantOverlay({required bool isMobile}) {
+    final screenSize = MediaQuery.of(context).size;
+    final panelWidth = isMobile
+        ? math.max(300.0, math.min(screenSize.width - 20, 420.0))
+        : 400.0;
+    final panelHeight = isMobile
+        ? math.max(430.0, math.min(screenSize.height * 0.68, 560.0))
+        : 600.0;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        if (_isAiAssistantOpen)
+          _buildAIAssistantPanel(
+            width: panelWidth,
+            height: panelHeight,
+            isMobile: isMobile,
+          ),
+        if (_isAiAssistantOpen) const SizedBox(height: AppSpacing.s10),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () {
+              setState(() => _isAiAssistantOpen = !_isAiAssistantOpen);
+              if (!_isAiAssistantOpen) {
+                return;
+              }
+              _scrollAIAssistantToBottom(jumpOnly: true);
+            },
+            child: Container(
+              width: 62,
+              height: 62,
+              decoration: BoxDecoration(
+                color: _durocChatHeader,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: _durocChatHeader.withValues(alpha: 0.35),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Icon(
+                _isAiAssistantOpen ? Icons.close_rounded : Icons.smart_toy,
+                color: Colors.white,
+                size: 30,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAIAssistantPanel({
+    required double width,
+    required double height,
+    required bool isMobile,
+  }) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1F0F172A),
+            blurRadius: 26,
+            offset: Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.s14,
+              AppSpacing.s12,
+              AppSpacing.s10,
+              AppSpacing.s12,
+            ),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [_durocChatHeader, _durocChatHeaderSoft],
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.auto_awesome, color: Colors.white),
+                ),
+                const SizedBox(width: AppSpacing.s10),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Assistant PorkGest',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        'Expert porcin IA',
+                        style: TextStyle(
+                          color: Color(0xFFE2E8F0),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 10,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Fermer',
+                  onPressed: () => setState(() => _isAiAssistantOpen = false),
+                  icon: const Icon(Icons.close, color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              color: const Color(0xFFF8FAFC),
+              child: ListView.builder(
+                controller: _aiAssistantScrollController,
+                padding: const EdgeInsets.all(AppSpacing.s12),
+                itemCount:
+                    _aiAssistantMessages.length +
+                    (_isAiAssistantLoading ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (_isAiAssistantLoading &&
+                      index == _aiAssistantMessages.length) {
+                    return Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: AppSpacing.s8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.s12,
+                          vertical: AppSpacing.s10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: const Text(
+                          'Réflexion en cours...',
+                          style: TextStyle(
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  final message = _aiAssistantMessages[index];
+                  final isUser = message.role == 'user';
+                  return Align(
+                    alignment: isUser
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: AppSpacing.s8),
+                      constraints: BoxConstraints(
+                        maxWidth: width * (isMobile ? 0.84 : 0.8),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.s12,
+                        vertical: AppSpacing.s10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isUser ? const Color(0xFF0F766E) : Colors.white,
+                        borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(16),
+                          topRight: const Radius.circular(16),
+                          bottomLeft: Radius.circular(isUser ? 16 : 5),
+                          bottomRight: Radius.circular(isUser ? 5 : 16),
+                        ),
+                        border: Border.all(
+                          color: isUser
+                              ? const Color(0xFF0D9488)
+                              : const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                      child: Text(
+                        message.text,
+                        style: TextStyle(
+                          color: isUser
+                              ? Colors.white
+                              : const Color(0xFF1E293B),
+                          fontWeight: FontWeight.w600,
+                          height: 1.38,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.s10,
+              AppSpacing.s10,
+              AppSpacing.s10,
+              AppSpacing.s10,
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _aiAssistantInputController,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _sendAIAssistantMessage(),
+                    minLines: 1,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      hintText: 'Posez une question sur l’élevage...',
+                      filled: true,
+                      fillColor: const Color(0xFFF1F5F9),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.s12,
+                        vertical: AppSpacing.s10,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.s8),
+                SizedBox(
+                  width: 42,
+                  height: 42,
+                  child: FilledButton(
+                    onPressed: _isAiAssistantLoading
+                        ? null
+                        : _sendAIAssistantMessage,
+                    style: FilledButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      backgroundColor: _durocChatHeader,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Icon(Icons.send_rounded, size: 18),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _scrollAIAssistantToBottom({bool jumpOnly = false}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_aiAssistantScrollController.hasClients) {
+        return;
+      }
+      final target = _aiAssistantScrollController.position.maxScrollExtent;
+      if (jumpOnly) {
+        _aiAssistantScrollController.jumpTo(target);
+        return;
+      }
+      _aiAssistantScrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  Future<void> _sendAIAssistantMessage() async {
+    final message = _aiAssistantInputController.text.trim();
+    if (message.isEmpty || _isAiAssistantLoading) {
+      return;
+    }
+
+    _aiAssistantInputController.clear();
+    setState(() {
+      _aiAssistantMessages.add(
+        _AIAssistantMessage(role: 'user', text: message),
+      );
+      _isAiAssistantLoading = true;
+    });
+    _scrollAIAssistantToBottom();
+
+    try {
+      final response = await _generateAIAssistantResponse(message);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _aiAssistantMessages.add(
+          _AIAssistantMessage(role: 'model', text: response),
+        );
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _aiAssistantMessages.add(
+          const _AIAssistantMessage(
+            role: 'model',
+            text:
+                'Une erreur est survenue lors de la génération. '
+                'Veuillez réessayer dans quelques instants.',
+          ),
+        );
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isAiAssistantLoading = false);
+        _scrollAIAssistantToBottom();
+      }
+    }
+  }
+
+  Future<String> _generateAIAssistantResponse(String userMessage) async {
+    const apiKey = String.fromEnvironment('GEMINI_API_KEY');
+    final normalizedApiKey = apiKey.trim();
+    if (normalizedApiKey.isEmpty) {
+      return 'Assistant IA non configuré. Ajoutez votre clé Gemini avec '
+          '`--dart-define=GEMINI_API_KEY=...` puis relancez l’application.';
+    }
+
+    final model = GenerativeModel(
+      model: _geminiModelName,
+      apiKey: normalizedApiKey,
+      systemInstruction: Content.system(_geminiSystemPrompt),
+    );
+    final prompt =
+        'Tu es un expert en élevage porcin et en insémination artificielle. '
+        'Réponds en français de manière claire et opérationnelle.\n'
+        'Question utilisateur: $userMessage';
+    final response = await model.generateContent([Content.text(prompt)]);
+    final text = (response.text ?? '').trim();
+    if (text.isEmpty) {
+      return 'Je n’ai pas pu générer de réponse exploitable. '
+          'Peux-tu reformuler la question ?';
+    }
+    return text;
   }
 
   int _headerNotificationCount() {
@@ -23212,4 +23621,11 @@ class _BiosecurityItem {
     required this.detail,
     required this.ok,
   });
+}
+
+class _AIAssistantMessage {
+  final String role;
+  final String text;
+
+  const _AIAssistantMessage({required this.role, required this.text});
 }

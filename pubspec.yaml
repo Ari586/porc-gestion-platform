@@ -40,6 +40,7 @@ dependencies:
   file_picker: ^10.0.0
   shared_preferences: ^2.5.3
   crypto: ^3.0.6
+  google_generative_ai: ^0.4.7
   firebase_core: ^3.15.1
   cloud_firestore: ^5.6.8
 
