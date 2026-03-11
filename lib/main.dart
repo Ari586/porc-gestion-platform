@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:crypto/crypto.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -626,6 +626,7 @@ class ChatMessage {
   final String callType;
   final String callStatus;
   final int callDurationSeconds;
+  final String callSessionId;
 
   const ChatMessage({
     required this.id,
@@ -643,6 +644,7 @@ class ChatMessage {
     this.callType = '',
     this.callStatus = '',
     this.callDurationSeconds = 0,
+    this.callSessionId = '',
   });
 
   ChatMessage copyWith({List<String>? readByUserIds}) {
@@ -662,6 +664,7 @@ class ChatMessage {
       callType: callType,
       callStatus: callStatus,
       callDurationSeconds: callDurationSeconds,
+      callSessionId: callSessionId,
     );
   }
 }
@@ -831,6 +834,10 @@ class _MainScreenState extends State<MainScreen> {
   static const int _cloudChatSyncLimit = 180;
   static const int _cloudNewsSyncLimit = 80;
   static const int _cloudInlineMediaBase64MaxLength = 48000;
+  static const int _incomingCallMaxAgeMinutes = 2;
+  static const String _callRingingStatus = 'En sonnerie';
+  static const String _callAcceptedStatus = 'Accepté';
+  static const String _callRejectedStatus = 'Refusé';
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _loginController = TextEditingController();
@@ -871,6 +878,8 @@ class _MainScreenState extends State<MainScreen> {
   int _lastCloudVersionSeen = 0;
   bool _cloudSyncActive = false;
   bool _cloudApplyingSnapshot = false;
+  _IncomingCallOffer? _incomingCallOffer;
+  Timer? _incomingCallRingtoneTimer;
 
   final List<Boar> _boars = [
     Boar(
@@ -1443,6 +1452,7 @@ class _MainScreenState extends State<MainScreen> {
               child: Column(
                 children: [
                   _buildHeader(isDesktop),
+                  if (_incomingCallOffer != null) _buildIncomingCallBanner(),
                   Expanded(
                     child: SingleChildScrollView(
                       padding: EdgeInsets.all(contentPadding),
@@ -1532,6 +1542,7 @@ class _MainScreenState extends State<MainScreen> {
     _headerSearchController.dispose();
     _cloudSyncDebounceTimer?.cancel();
     _cloudSyncSubscription?.cancel();
+    _stopIncomingCallRingtone();
     _imageBytesCache.clear();
     super.dispose();
   }
@@ -1859,6 +1870,7 @@ class _MainScreenState extends State<MainScreen> {
 
         _stateLoading = false;
       });
+      _syncIncomingCallOffer();
 
       final migrated = _migrateLegacyPasswords();
       if (migrated) {
@@ -2149,8 +2161,9 @@ class _MainScreenState extends State<MainScreen> {
       }
       _lastCloudVersionSeen = remoteVersion;
     });
-    _persistState(pushCloud: false);
     _cloudApplyingSnapshot = false;
+    _syncIncomingCallOffer();
+    _persistState(pushCloud: false);
   }
 
   List<Map<String, dynamic>> _readObjectMapList(dynamic value) {
@@ -2191,6 +2204,7 @@ class _MainScreenState extends State<MainScreen> {
       'callType': message.callType,
       'callStatus': message.callStatus,
       'callDurationSeconds': message.callDurationSeconds,
+      'callSessionId': message.callSessionId,
     };
   }
 
@@ -3206,6 +3220,7 @@ class _MainScreenState extends State<MainScreen> {
       'callType': message.callType,
       'callStatus': message.callStatus,
       'callDurationSeconds': message.callDurationSeconds,
+      'callSessionId': message.callSessionId,
     };
   }
 
@@ -3226,6 +3241,7 @@ class _MainScreenState extends State<MainScreen> {
     final callType = _readString(json['callType']).trim();
     final callStatus = _readString(json['callStatus']).trim();
     final callDurationSeconds = _readInt(json['callDurationSeconds']);
+    final callSessionId = _readString(json['callSessionId']).trim();
     if (id.isEmpty ||
         conversationId.isEmpty ||
         senderId.isEmpty ||
@@ -3263,6 +3279,7 @@ class _MainScreenState extends State<MainScreen> {
       callType: callType,
       callStatus: callStatus,
       callDurationSeconds: callDurationSeconds,
+      callSessionId: callSessionId,
     );
   }
 
@@ -4016,6 +4033,92 @@ class _MainScreenState extends State<MainScreen> {
               onPressed: _logout,
               icon: const Icon(Icons.logout, color: Color(0xFF334155)),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIncomingCallBanner() {
+    final offer = _incomingCallOffer;
+    if (offer == null) {
+      return const SizedBox.shrink();
+    }
+    final isVideo = offer.callType == 'video';
+    final callLabel = isVideo ? 'Appel vidéo entrant' : 'Appel audio entrant';
+    final subtitle =
+        '${offer.callerName} • ${_chatDayLabel(offer.sentAt)} ${_chatClockLabel(offer.sentAt)}';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s12,
+        vertical: AppSpacing.s8,
+      ),
+      decoration: const BoxDecoration(
+        color: Color(0xFFFFF7ED),
+        border: Border(bottom: BorderSide(color: Color(0xFFFED7AA))),
+      ),
+      child: Wrap(
+        spacing: AppSpacing.s10,
+        runSpacing: AppSpacing.s8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.s8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEA580C).withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              isVideo ? Icons.videocam_rounded : Icons.call_rounded,
+              color: const Color(0xFFB45309),
+              size: 18,
+            ),
+          ),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  callLabel,
+                  style: const TextStyle(
+                    color: Color(0xFF7C2D12),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF9A3412),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          OutlinedButton.icon(
+            onPressed: _rejectIncomingCallOffer,
+            icon: const Icon(Icons.call_end_outlined, size: 16),
+            label: const Text('Refuser'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFFB91C1C),
+              side: const BorderSide(color: Color(0xFFFCA5A5)),
+            ),
+          ),
+          FilledButton.icon(
+            onPressed: _acceptIncomingCallOffer,
+            icon: const Icon(Icons.call, size: 16),
+            label: const Text('Accepter'),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF15803D),
+              foregroundColor: Colors.white,
+            ),
+          ),
         ],
       ),
     );
@@ -18767,6 +18870,7 @@ class _MainScreenState extends State<MainScreen> {
       _loginLockedUntil = null;
       _lastAuthAt = DateTime.now();
     });
+    _syncIncomingCallOffer();
     _addAuditLog(
       module: 'AUTH',
       action: 'LOGIN_SUCCESS',
@@ -18790,7 +18894,9 @@ class _MainScreenState extends State<MainScreen> {
       _activeTab = AppTabs.dashboard;
       _hidePassword = true;
       _lastAuthAt = null;
+      _incomingCallOffer = null;
     });
+    _stopIncomingCallRingtone();
     _persistState();
     _loginController.clear();
     _passwordController.clear();
@@ -19654,6 +19760,240 @@ class _MainScreenState extends State<MainScreen> {
     return 'DM|${ids[0]}|${ids[1]}';
   }
 
+  String _callSessionIdForMessage(ChatMessage message) {
+    final sessionId = message.callSessionId.trim();
+    if (sessionId.isNotEmpty) {
+      return sessionId;
+    }
+    return message.id;
+  }
+
+  bool _isCallRingingStatus(String status) {
+    final normalized = _normalizeLookup(status);
+    if (normalized.isEmpty) {
+      return false;
+    }
+    return normalized.contains('sonnerie') || normalized.contains('ringing');
+  }
+
+  ChatMessage? _findLatestIncomingCallInvitation() {
+    final sorted = List<ChatMessage>.from(_chatMessages)
+      ..sort((a, b) => b.sentAt.compareTo(a.sentAt));
+    final closedSessions = <String>{};
+    for (final message in sorted) {
+      if (_normalizeLookup(message.messageType) != 'call') {
+        continue;
+      }
+      if (!_isConversationVisibleForCurrentUser(message.conversationId)) {
+        continue;
+      }
+      final sessionId = _callSessionIdForMessage(message);
+      if (closedSessions.contains(sessionId)) {
+        continue;
+      }
+      if (!_isCallRingingStatus(message.callStatus)) {
+        closedSessions.add(sessionId);
+        continue;
+      }
+      if (DateTime.now().difference(message.sentAt).inMinutes >
+          _incomingCallMaxAgeMinutes) {
+        closedSessions.add(sessionId);
+        continue;
+      }
+      if (message.senderId == _currentUser.id) {
+        continue;
+      }
+      return message;
+    }
+    return null;
+  }
+
+  void _playIncomingCallTone() {
+    try {
+      SystemSound.play(SystemSoundType.alert);
+    } catch (_) {
+      // Keep ringing workflow even if sound API is unavailable.
+    }
+  }
+
+  void _startIncomingCallRingtone() {
+    if (_incomingCallOffer == null || !_isAuthenticated) {
+      return;
+    }
+    if (_incomingCallRingtoneTimer != null) {
+      return;
+    }
+    _playIncomingCallTone();
+    _incomingCallRingtoneTimer = Timer.periodic(const Duration(seconds: 2), (
+      _,
+    ) {
+      if (!mounted || !_isAuthenticated || _incomingCallOffer == null) {
+        _stopIncomingCallRingtone();
+        return;
+      }
+      _playIncomingCallTone();
+    });
+  }
+
+  void _stopIncomingCallRingtone() {
+    _incomingCallRingtoneTimer?.cancel();
+    _incomingCallRingtoneTimer = null;
+  }
+
+  void _syncIncomingCallOffer() {
+    if (!mounted || !_isAuthenticated) {
+      if (_incomingCallOffer != null) {
+        setState(() => _incomingCallOffer = null);
+      }
+      _stopIncomingCallRingtone();
+      return;
+    }
+
+    final incoming = _findLatestIncomingCallInvitation();
+    if (incoming == null) {
+      if (_incomingCallOffer != null) {
+        setState(() => _incomingCallOffer = null);
+      }
+      _stopIncomingCallRingtone();
+      return;
+    }
+
+    final sessionId = _callSessionIdForMessage(incoming);
+    if (_incomingCallOffer?.sessionId == sessionId) {
+      _startIncomingCallRingtone();
+      return;
+    }
+
+    setState(() {
+      _incomingCallOffer = _IncomingCallOffer(
+        sessionId: sessionId,
+        conversationId: incoming.conversationId,
+        callerId: incoming.senderId,
+        callerName: incoming.senderName,
+        callType: incoming.callType.trim().toLowerCase() == 'video'
+            ? 'video'
+            : 'audio',
+        sentAt: incoming.sentAt,
+      );
+    });
+    _startIncomingCallRingtone();
+    _showInfo(
+      'Appel ${_incomingCallOffer!.callType == 'video' ? 'vidéo' : 'audio'} entrant: ${_incomingCallOffer!.callerName}',
+    );
+  }
+
+  Future<void> _acceptIncomingCallOffer() async {
+    final offer = _incomingCallOffer;
+    if (offer == null) {
+      return;
+    }
+    if (!_canCurrentUserPostToConversation(offer.conversationId)) {
+      _showError(_teamConversationAccessError());
+      return;
+    }
+    final callLabel = offer.callType == 'video' ? 'vidéo' : 'audio';
+    _stopIncomingCallRingtone();
+    setState(() {
+      _incomingCallOffer = null;
+      _activeChatConversationId = offer.conversationId;
+      _activeTab = AppTabs.messenger;
+    });
+
+    _appendChatMessage(
+      ChatMessage(
+        id: _newId('MSG'),
+        conversationId: offer.conversationId,
+        senderId: _currentUser.id,
+        senderName: _currentUser.name,
+        text: 'Appel $callLabel accepté',
+        sentAt: DateTime.now(),
+        readByUserIds: [_currentUser.id],
+        messageType: 'call',
+        callType: offer.callType,
+        callStatus: _callAcceptedStatus,
+        callSessionId: offer.sessionId,
+      ),
+    );
+    _addAuditLog(
+      module: 'MESSAGERIE',
+      action: 'ACCEPT_CALL',
+      detail: 'Appel $callLabel accepté (${offer.callerName})',
+    );
+
+    final durationSeconds = await _showActiveCallDialog(
+      callType: offer.callType,
+      title: offer.callerName,
+    );
+    if (!mounted) {
+      return;
+    }
+
+    final callStatus = durationSeconds == null ? 'Manqué' : 'Terminé';
+    final callText = durationSeconds == null
+        ? 'Appel $callLabel manqué'
+        : 'Appel $callLabel terminé (${_formatDuration(durationSeconds)})';
+    _appendChatMessage(
+      ChatMessage(
+        id: _newId('MSG'),
+        conversationId: offer.conversationId,
+        senderId: _currentUser.id,
+        senderName: _currentUser.name,
+        text: callText,
+        sentAt: DateTime.now(),
+        readByUserIds: [_currentUser.id],
+        messageType: 'call',
+        callType: offer.callType,
+        callStatus: callStatus,
+        callDurationSeconds: durationSeconds ?? 0,
+        callSessionId: offer.sessionId,
+      ),
+    );
+    _addAuditLog(
+      module: 'MESSAGERIE',
+      action: durationSeconds == null ? 'MISS_CALL' : 'END_CALL',
+      detail: durationSeconds == null
+          ? 'Appel $callLabel manqué (${offer.callerName})'
+          : 'Appel $callLabel terminé (${offer.callerName}, ${_formatDuration(durationSeconds)})',
+    );
+    _persistState();
+    _syncIncomingCallOffer();
+  }
+
+  void _rejectIncomingCallOffer() {
+    final offer = _incomingCallOffer;
+    if (offer == null) {
+      return;
+    }
+    if (!_canCurrentUserPostToConversation(offer.conversationId)) {
+      _showError(_teamConversationAccessError());
+      return;
+    }
+    final callLabel = offer.callType == 'video' ? 'vidéo' : 'audio';
+    _stopIncomingCallRingtone();
+    setState(() => _incomingCallOffer = null);
+    _appendChatMessage(
+      ChatMessage(
+        id: _newId('MSG'),
+        conversationId: offer.conversationId,
+        senderId: _currentUser.id,
+        senderName: _currentUser.name,
+        text: 'Appel $callLabel refusé',
+        sentAt: DateTime.now(),
+        readByUserIds: [_currentUser.id],
+        messageType: 'call',
+        callType: offer.callType,
+        callStatus: _callRejectedStatus,
+        callSessionId: offer.sessionId,
+      ),
+    );
+    _addAuditLog(
+      module: 'MESSAGERIE',
+      action: 'REJECT_CALL',
+      detail: 'Appel $callLabel refusé (${offer.callerName})',
+    );
+    _persistState();
+  }
+
   bool _isTeamConversationRoleAllowed(String role) {
     final normalized = _normalizeLookup(role);
     return normalized == _normalizeLookup(Roles.admin) ||
@@ -19943,6 +20283,7 @@ class _MainScreenState extends State<MainScreen> {
     if (clearComposer) {
       _chatComposerController.clear();
     }
+    _syncIncomingCallOffer();
     _persistState();
   }
 
@@ -20138,7 +20479,11 @@ class _MainScreenState extends State<MainScreen> {
       _showError(_teamConversationAccessError());
       return;
     }
-    final callLabel = callType == 'video' ? 'vidéo' : 'audio';
+    final normalizedType = callType.trim().toLowerCase() == 'video'
+        ? 'video'
+        : 'audio';
+    final sessionId = _newId('CALL');
+    final callLabel = normalizedType == 'video' ? 'vidéo' : 'audio';
     final title = targetConversationId == _teamConversationId
         ? 'Canal Équipe'
         : _conversationTitleById(targetConversationId);
@@ -20149,63 +20494,24 @@ class _MainScreenState extends State<MainScreen> {
         conversationId: targetConversationId,
         senderId: _currentUser.id,
         senderName: _currentUser.name,
-        text: 'Appel $callLabel lancé',
+        text: 'Appel $callLabel entrant',
         sentAt: DateTime.now(),
         readByUserIds: [_currentUser.id],
         messageType: 'call',
-        callType: callType,
-        callStatus: 'En cours',
+        callType: normalizedType,
+        callStatus: _callRingingStatus,
+        callSessionId: sessionId,
       ),
     );
     _addAuditLog(
       module: 'MESSAGERIE',
       action: 'START_CALL',
-      detail: 'Appel $callLabel lancé ($title)',
+      detail: 'Appel $callLabel en sonnerie ($title)',
     );
     _persistState();
-
-    final durationSeconds = await _showActiveCallDialog(
-      callType: callType,
-      title: title,
+    _showInfo(
+      'Appel $callLabel en sonnerie. Le destinataire peut accepter ou refuser.',
     );
-    if (!mounted) {
-      return;
-    }
-
-    final callStatus = durationSeconds == null ? 'Manqué' : 'Terminé';
-    final text = durationSeconds == null
-        ? 'Appel $callLabel manqué'
-        : 'Appel $callLabel terminé (${_formatDuration(durationSeconds)})';
-    _appendChatMessage(
-      ChatMessage(
-        id: _newId('MSG'),
-        conversationId: targetConversationId,
-        senderId: _currentUser.id,
-        senderName: _currentUser.name,
-        text: text,
-        sentAt: DateTime.now(),
-        readByUserIds: [_currentUser.id],
-        messageType: 'call',
-        callType: callType,
-        callStatus: callStatus,
-        callDurationSeconds: durationSeconds ?? 0,
-      ),
-    );
-    _addAuditLog(
-      module: 'MESSAGERIE',
-      action: durationSeconds == null ? 'MISS_CALL' : 'END_CALL',
-      detail: durationSeconds == null
-          ? 'Appel $callLabel non abouti ($title)'
-          : 'Appel $callLabel terminé ($title, ${_formatDuration(durationSeconds)})',
-    );
-    _persistState();
-    if (durationSeconds == null) {
-      _showError('Appel $callLabel non abouti.');
-    } else {
-      _showInfo(
-        'Appel $callLabel terminé (${_formatDuration(durationSeconds)}).',
-      );
-    }
   }
 
   String _conversationTitleById(String conversationId) {
@@ -20283,7 +20589,7 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                   const SizedBox(height: AppSpacing.s10),
                   const Text(
-                    'Simulation locale: journal d’appel enregistré dans la messagerie.',
+                    'Appel en cours. Utilisez "Terminer" pour clôturer le journal d’appel.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Color(0xFF64748B),
@@ -20506,6 +20812,11 @@ class _MainScreenState extends State<MainScreen> {
       final status = message.callStatus.trim().isEmpty
           ? 'Journal'
           : message.callStatus.trim();
+      final canRespond =
+          !isMine &&
+          _isCallRingingStatus(status) &&
+          _incomingCallOffer != null &&
+          _incomingCallOffer!.sessionId == _callSessionIdForMessage(message);
       final duration = message.callDurationSeconds > 0
           ? ' • ${_formatDuration(message.callDurationSeconds)}'
           : '';
@@ -20550,6 +20861,23 @@ class _MainScreenState extends State<MainScreen> {
                       fontSize: 11,
                     ),
                   ),
+                  if (canRespond) ...[
+                    const SizedBox(height: AppSpacing.s6),
+                    Wrap(
+                      spacing: AppSpacing.s8,
+                      runSpacing: AppSpacing.s6,
+                      children: [
+                        OutlinedButton(
+                          onPressed: _rejectIncomingCallOffer,
+                          child: const Text('Refuser'),
+                        ),
+                        FilledButton(
+                          onPressed: _acceptIncomingCallOffer,
+                          child: const Text('Accepter'),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -21665,6 +21993,24 @@ class _ChatConversationSummary {
     required this.avatarLabel,
     required this.avatarColor,
     this.isGroup = false,
+  });
+}
+
+class _IncomingCallOffer {
+  final String sessionId;
+  final String conversationId;
+  final String callerId;
+  final String callerName;
+  final String callType;
+  final DateTime sentAt;
+
+  const _IncomingCallOffer({
+    required this.sessionId,
+    required this.conversationId,
+    required this.callerId,
+    required this.callerName,
+    required this.callType,
+    required this.sentAt,
   });
 }
 
