@@ -8,11 +8,14 @@ import 'package:file_picker/file_picker.dart';
 import 'package:crypto/crypto.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'webrtc_call_service.dart';
 
 const String _defaultFirebaseApiKey = 'AIzaSyAJhP6o3q9VVSdNjAdCoulSn4qBZfnvdMk';
 const String _defaultFirebaseAppId =
@@ -855,7 +858,11 @@ class _MainScreenState extends State<MainScreen> {
   static const int _cloudNewsSyncLimit = 80;
   static const int _cloudAuditSyncLimit = 240;
   static const int _cloudInlineMediaBase64MaxLength = 48000;
-  static const int _incomingCallMaxAgeMinutes = 2;
+  static const int _cloudChatPayloadBudgetBytes = 760 * 1024;
+  static const int _cloudNewsPayloadBudgetBytes = 420 * 1024;
+  static const int _cloudChatFallbackSyncLimit = 90;
+  static const int _cloudNewsFallbackSyncLimit = 40;
+  static const int _incomingCallMaxAgeMinutes = 12;
   static const String _callRingingStatus = 'En sonnerie';
   static const String _callAcceptedStatus = 'Accepté';
   static const String _callRejectedStatus = 'Refusé';
@@ -911,6 +918,11 @@ class _MainScreenState extends State<MainScreen> {
   bool _cloudApplyingSnapshot = false;
   _IncomingCallOffer? _incomingCallOffer;
   Timer? _incomingCallRingtoneTimer;
+  WebRTCCallService? _activeWebRTCService;
+  String? _activeCallSessionId;
+  bool _isInLiveCall = false;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+      _webrtcSignalingSubscription;
 
   final List<Boar> _boars = [
     Boar(
@@ -1487,8 +1499,7 @@ class _MainScreenState extends State<MainScreen> {
                   child: Column(
                     children: [
                       if (!isMessengerMobileFullBleed) _buildHeader(isDesktop),
-                      if (!isMessengerMobileFullBleed &&
-                          _incomingCallOffer != null)
+                      if (_incomingCallOffer != null)
                         _buildIncomingCallBanner(),
                       Expanded(
                         child: isMessengerMobileFullBleed
@@ -1588,6 +1599,10 @@ class _MainScreenState extends State<MainScreen> {
     }
     _cloudSyncSubscriptions.clear();
     _stopIncomingCallRingtone();
+    _activeWebRTCService?.dispose();
+    _activeWebRTCService = null;
+    _webrtcSignalingSubscription?.cancel();
+    _webrtcSignalingSubscription = null;
     _imageBytesCache.clear();
     super.dispose();
   }
@@ -2106,6 +2121,12 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  int _nextCloudVersionForDocument(String documentId) {
+    final nowVersion = DateTime.now().millisecondsSinceEpoch;
+    final seenVersion = _cloudVersionSeenForDocument(documentId);
+    return nowVersion > seenVersion ? nowVersion : seenVersion + 1;
+  }
+
   int _readCloudVersion(Map<String, dynamic> data) {
     var remoteVersion = _readInt(data['version']);
     if (remoteVersion <= 0) {
@@ -2253,7 +2274,77 @@ class _MainScreenState extends State<MainScreen> {
     _cloudSyncActive = connected;
     if (connected) {
       _scheduleCloudSyncPush();
+      _startWebRTCSignalingListener();
     }
+  }
+
+  /// Listen in real-time for incoming WebRTC call offers addressed to the
+  /// current user. This is much faster than waiting for the bulk chat_v2
+  /// document to sync.
+  void _startWebRTCSignalingListener() {
+    _webrtcSignalingSubscription?.cancel();
+    _webrtcSignalingSubscription = null;
+    if (!_isAuthenticated || _currentUser.id.trim().isEmpty) return;
+
+    final query = FirebaseFirestore.instance
+        .collection('porc_webrtc_signaling')
+        .where('calleeId', isEqualTo: _currentUser.id)
+        .where('hangUp', isEqualTo: false);
+
+    _webrtcSignalingSubscription = query.snapshots().listen((snapshot) {
+      if (!mounted || !_isAuthenticated) return;
+      for (final change in snapshot.docChanges) {
+        if (change.type != DocumentChangeType.added) continue;
+        final data = change.doc.data();
+        if (data == null) continue;
+        if (data['hangUp'] == true) continue;
+        if (data['answer'] != null) continue; // already answered
+
+        final sessionId = change.doc.id;
+        // Skip if we are already handling this call.
+        if (_incomingCallOffer?.sessionId == sessionId) continue;
+        if (_activeCallSessionId == sessionId) continue;
+
+        final callerId = (data['callerId'] as String?)?.trim() ?? '';
+        final callerName = (data['callerName'] as String?)?.trim() ?? '';
+        final callType = (data['callType'] as String?)?.trim() ?? 'audio';
+        final conversationId =
+            (data['conversationId'] as String?)?.trim() ?? '';
+
+        if (callerId.isEmpty || callerId == _currentUser.id) continue;
+        if (!_isConversationVisibleForCurrentUser(conversationId)) continue;
+
+        // Check age — ignore calls older than max age.
+        final createdAt = data['createdAt'];
+        if (createdAt is Timestamp) {
+          final age = DateTime.now().difference(createdAt.toDate()).inMinutes;
+          if (age > _incomingCallMaxAgeMinutes) continue;
+        }
+
+        setState(() {
+          _incomingCallOffer = _IncomingCallOffer(
+            sessionId: sessionId,
+            conversationId: conversationId,
+            callerId: callerId,
+            callerName: callerName.isEmpty ? callerId : callerName,
+            callType: callType == 'video' ? 'video' : 'audio',
+            sentAt: createdAt is Timestamp
+                ? createdAt.toDate()
+                : DateTime.now(),
+          );
+          if (_canAccessTab(AppTabs.messenger)) {
+            _activeTab = AppTabs.messenger;
+            _activeChatConversationId = conversationId;
+            _isMobileMessengerThreadOpen = true;
+          }
+        });
+        _startIncomingCallRingtone();
+        _showInfo(
+          'Appel ${callType == 'video' ? 'vidéo' : 'audio'} entrant: ${callerName.isEmpty ? callerId : callerName}',
+        );
+        break; // process only the first new incoming call
+      }
+    }, onError: (_) {});
   }
 
   void _scheduleCloudSyncPush() {
@@ -2291,25 +2382,72 @@ class _MainScreenState extends State<MainScreen> {
       return;
     }
 
-    final version = DateTime.now().millisecondsSinceEpoch;
     final pushJobs = <Future<void>>[];
     for (final documentId in _cloudSyncDocumentIds) {
-      final payload = _buildCloudPayloadForDocument(documentId, version);
-      pushJobs.add(
-        _cloudSyncDocRef(documentId)
-            .set(payload, SetOptions(merge: true))
-            .then((_) {
-              _markCloudVersionSeen(documentId, version);
-            })
-            .catchError((_) {
-              // Keep app usable offline or when backend is unavailable.
-            }),
-      );
+      pushJobs.add(_pushCloudDocumentSnapshot(documentId));
     }
     try {
       await Future.wait(pushJobs);
     } catch (_) {
       // Defensive catch in case one of the jobs escapes local error handling.
+    }
+  }
+
+  Future<void> _pushCloudDocumentSnapshot(String documentId) async {
+    final version = _nextCloudVersionForDocument(documentId);
+    final payload = _buildCloudPayloadForDocument(documentId, version);
+    try {
+      await _cloudSyncDocRef(documentId).set(payload, SetOptions(merge: true));
+      _markCloudVersionSeen(documentId, version);
+      return;
+    } catch (_) {
+      final fallbackPayload = _buildFallbackCloudPayloadForDocument(
+        documentId,
+        version,
+      );
+      if (fallbackPayload == null) {
+        return;
+      }
+      try {
+        await _cloudSyncDocRef(
+          documentId,
+        ).set(fallbackPayload, SetOptions(merge: true));
+        _markCloudVersionSeen(documentId, version);
+      } catch (_) {
+        // Keep app usable offline or when backend is unavailable.
+      }
+    }
+  }
+
+  Map<String, dynamic>? _buildFallbackCloudPayloadForDocument(
+    String documentId,
+    int version,
+  ) {
+    switch (documentId) {
+      case _cloudChatSyncDocumentId:
+        return _cloudPayloadEnvelope(
+          version: version,
+          data: {
+            'chatMessages': _buildCloudChatPayload(
+              maxMessages: _cloudChatFallbackSyncLimit,
+              budgetBytes: _cloudChatPayloadBudgetBytes ~/ 2,
+              includeMedia: false,
+            ),
+          },
+        );
+      case _cloudNewsSyncDocumentId:
+        return _cloudPayloadEnvelope(
+          version: version,
+          data: {
+            'newsPosts': _buildCloudNewsPayload(
+              maxPosts: _cloudNewsFallbackSyncLimit,
+              budgetBytes: _cloudNewsPayloadBudgetBytes ~/ 2,
+              includeImages: false,
+            ),
+          },
+        );
+      default:
+        return null;
     }
   }
 
@@ -2481,16 +2619,11 @@ class _MainScreenState extends State<MainScreen> {
           break;
         case _cloudChatSyncDocumentId:
           if (data.containsKey('chatMessages')) {
-            final sortedChat = _readCloudModelList(
+            final incomingChat = _readCloudModelList(
               data['chatMessages'],
               _chatMessageFromJson,
-            )..sort((a, b) => a.sentAt.compareTo(b.sentAt));
-            if (sortedChat.length > 2500) {
-              sortedChat.removeRange(0, sortedChat.length - 2500);
-            }
-            _chatMessages
-              ..clear()
-              ..addAll(sortedChat);
+            );
+            _mergeChatMessagesInState(incomingChat);
           }
           break;
         case _cloudNewsSyncDocumentId:
@@ -2591,15 +2724,126 @@ class _MainScreenState extends State<MainScreen> {
     ]);
   }
 
-  List<Map<String, dynamic>> _buildCloudChatPayload() {
+  List<Map<String, dynamic>> _buildCloudChatPayload({
+    int maxMessages = _cloudChatSyncLimit,
+    int budgetBytes = _cloudChatPayloadBudgetBytes,
+    bool includeMedia = true,
+  }) {
     final sorted = List<ChatMessage>.from(_chatMessages)
       ..sort((a, b) => a.sentAt.compareTo(b.sentAt));
-    final fromIndex = math.max(0, sorted.length - _cloudChatSyncLimit);
+    final fromIndex = math.max(0, sorted.length - maxMessages);
     final limited = sorted.sublist(fromIndex);
-    return limited.map(_chatMessageToCloudJson).toList();
+
+    final payload = <Map<String, dynamic>>[];
+    var payloadBytes = 2;
+    for (var index = limited.length - 1; index >= 0; index--) {
+      final message = limited[index];
+      var candidate = _chatMessageToCloudJson(
+        message,
+        includeMedia: includeMedia,
+      );
+      var candidateBytes = _estimateJsonBytes(candidate) + 1;
+      if (payloadBytes + candidateBytes > budgetBytes && includeMedia) {
+        candidate = _chatMessageToCloudJson(message, includeMedia: false);
+        candidateBytes = _estimateJsonBytes(candidate) + 1;
+      }
+      if (payloadBytes + candidateBytes > budgetBytes) {
+        if (payload.isEmpty) {
+          payload.add(_chatMessageToCloudJson(message, includeMedia: false));
+        }
+        break;
+      }
+      payload.insert(0, candidate);
+      payloadBytes += candidateBytes;
+    }
+
+    return payload;
   }
 
-  Map<String, dynamic> _chatMessageToCloudJson(ChatMessage message) {
+  void _mergeChatMessagesInState(List<ChatMessage> incomingMessages) {
+    if (incomingMessages.isEmpty) {
+      return;
+    }
+    final byId = <String, ChatMessage>{};
+    for (final message in _chatMessages) {
+      byId[message.id] = message;
+    }
+    for (final incoming in incomingMessages) {
+      final existing = byId[incoming.id];
+      if (existing == null) {
+        byId[incoming.id] = incoming;
+        continue;
+      }
+      byId[incoming.id] = _mergeChatMessage(existing, incoming);
+    }
+    final merged = byId.values.toList()
+      ..sort((a, b) => a.sentAt.compareTo(b.sentAt));
+    if (merged.length > 2500) {
+      merged.removeRange(0, merged.length - 2500);
+    }
+    _chatMessages
+      ..clear()
+      ..addAll(merged);
+  }
+
+  ChatMessage _mergeChatMessage(ChatMessage current, ChatMessage incoming) {
+    final mergedReadBy = <String>{
+      ...current.readByUserIds,
+      ...incoming.readByUserIds,
+    }.toList();
+    mergedReadBy.sort();
+
+    return ChatMessage(
+      id: current.id,
+      conversationId: incoming.conversationId.trim().isEmpty
+          ? current.conversationId
+          : incoming.conversationId,
+      senderId: incoming.senderId.trim().isEmpty
+          ? current.senderId
+          : incoming.senderId,
+      senderName: incoming.senderName.trim().isEmpty
+          ? current.senderName
+          : incoming.senderName,
+      text: incoming.text.trim().isNotEmpty ? incoming.text : current.text,
+      sentAt: incoming.sentAt.isAfter(current.sentAt)
+          ? incoming.sentAt
+          : current.sentAt,
+      readByUserIds: mergedReadBy,
+      messageType: incoming.messageType.trim().isEmpty
+          ? current.messageType
+          : incoming.messageType,
+      mediaBase64: incoming.mediaBase64.trim().isNotEmpty
+          ? incoming.mediaBase64
+          : current.mediaBase64,
+      mediaName: incoming.mediaName.trim().isNotEmpty
+          ? incoming.mediaName
+          : current.mediaName,
+      mediaMimeType: incoming.mediaMimeType.trim().isNotEmpty
+          ? incoming.mediaMimeType
+          : current.mediaMimeType,
+      mediaSizeBytes: incoming.mediaSizeBytes > 0
+          ? incoming.mediaSizeBytes
+          : current.mediaSizeBytes,
+      callType: incoming.callType.trim().isNotEmpty
+          ? incoming.callType
+          : current.callType,
+      callStatus: incoming.callStatus.trim().isNotEmpty
+          ? incoming.callStatus
+          : current.callStatus,
+      callDurationSeconds: math.max(
+        current.callDurationSeconds,
+        incoming.callDurationSeconds,
+      ),
+      callSessionId: incoming.callSessionId.trim().isNotEmpty
+          ? incoming.callSessionId
+          : current.callSessionId,
+    );
+  }
+
+  Map<String, dynamic> _chatMessageToCloudJson(
+    ChatMessage message, {
+    bool includeMedia = true,
+  }) {
     return {
       'id': message.id,
       'conversationId': message.conversationId,
@@ -2609,10 +2853,10 @@ class _MainScreenState extends State<MainScreen> {
       'sentAt': message.sentAt.toUtc().toIso8601String(),
       'readByUserIds': message.readByUserIds,
       'messageType': message.messageType,
-      'mediaBase64': _cloudTrimBase64(message.mediaBase64),
-      'mediaName': message.mediaName,
-      'mediaMimeType': message.mediaMimeType,
-      'mediaSizeBytes': message.mediaSizeBytes,
+      'mediaBase64': includeMedia ? _cloudTrimBase64(message.mediaBase64) : '',
+      'mediaName': includeMedia ? message.mediaName : '',
+      'mediaMimeType': includeMedia ? message.mediaMimeType : '',
+      'mediaSizeBytes': includeMedia ? message.mediaSizeBytes : 0,
       'callType': message.callType,
       'callStatus': message.callStatus,
       'callDurationSeconds': message.callDurationSeconds,
@@ -2620,14 +2864,38 @@ class _MainScreenState extends State<MainScreen> {
     };
   }
 
-  List<Map<String, dynamic>> _buildCloudNewsPayload() {
+  List<Map<String, dynamic>> _buildCloudNewsPayload({
+    int maxPosts = _cloudNewsSyncLimit,
+    int budgetBytes = _cloudNewsPayloadBudgetBytes,
+    bool includeImages = true,
+  }) {
     final sorted = List<NewsPost>.from(_newsPosts)
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    final limited = sorted.take(_cloudNewsSyncLimit).toList();
-    return limited.map(_newsPostToCloudJson).toList();
+    final limited = sorted.take(maxPosts).toList();
+
+    final payload = <Map<String, dynamic>>[];
+    var payloadBytes = 2;
+    for (final post in limited) {
+      var candidate = _newsPostToCloudJson(post, includeImage: includeImages);
+      var candidateBytes = _estimateJsonBytes(candidate) + 1;
+      if (payloadBytes + candidateBytes > budgetBytes && includeImages) {
+        candidate = _newsPostToCloudJson(post, includeImage: false);
+        candidateBytes = _estimateJsonBytes(candidate) + 1;
+      }
+      if (payloadBytes + candidateBytes > budgetBytes) {
+        break;
+      }
+      payload.add(candidate);
+      payloadBytes += candidateBytes;
+    }
+
+    return payload;
   }
 
-  Map<String, dynamic> _newsPostToCloudJson(NewsPost post) {
+  Map<String, dynamic> _newsPostToCloudJson(
+    NewsPost post, {
+    bool includeImage = true,
+  }) {
     return {
       'id': post.id,
       'authorId': post.authorId,
@@ -2635,10 +2903,13 @@ class _MainScreenState extends State<MainScreen> {
       'authorRole': post.authorRole,
       'text': post.text,
       'createdAt': post.createdAt.toIso8601String(),
-      'imageBase64': _cloudTrimBase64(post.imageBase64),
-      'imageName': post.imageName,
+      'imageBase64': includeImage ? _cloudTrimBase64(post.imageBase64) : '',
+      'imageName': includeImage ? post.imageName : '',
       'likedByUserIds': post.likedByUserIds,
-      'comments': post.comments.take(40).map(_newsCommentToJson).toList(),
+      'comments': post.comments
+          .take(includeImage ? 40 : 20)
+          .map(_newsCommentToJson)
+          .toList(),
     };
   }
 
@@ -2648,6 +2919,14 @@ class _MainScreenState extends State<MainScreen> {
       return '';
     }
     return value;
+  }
+
+  int _estimateJsonBytes(dynamic value) {
+    try {
+      return utf8.encode(jsonEncode(value)).length;
+    } catch (_) {
+      return 0;
+    }
   }
 
   List<Map<String, dynamic>>? _decodeObjectListOrNull(String? raw) {
@@ -21203,7 +21482,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   String _newId(String prefix) {
-    return '$prefix-${DateTime.now().microsecondsSinceEpoch}';
+    return '$prefix-${_cloudClientId.replaceAll('CLIENT-', '')}-${DateTime.now().microsecondsSinceEpoch}';
   }
 
   double? _tryParseAmount(String rawValue) {
@@ -22039,12 +22318,12 @@ class _MainScreenState extends State<MainScreen> {
         closedSessions.add(sessionId);
         continue;
       }
-      final invitationAgeMinutes = now
-          .difference(message.sentAt)
-          .inMinutes
-          .abs();
+      final invitationAgeMinutes = now.difference(message.sentAt).inMinutes;
       if (invitationAgeMinutes > _incomingCallMaxAgeMinutes) {
         closedSessions.add(sessionId);
+        continue;
+      }
+      if (invitationAgeMinutes < -_incomingCallMaxAgeMinutes) {
         continue;
       }
       if (message.senderId == _currentUser.id) {
@@ -22122,6 +22401,11 @@ class _MainScreenState extends State<MainScreen> {
             : 'audio',
         sentAt: incoming.sentAt,
       );
+      if (_canAccessTab(AppTabs.messenger)) {
+        _activeTab = AppTabs.messenger;
+        _activeChatConversationId = incoming.conversationId;
+        _isMobileMessengerThreadOpen = true;
+      }
     });
     _startIncomingCallRingtone();
     _showInfo(
@@ -22167,11 +22451,31 @@ class _MainScreenState extends State<MainScreen> {
       detail: 'Appel $callLabel accepté (${offer.callerName})',
     );
 
-    final durationSeconds = await _showActiveCallDialog(
+    // --- WebRTC: initialize and answer ---
+    final service = WebRTCCallService();
+    try {
+      await service.initialize(isVideo: offer.callType == 'video');
+      await service.answerCall(offer.sessionId);
+    } catch (e) {
+      _showError('Impossible de répondre à l\'appel : $e');
+      await service.dispose();
+      return;
+    }
+
+    _activeWebRTCService = service;
+    _activeCallSessionId = offer.sessionId;
+
+    if (!mounted) {
+      await service.dispose();
+      return;
+    }
+
+    final durationSeconds = await _showLiveCallScreen(
       callType: offer.callType,
       title: offer.callerName,
-      remoteUserId: offer.callerId,
-      remoteUserName: offer.callerName,
+      service: service,
+      sessionId: offer.sessionId,
+      isCaller: false,
     );
     if (!mounted) {
       return;
@@ -22241,6 +22545,14 @@ class _MainScreenState extends State<MainScreen> {
       detail: 'Appel $callLabel refusé (${offer.callerName})',
     );
     _persistState(immediateCloudPush: true);
+
+    // Clean up Firestore signaling document so caller detects rejection.
+    try {
+      FirebaseFirestore.instance
+          .collection('porc_webrtc_signaling')
+          .doc(offer.sessionId)
+          .update({'hangUp': true});
+    } catch (_) {}
   }
 
   bool _isTeamConversationUserAllowed(UserProfile user) {
@@ -22518,10 +22830,7 @@ class _MainScreenState extends State<MainScreen> {
 
   void _appendChatMessage(ChatMessage message, {bool clearComposer = false}) {
     setState(() {
-      _chatMessages.add(message);
-      if (_chatMessages.length > 2500) {
-        _chatMessages.removeRange(0, _chatMessages.length - 2500);
-      }
+      _mergeChatMessagesInState([message]);
       _activeChatConversationId = message.conversationId;
       _markConversationAsReadInState(message.conversationId);
     });
@@ -22754,9 +23063,84 @@ class _MainScreenState extends State<MainScreen> {
       detail: 'Appel $callLabel en sonnerie ($title)',
     );
     _persistState(immediateCloudPush: true);
-    _showInfo(
-      'Appel $callLabel en sonnerie. Le destinataire peut accepter ou refuser.',
+
+    // Determine callee ID from conversation for signaling metadata.
+    String calleeId = '';
+    if (targetConversationId.startsWith('DM|')) {
+      final parts = targetConversationId.split('|');
+      if (parts.length == 3) {
+        calleeId = parts[1] == _currentUser.id ? parts[2] : parts[1];
+      }
+    }
+
+    // --- WebRTC: initialize and create offer ---
+    final service = WebRTCCallService();
+    try {
+      await service.initialize(isVideo: normalizedType == 'video');
+    } catch (e) {
+      _showError('Échec caméra/micro : $e');
+      await service.dispose();
+      return;
+    }
+    try {
+      await service.createOffer(sessionId, meta: <String, dynamic>{
+        'callerId': _currentUser.id,
+        'callerName': _currentUser.name,
+        'calleeId': calleeId,
+        'conversationId': targetConversationId,
+        'callType': normalizedType,
+      });
+    } catch (e) {
+      _showError('Échec signalisation : $e');
+      await service.dispose();
+      return;
+    }
+
+    _activeWebRTCService = service;
+    _activeCallSessionId = sessionId;
+
+    if (!mounted) {
+      await service.dispose();
+      return;
+    }
+
+    final durationSeconds = await _showLiveCallScreen(
+      callType: normalizedType,
+      title: title,
+      service: service,
+      sessionId: sessionId,
+      isCaller: true,
     );
+
+    // Call ended → log result
+    final callStatus = durationSeconds == null ? 'Manqué' : 'Terminé';
+    final callText = durationSeconds == null
+        ? 'Appel $callLabel manqué'
+        : 'Appel $callLabel terminé (${_formatDuration(durationSeconds)})';
+    _appendChatMessage(
+      ChatMessage(
+        id: _newId('MSG'),
+        conversationId: targetConversationId,
+        senderId: _currentUser.id,
+        senderName: _currentUser.name,
+        text: callText,
+        sentAt: DateTime.now(),
+        readByUserIds: [_currentUser.id],
+        messageType: 'call',
+        callType: normalizedType,
+        callStatus: callStatus,
+        callDurationSeconds: durationSeconds ?? 0,
+        callSessionId: sessionId,
+      ),
+    );
+    _addAuditLog(
+      module: 'MESSAGERIE',
+      action: durationSeconds == null ? 'MISS_CALL' : 'END_CALL',
+      detail: durationSeconds == null
+          ? 'Appel $callLabel manqué ($title)'
+          : 'Appel $callLabel terminé ($title, ${_formatDuration(durationSeconds)})',
+    );
+    _persistState(immediateCloudPush: true);
   }
 
   String _conversationTitleById(String conversationId) {
@@ -23090,6 +23474,40 @@ class _MainScreenState extends State<MainScreen> {
     final minutes = (safeSeconds ~/ 60).toString().padLeft(2, '0');
     final seconds = (safeSeconds % 60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Live WebRTC call screen (fullscreen overlay)
+  // ---------------------------------------------------------------------------
+
+  /// Opens a fullscreen call screen backed by a real [WebRTCCallService].
+  ///
+  /// Returns the elapsed call duration in seconds, or `null` if the call was
+  /// missed / never connected.
+  Future<int?> _showLiveCallScreen({
+    required String callType,
+    required String title,
+    required WebRTCCallService service,
+    required String sessionId,
+    required bool isCaller,
+  }) async {
+    _isInLiveCall = true;
+    final result = await Navigator.of(context).push<int?>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => _LiveCallPage(
+          callType: callType,
+          title: title,
+          service: service,
+          sessionId: sessionId,
+          isCaller: isCaller,
+        ),
+      ),
+    );
+    _isInLiveCall = false;
+    _activeWebRTCService = null;
+    _activeCallSessionId = null;
+    return result;
   }
 
   String _chatMessagePreview(ChatMessage message) {
@@ -24849,6 +25267,428 @@ class _ServiceBenchmark {
     required this.unit,
     required this.color,
   });
+}
+
+// ---------------------------------------------------------------------------
+// _LiveCallPage — fullscreen WebRTC call screen
+// ---------------------------------------------------------------------------
+
+class _LiveCallPage extends StatefulWidget {
+  final String callType;
+  final String title;
+  final WebRTCCallService service;
+  final String sessionId;
+  final bool isCaller;
+
+  const _LiveCallPage({
+    required this.callType,
+    required this.title,
+    required this.service,
+    required this.sessionId,
+    required this.isCaller,
+  });
+
+  @override
+  State<_LiveCallPage> createState() => _LiveCallPageState();
+}
+
+class _LiveCallPageState extends State<_LiveCallPage> {
+  int _elapsed = 0;
+  Timer? _timer;
+  bool _remoteConnected = false;
+  bool _callEnded = false;
+  bool _isMuted = false;
+  bool _isCameraOff = false;
+
+  bool get _isVideo => widget.callType == 'video';
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() => _elapsed++);
+    });
+
+    widget.service.onRemoteStream = (_) {
+      if (!mounted) return;
+      setState(() => _remoteConnected = true);
+    };
+
+    widget.service.onCallEnded = () {
+      if (!mounted || _callEnded) return;
+      _callEnded = true;
+      Navigator.of(context).pop(_elapsed);
+    };
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _hangUp() async {
+    if (_callEnded) return;
+    _callEnded = true;
+    try {
+      await widget.service.hangUp(widget.sessionId);
+    } catch (_) {}
+    try {
+      await widget.service.dispose();
+    } catch (_) {}
+    if (mounted) Navigator.of(context).pop(_elapsed);
+  }
+
+  void _toggleMute() {
+    widget.service.toggleMute();
+    setState(() => _isMuted = widget.service.isMuted);
+  }
+
+  void _toggleCamera() {
+    widget.service.toggleCamera();
+    setState(() => _isCameraOff = widget.service.isCameraOff);
+  }
+
+  void _switchCamera() {
+    widget.service.switchCamera();
+  }
+
+  String _fmt(int totalSeconds) {
+    final m = (totalSeconds ~/ 60).toString().padLeft(2, '0');
+    final s = (totalSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F172A),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Background — remote video or audio gradient
+          if (_isVideo)
+            _remoteConnected
+                ? RTCVideoView(
+                    widget.service.remoteRenderer,
+                    objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                  )
+                : _buildWaitingOverlay()
+          else
+            _buildAudioBackground(),
+
+          // PiP local camera (video only)
+          if (_isVideo)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 16,
+              right: 16,
+              width: 120,
+              height: 160,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      width: 2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: _isCameraOff
+                        ? Container(
+                            color: const Color(0xFF1E293B),
+                            child: const Center(
+                              child: Icon(
+                                Icons.videocam_off,
+                                color: Colors.white54,
+                                size: 32,
+                              ),
+                            ),
+                          )
+                        : RTCVideoView(
+                            widget.service.localRenderer,
+                            mirror: true,
+                            objectFit: RTCVideoViewObjectFit
+                                .RTCVideoViewObjectFitCover,
+                          ),
+                  ),
+                ),
+              ),
+            ),
+
+          // Top bar — title + timer
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: EdgeInsets.only(
+                top: MediaQuery.of(context).padding.top + 12,
+                left: 20,
+                right: 20,
+                bottom: 14,
+              ),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.65),
+                    Colors.black.withValues(alpha: 0.0),
+                  ],
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    widget.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _remoteConnected
+                        ? _fmt(_elapsed)
+                        : (widget.isCaller ? 'Appel en cours…' : 'Connexion…'),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Bottom controls
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: EdgeInsets.only(
+                top: 20,
+                bottom: MediaQuery.of(context).padding.bottom + 24,
+                left: 24,
+                right: 24,
+              ),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.75),
+                    Colors.black.withValues(alpha: 0.0),
+                  ],
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  // Mute
+                  _buildControlButton(
+                    icon: _isMuted ? Icons.mic_off : Icons.mic,
+                    label: _isMuted ? 'Activer' : 'Muet',
+                    onTap: _toggleMute,
+                    active: _isMuted,
+                  ),
+                  // Camera toggle (video only)
+                  if (_isVideo)
+                    _buildControlButton(
+                      icon: _isCameraOff ? Icons.videocam_off : Icons.videocam,
+                      label: _isCameraOff ? 'Activer cam' : 'Caméra off',
+                      onTap: _toggleCamera,
+                      active: _isCameraOff,
+                    ),
+                  // Hang up
+                  _buildHangUpButton(),
+                  // Switch camera (video only)
+                  if (_isVideo)
+                    _buildControlButton(
+                      icon: Icons.cameraswitch_outlined,
+                      label: 'Pivoter',
+                      onTap: _switchCamera,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWaitingOverlay() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF0F172A), Color(0xFF1E3A5F)],
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 48,
+              height: 48,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                color: Colors.white.withValues(alpha: 0.7),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'En attente de ${widget.title}…',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.85),
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAudioBackground() {
+    final initial = widget.title.trim().isEmpty
+        ? '?'
+        : widget.title.trim().substring(0, 1).toUpperCase();
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 52,
+              backgroundColor: const Color(0xFF0F766E).withValues(alpha: 0.3),
+              child: Text(
+                initial,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 42,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              widget.title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _remoteConnected
+                  ? 'Appel audio · ${_fmt(_elapsed)}'
+                  : (widget.isCaller ? 'Appel en cours…' : 'Connexion…'),
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.7),
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildControlButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool active = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: active
+                  ? Colors.white.withValues(alpha: 0.25)
+                  : Colors.white.withValues(alpha: 0.12),
+            ),
+            child: Icon(icon, color: Colors.white, size: 24),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.85),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHangUpButton() {
+    return GestureDetector(
+      onTap: _hangUp,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Color(0xFFDC2626),
+            ),
+            child: const Icon(Icons.call_end, color: Colors.white, size: 30),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Raccrocher',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.85),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _BiosecurityItem {
