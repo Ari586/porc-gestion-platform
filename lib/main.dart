@@ -14,6 +14,16 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+const String _defaultFirebaseApiKey = 'AIzaSyAJhP6o3q9VVSdNjAdCoulSn4qBZfnvdMk';
+const String _defaultFirebaseAppId =
+    '1:868440634699:web:74450072a14a613bafa4ce';
+const String _defaultFirebaseProjectId = 'porc-gestion-platform';
+const String _defaultFirebaseMessagingSenderId = '868440634699';
+const String _defaultFirebaseAuthDomain =
+    'porc-gestion-platform.firebaseapp.com';
+const String _defaultFirebaseStorageBucket =
+    'porc-gestion-platform.firebasestorage.app';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _initializeRealtimeBackend();
@@ -38,12 +48,25 @@ Future<void> _initializeRealtimeBackend() async {
 }
 
 FirebaseOptions? _firebaseOptionsFromEnvironment() {
-  const apiKey = String.fromEnvironment('FIREBASE_API_KEY');
-  const appId = String.fromEnvironment('FIREBASE_APP_ID');
-  const projectId = String.fromEnvironment('FIREBASE_PROJECT_ID');
-  const messagingSenderId = String.fromEnvironment(
+  const apiKeyFromEnv = String.fromEnvironment('FIREBASE_API_KEY');
+  const appIdFromEnv = String.fromEnvironment('FIREBASE_APP_ID');
+  const projectIdFromEnv = String.fromEnvironment('FIREBASE_PROJECT_ID');
+  const messagingSenderIdFromEnv = String.fromEnvironment(
     'FIREBASE_MESSAGING_SENDER_ID',
   );
+  final apiKey = apiKeyFromEnv.trim().isEmpty
+      ? _defaultFirebaseApiKey
+      : apiKeyFromEnv.trim();
+  final appId = appIdFromEnv.trim().isEmpty
+      ? _defaultFirebaseAppId
+      : appIdFromEnv.trim();
+  final projectId = projectIdFromEnv.trim().isEmpty
+      ? _defaultFirebaseProjectId
+      : projectIdFromEnv.trim();
+  final messagingSenderId = messagingSenderIdFromEnv.trim().isEmpty
+      ? _defaultFirebaseMessagingSenderId
+      : messagingSenderIdFromEnv.trim();
+
   if (apiKey.isEmpty ||
       appId.isEmpty ||
       projectId.isEmpty ||
@@ -51,13 +74,21 @@ FirebaseOptions? _firebaseOptionsFromEnvironment() {
     return null;
   }
 
-  const authDomain = String.fromEnvironment('FIREBASE_AUTH_DOMAIN');
-  const storageBucket = String.fromEnvironment('FIREBASE_STORAGE_BUCKET');
+  const authDomainFromEnv = String.fromEnvironment('FIREBASE_AUTH_DOMAIN');
+  const storageBucketFromEnv = String.fromEnvironment(
+    'FIREBASE_STORAGE_BUCKET',
+  );
   const iosBundleId = String.fromEnvironment('FIREBASE_IOS_BUNDLE_ID');
   const androidClientId = String.fromEnvironment('FIREBASE_ANDROID_CLIENT_ID');
   const iosClientId = String.fromEnvironment('FIREBASE_IOS_CLIENT_ID');
   const measurementId = String.fromEnvironment('FIREBASE_MEASUREMENT_ID');
   const databaseURL = String.fromEnvironment('FIREBASE_DATABASE_URL');
+  final authDomain = authDomainFromEnv.trim().isEmpty
+      ? _defaultFirebaseAuthDomain
+      : authDomainFromEnv.trim();
+  final storageBucket = storageBucketFromEnv.trim().isEmpty
+      ? _defaultFirebaseStorageBucket
+      : storageBucketFromEnv.trim();
 
   return FirebaseOptions(
     apiKey: apiKey,
