@@ -758,6 +758,7 @@ class _MainScreenState extends State<MainScreen> {
   static const int _chatImageMaxBytes = 320 * 1024;
   static const int _chatAudioMaxBytes = 600 * 1024;
   static const int _chatVideoMaxBytes = 900 * 1024;
+  static const String _brandLogoAsset = 'assets/branding/pigia_logo.jpg';
   static const String _prefsUsersKey = 'porc_users_v1';
   static const String _prefsBoarsKey = 'porc_boars_v1';
   static const String _prefsSowsKey = 'porc_sows_v1';
@@ -3433,31 +3434,12 @@ class _MainScreenState extends State<MainScreen> {
                 border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
               ),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(9),
-                    decoration: BoxDecoration(
-                      color: _accentTeal.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      LucideIcons.piggyBank,
-                      color: Color(0xFF5EEAD4),
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'PIGIA',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 19,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.4,
-                      ),
+                  Flexible(
+                    child: _buildBrandLogo(
+                      height: 118,
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                 ],
@@ -3512,28 +3494,25 @@ class _MainScreenState extends State<MainScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    children: const [
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Color(0xFF0F766E),
-                        child: Icon(
-                          LucideIcons.piggyBank,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                      ),
-                      SizedBox(width: 10),
+                    children: [
                       Expanded(
-                        child: Text(
-                          'Connexion Utilisateur',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF0F172A),
+                        child: Center(
+                          child: _buildBrandLogo(
+                            height: 150,
+                            borderRadius: BorderRadius.circular(16),
                           ),
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Connexion Utilisateur',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF0F172A),
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
@@ -3621,6 +3600,45 @@ class _MainScreenState extends State<MainScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildBrandLogo({required double height, BorderRadius? borderRadius}) {
+    final image = Image.asset(
+      _brandLogoAsset,
+      height: height,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
+      errorBuilder: (context, error, stackTrace) {
+        return Container(
+          height: height * 0.56,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: _accentTeal.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _accentTeal.withValues(alpha: 0.5)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(LucideIcons.piggyBank, color: Color(0xFF0F766E), size: 18),
+              SizedBox(width: 8),
+              Text(
+                'PIGIA',
+                style: TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (borderRadius == null) {
+      return image;
+    }
+    return ClipRRect(borderRadius: borderRadius, child: image);
   }
 
   Widget _buildNavItem({
