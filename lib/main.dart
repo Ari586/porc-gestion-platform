@@ -3243,12 +3243,13 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildHeader(bool isDesktop) {
     final screenWidth = MediaQuery.of(context).size.width;
     final compact = screenWidth < 650;
-    final showDate = screenWidth >= 540;
+    final tiny = screenWidth < 420;
+    final showDate = screenWidth >= 620;
     final showLoginBadge = screenWidth >= 900;
 
     return Container(
-      height: 72,
-      padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 20),
+      height: tiny ? 64 : 72,
+      padding: EdgeInsets.symmetric(horizontal: tiny ? 4 : (compact ? 8 : 20)),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
@@ -3269,7 +3270,7 @@ class _MainScreenState extends State<MainScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(
-                      fontSize: compact ? 13 : 17,
+                      fontSize: tiny ? 11 : (compact ? 13 : 17),
                       fontWeight: FontWeight.w900,
                       letterSpacing: -0.5,
                       color: const Color(0xFF0F172A),
@@ -3305,7 +3306,7 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ],
             ),
-          const SizedBox(width: 10),
+          SizedBox(width: tiny ? 2 : 10),
           if (showLoginBadge)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -3329,7 +3330,7 @@ class _MainScreenState extends State<MainScreen> {
                 ],
               ),
             ),
-          const SizedBox(width: 8),
+          if (showLoginBadge) const SizedBox(width: 8),
           if (showLoginBadge)
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
@@ -3368,7 +3369,7 @@ class _MainScreenState extends State<MainScreen> {
               onPressed: _logout,
               icon: const Icon(Icons.logout, color: Color(0xFF334155)),
             ),
-          if (!showDate) ...[
+          if (!showDate && screenWidth >= 360) ...[
             const SizedBox(width: 2),
             Text(
               DateFormat('d MMM', 'fr_FR').format(DateTime.now()),
@@ -6302,32 +6303,49 @@ class _MainScreenState extends State<MainScreen> {
     return _buildSectionCard(
       title: 'Qualité des données pedigree',
       subtitle: 'Complétude des informations de filiation',
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildMiniIndicator(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth > 760;
+          final cards = [
+            _buildMiniIndicator(
               label: 'Père renseigné',
               value: '$sireRate%',
               color: const Color(0xFF2563EB),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _buildMiniIndicator(
+            _buildMiniIndicator(
               label: 'Mère renseignée',
               value: '$damRate%',
               color: const Color(0xFF7C3AED),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _buildMiniIndicator(
+            _buildMiniIndicator(
               label: 'Animaux suivis',
               value: '$totalAnimals',
               color: const Color(0xFF0F766E),
             ),
-          ),
-        ],
+          ];
+
+          if (isWide) {
+            return Row(
+              children: [
+                Expanded(child: cards[0]),
+                const SizedBox(width: 12),
+                Expanded(child: cards[1]),
+                const SizedBox(width: 12),
+                Expanded(child: cards[2]),
+              ],
+            );
+          }
+
+          return Column(
+            children: [
+              cards[0],
+              const SizedBox(height: 10),
+              cards[1],
+              const SizedBox(height: 10),
+              cards[2],
+            ],
+          );
+        },
       ),
     );
   }
@@ -7180,7 +7198,9 @@ class _MainScreenState extends State<MainScreen> {
         eventsByDay[_normalizeDate(selectedDate)] ??
         const <_GestationCalendarEvent>[];
     const weekDays = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-    final compactCalendar = MediaQuery.of(context).size.width < 760;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final compactCalendar = screenWidth < 760;
+    final tinyCalendar = screenWidth < 440;
 
     return _buildSectionCard(
       title: 'Calendrier de gestation porcine',
@@ -7189,47 +7209,97 @@ class _MainScreenState extends State<MainScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              IconButton(
-                tooltip: 'Mois précédent',
-                onPressed: () => _changeGestationCalendarMonth(-1),
-                icon: const Icon(LucideIcons.chevronLeft),
-              ),
-              Expanded(
-                child: Text(
-                  DateFormat('MMMM yyyy', 'fr_FR').format(monthStart),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: compactCalendar ? 14 : 16,
-                    color: const Color(0xFF0F172A),
+          if (tinyCalendar)
+            Column(
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Mois précédent',
+                      onPressed: () => _changeGestationCalendarMonth(-1),
+                      icon: const Icon(LucideIcons.chevronLeft),
+                    ),
+                    Expanded(
+                      child: Text(
+                        DateFormat('MMMM yyyy', 'fr_FR').format(monthStart),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Mois suivant',
+                      onPressed: () => _changeGestationCalendarMonth(1),
+                      icon: const Icon(LucideIcons.chevronRight),
+                    ),
+                  ],
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      final today = _currentDate();
+                      setState(() {
+                        _gestationCalendarMonth = DateTime(
+                          today.year,
+                          today.month,
+                          1,
+                        );
+                        _selectedGestationDate = today;
+                      });
+                      _persistState();
+                    },
+                    icon: const Icon(Icons.today_outlined, size: 14),
+                    label: const Text('Aujourd\'hui'),
                   ),
                 ),
-              ),
-              IconButton(
-                tooltip: 'Mois suivant',
-                onPressed: () => _changeGestationCalendarMonth(1),
-                icon: const Icon(LucideIcons.chevronRight),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton(
-                onPressed: () {
-                  final today = _currentDate();
-                  setState(() {
-                    _gestationCalendarMonth = DateTime(
-                      today.year,
-                      today.month,
-                      1,
-                    );
-                    _selectedGestationDate = today;
-                  });
-                  _persistState();
-                },
-                child: const Text('Aujourd\'hui'),
-              ),
-            ],
-          ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                IconButton(
+                  tooltip: 'Mois précédent',
+                  onPressed: () => _changeGestationCalendarMonth(-1),
+                  icon: const Icon(LucideIcons.chevronLeft),
+                ),
+                Expanded(
+                  child: Text(
+                    DateFormat('MMMM yyyy', 'fr_FR').format(monthStart),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: compactCalendar ? 14 : 16,
+                      color: const Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Mois suivant',
+                  onPressed: () => _changeGestationCalendarMonth(1),
+                  icon: const Icon(LucideIcons.chevronRight),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  onPressed: () {
+                    final today = _currentDate();
+                    setState(() {
+                      _gestationCalendarMonth = DateTime(
+                        today.year,
+                        today.month,
+                        1,
+                      );
+                      _selectedGestationDate = today;
+                    });
+                    _persistState();
+                  },
+                  child: const Text('Aujourd\'hui'),
+                ),
+              ],
+            ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -7268,7 +7338,9 @@ class _MainScreenState extends State<MainScreen> {
                         style: TextStyle(
                           color: Color(0xFF64748B),
                           fontWeight: FontWeight.w800,
-                          fontSize: compactCalendar ? 11 : 12,
+                          fontSize: tinyCalendar
+                              ? 10
+                              : (compactCalendar ? 11 : 12),
                         ),
                       ),
                     ),
@@ -7282,9 +7354,11 @@ class _MainScreenState extends State<MainScreen> {
             itemCount: rowCount * 7,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 7,
-              childAspectRatio: compactCalendar ? 1.45 : 1.2,
-              crossAxisSpacing: compactCalendar ? 4 : 6,
-              mainAxisSpacing: compactCalendar ? 4 : 6,
+              childAspectRatio: tinyCalendar
+                  ? 1.75
+                  : (compactCalendar ? 1.45 : 1.2),
+              crossAxisSpacing: tinyCalendar ? 3 : (compactCalendar ? 4 : 6),
+              mainAxisSpacing: tinyCalendar ? 3 : (compactCalendar ? 4 : 6),
             ),
             itemBuilder: (context, index) {
               final dayNumber = index - leadingEmptyCells + 1;
@@ -7317,7 +7391,9 @@ class _MainScreenState extends State<MainScreen> {
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
-                  padding: EdgeInsets.all(compactCalendar ? 4 : 6),
+                  padding: EdgeInsets.all(
+                    tinyCalendar ? 3 : (compactCalendar ? 4 : 6),
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? const Color(0xFFDCFCE7)
@@ -7372,7 +7448,9 @@ class _MainScreenState extends State<MainScreen> {
                           spacing: 4,
                           runSpacing: 4,
                           children: dayEvents
-                              .take(compactCalendar ? 3 : 4)
+                              .take(
+                                tinyCalendar ? 2 : (compactCalendar ? 3 : 4),
+                              )
                               .map((event) => _buildDayMarker(event.color))
                               .toList(),
                         ),
@@ -7407,7 +7485,9 @@ class _MainScreenState extends State<MainScreen> {
         eventsByDay[_normalizeDate(selectedDate)] ??
         const <_GestationCalendarEvent>[];
     const weekDays = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-    final compactCalendar = MediaQuery.of(context).size.width < 760;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final compactCalendar = screenWidth < 760;
+    final tinyCalendar = screenWidth < 440;
 
     return _buildSectionCard(
       title: 'Calendrier prise en charge porcelets',
@@ -7416,43 +7496,97 @@ class _MainScreenState extends State<MainScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              IconButton(
-                tooltip: 'Mois précédent',
-                onPressed: () => _changePigletCalendarMonth(-1),
-                icon: const Icon(LucideIcons.chevronLeft),
-              ),
-              Expanded(
-                child: Text(
-                  DateFormat('MMMM yyyy', 'fr_FR').format(monthStart),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: compactCalendar ? 14 : 16,
-                    color: const Color(0xFF0F172A),
+          if (tinyCalendar)
+            Column(
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Mois précédent',
+                      onPressed: () => _changePigletCalendarMonth(-1),
+                      icon: const Icon(LucideIcons.chevronLeft),
+                    ),
+                    Expanded(
+                      child: Text(
+                        DateFormat('MMMM yyyy', 'fr_FR').format(monthStart),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Mois suivant',
+                      onPressed: () => _changePigletCalendarMonth(1),
+                      icon: const Icon(LucideIcons.chevronRight),
+                    ),
+                  ],
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      final today = _currentDate();
+                      setState(() {
+                        _pigletCalendarMonth = DateTime(
+                          today.year,
+                          today.month,
+                          1,
+                        );
+                        _selectedPigletDate = today;
+                      });
+                      _persistState();
+                    },
+                    icon: const Icon(Icons.today_outlined, size: 14),
+                    label: const Text('Aujourd\'hui'),
                   ),
                 ),
-              ),
-              IconButton(
-                tooltip: 'Mois suivant',
-                onPressed: () => _changePigletCalendarMonth(1),
-                icon: const Icon(LucideIcons.chevronRight),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton(
-                onPressed: () {
-                  final today = _currentDate();
-                  setState(() {
-                    _pigletCalendarMonth = DateTime(today.year, today.month, 1);
-                    _selectedPigletDate = today;
-                  });
-                  _persistState();
-                },
-                child: const Text('Aujourd\'hui'),
-              ),
-            ],
-          ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                IconButton(
+                  tooltip: 'Mois précédent',
+                  onPressed: () => _changePigletCalendarMonth(-1),
+                  icon: const Icon(LucideIcons.chevronLeft),
+                ),
+                Expanded(
+                  child: Text(
+                    DateFormat('MMMM yyyy', 'fr_FR').format(monthStart),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: compactCalendar ? 14 : 16,
+                      color: const Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Mois suivant',
+                  onPressed: () => _changePigletCalendarMonth(1),
+                  icon: const Icon(LucideIcons.chevronRight),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  onPressed: () {
+                    final today = _currentDate();
+                    setState(() {
+                      _pigletCalendarMonth = DateTime(
+                        today.year,
+                        today.month,
+                        1,
+                      );
+                      _selectedPigletDate = today;
+                    });
+                    _persistState();
+                  },
+                  child: const Text('Aujourd\'hui'),
+                ),
+              ],
+            ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -7491,7 +7625,9 @@ class _MainScreenState extends State<MainScreen> {
                         style: TextStyle(
                           color: Color(0xFF64748B),
                           fontWeight: FontWeight.w800,
-                          fontSize: compactCalendar ? 11 : 12,
+                          fontSize: tinyCalendar
+                              ? 10
+                              : (compactCalendar ? 11 : 12),
                         ),
                       ),
                     ),
@@ -7505,9 +7641,11 @@ class _MainScreenState extends State<MainScreen> {
             itemCount: rowCount * 7,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 7,
-              childAspectRatio: compactCalendar ? 1.45 : 1.2,
-              crossAxisSpacing: compactCalendar ? 4 : 6,
-              mainAxisSpacing: compactCalendar ? 4 : 6,
+              childAspectRatio: tinyCalendar
+                  ? 1.75
+                  : (compactCalendar ? 1.45 : 1.2),
+              crossAxisSpacing: tinyCalendar ? 3 : (compactCalendar ? 4 : 6),
+              mainAxisSpacing: tinyCalendar ? 3 : (compactCalendar ? 4 : 6),
             ),
             itemBuilder: (context, index) {
               final dayNumber = index - leadingEmptyCells + 1;
@@ -7540,7 +7678,9 @@ class _MainScreenState extends State<MainScreen> {
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
-                  padding: EdgeInsets.all(compactCalendar ? 4 : 6),
+                  padding: EdgeInsets.all(
+                    tinyCalendar ? 3 : (compactCalendar ? 4 : 6),
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? const Color(0xFFFFF7ED)
@@ -7595,7 +7735,9 @@ class _MainScreenState extends State<MainScreen> {
                           spacing: 4,
                           runSpacing: 4,
                           children: dayEvents
-                              .take(compactCalendar ? 3 : 4)
+                              .take(
+                                tinyCalendar ? 2 : (compactCalendar ? 3 : 4),
+                              )
                               .map((event) => _buildDayMarker(event.color))
                               .toList(),
                         ),
@@ -7683,6 +7825,8 @@ class _MainScreenState extends State<MainScreen> {
     DateTime selectedDate,
     List<_GestationCalendarEvent> events,
   ) {
+    final compact = MediaQuery.of(context).size.width < 520;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -7694,10 +7838,11 @@ class _MainScreenState extends State<MainScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
+          if (compact)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
                   'Suivi porcelets du ${_formatDate(selectedDate)}',
                   style: const TextStyle(
                     fontWeight: FontWeight.w900,
@@ -7705,15 +7850,39 @@ class _MainScreenState extends State<MainScreen> {
                     color: Color(0xFF0F172A),
                   ),
                 ),
-              ),
-              FilledButton.icon(
-                onPressed: () =>
-                    _showAddPigletCareDialog(initialDate: selectedDate),
-                icon: const Icon(LucideIcons.plus, size: 14),
-                label: const Text('Ajouter'),
-              ),
-            ],
-          ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.icon(
+                    onPressed: () =>
+                        _showAddPigletCareDialog(initialDate: selectedDate),
+                    icon: const Icon(LucideIcons.plus, size: 14),
+                    label: const Text('Ajouter'),
+                  ),
+                ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Suivi porcelets du ${_formatDate(selectedDate)}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 15,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: () =>
+                      _showAddPigletCareDialog(initialDate: selectedDate),
+                  icon: const Icon(LucideIcons.plus, size: 14),
+                  label: const Text('Ajouter'),
+                ),
+              ],
+            ),
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
@@ -7801,8 +7970,12 @@ class _MainScreenState extends State<MainScreen> {
     required String label,
     required Color color,
   }) {
+    final compact = MediaQuery.of(context).size.width < 460;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 10,
+        vertical: compact ? 5 : 6,
+      ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
@@ -7817,7 +7990,7 @@ class _MainScreenState extends State<MainScreen> {
             style: TextStyle(
               color: color,
               fontWeight: FontWeight.w800,
-              fontSize: 12,
+              fontSize: compact ? 11 : 12,
             ),
           ),
         ],
@@ -10489,8 +10662,11 @@ class _MainScreenState extends State<MainScreen> {
     required String subtitle,
     required Widget child,
   }) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final compact = screenWidth < 520;
+
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(compact ? 12 : 18),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
@@ -10501,18 +10677,21 @@ class _MainScreenState extends State<MainScreen> {
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.w900,
-              fontSize: 17,
+              fontSize: compact ? 15 : 17,
               color: Color(0xFF0F172A),
             ),
           ),
           const SizedBox(height: 4),
           Text(
             subtitle,
-            style: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
+            style: TextStyle(
+              color: const Color(0xFF64748B),
+              fontSize: compact ? 12 : 13,
+            ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: compact ? 10 : 14),
           child,
         ],
       ),
@@ -10527,6 +10706,9 @@ class _MainScreenState extends State<MainScreen> {
     required List<DataRow> rows,
     List<Widget> actions = const [],
   }) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final compact = screenWidth < 560;
+
     return _buildSectionCard(
       title: title,
       subtitle: subtitle,
@@ -10550,6 +10732,8 @@ class _MainScreenState extends State<MainScreen> {
                       color: Color(0xFF0F172A),
                       fontSize: 13,
                     ),
+                    horizontalMargin: compact ? 8 : 24,
+                    columnSpacing: compact ? 12 : 24,
                     columns: columns,
                     rows: rows,
                   ),
