@@ -2797,9 +2797,11 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildHeader(bool isDesktop) {
     final screenWidth = MediaQuery.of(context).size.width;
     final compact = screenWidth < 650;
+    final showDate = screenWidth >= 540;
+    final showLoginBadge = screenWidth >= 900;
 
     return Container(
-      height: 66,
+      height: 72,
       padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 20),
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -2831,31 +2833,99 @@ class _MainScreenState extends State<MainScreen> {
               ],
             ),
           ),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              const Text(
-                'AUJOURD\'HUI',
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF94A3B8),
+          if (showDate)
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                const Text(
+                  'AUJOURD\'HUI',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ),
+                Text(
+                  DateFormat(
+                    compact ? 'd MMM' : 'EEEE d MMMM',
+                    'fr_FR',
+                  ).format(DateTime.now()),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF334155),
+                  ),
+                ),
+              ],
+            ),
+          const SizedBox(width: 10),
+          if (showLoginBadge)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 12,
+                    backgroundColor: const Color(0xFF14B8A6),
+                    child: Text(
+                      _currentUser.avatar,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Login: ${_currentUser.login}',
+                    style: const TextStyle(
+                      color: Color(0xFF0F172A),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(width: 8),
+          if (showLoginBadge)
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF334155),
+                side: const BorderSide(color: Color(0xFFCBD5E1)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
                 ),
               ),
-              Text(
-                DateFormat(
-                  compact ? 'd MMM' : 'EEEE d MMMM',
-                  'fr_FR',
-                ).format(DateTime.now()),
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF334155),
-                ),
+              onPressed: _logout,
+              icon: const Icon(Icons.logout, size: 16),
+              label: const Text('Déconnexion'),
+            )
+          else
+            IconButton(
+              tooltip: 'Déconnexion',
+              onPressed: _logout,
+              icon: const Icon(Icons.logout, color: Color(0xFF334155)),
+            ),
+          if (!showDate) ...[
+            const SizedBox(width: 2),
+            Text(
+              DateFormat('d MMM', 'fr_FR').format(DateTime.now()),
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF64748B),
               ),
-            ],
-          ),
+            ),
+          ],
         ],
       ),
     );
