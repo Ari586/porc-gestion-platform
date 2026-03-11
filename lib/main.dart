@@ -24,6 +24,38 @@ const String _defaultFirebaseAuthDomain =
 const String _defaultFirebaseStorageBucket =
     'porc-gestion-platform.firebasestorage.app';
 
+class AppSpacing {
+  static const double zero = 0;
+  static const double s1 = 1;
+  static const double s2 = 2;
+  static const double s3 = 3;
+  static const double s4 = 4;
+  static const double s5 = 5;
+  static const double s6 = 6;
+  static const double s7 = 7;
+  static const double s8 = 8;
+  static const double s9 = 9;
+  static const double s10 = 10;
+  static const double s11 = 11;
+  static const double s12 = 12;
+  static const double s14 = 14;
+  static const double s16 = 16;
+  static const double s18 = 18;
+  static const double s20 = 20;
+  static const double s22 = 22;
+  static const double s24 = 24;
+  static const double s58 = 58;
+
+  static const double xxs = 4;
+  static const double xs = 8;
+  static const double sm = 10;
+  static const double md = 12;
+  static const double lg = 14;
+  static const double xl = 16;
+  static const double xxl = 18;
+  static const double xxxl = 22;
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _initializeRealtimeBackend();
@@ -1387,7 +1419,9 @@ class _MainScreenState extends State<MainScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth >= 980;
     final isMobile = screenWidth < 760;
-    final contentPadding = isMobile ? 10.0 : (screenWidth > 720 ? 24.0 : 12.0);
+    final contentPadding = isMobile
+        ? AppSpacing.s10
+        : (screenWidth > 720 ? AppSpacing.s24 : AppSpacing.s12);
     final showExtendedFab = screenWidth >= 520;
     final desktopMaxContentWidth = screenWidth >= 1700
         ? 1560.0
@@ -1469,8 +1503,8 @@ class _MainScreenState extends State<MainScreen> {
                     label: Text(_fabLabelForTab(_activeTab)),
                     elevation: 10,
                     extendedPadding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 2,
+                      horizontal: AppSpacing.s18,
+                      vertical: AppSpacing.s2,
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
@@ -3422,43 +3456,53 @@ class _MainScreenState extends State<MainScreen> {
         ),
       ),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.04),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Flexible(
-                    child: _buildBrandLogo(
-                      height: 118,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
+            _buildSidebarBrandHeader(),
+            const SizedBox(height: AppSpacing.md),
             Expanded(
               child: Scrollbar(
                 thumbVisibility: true,
                 child: ListView(
-                  padding: const EdgeInsets.only(right: 4, bottom: 8),
+                  padding: const EdgeInsets.only(
+                    right: AppSpacing.xxs,
+                    bottom: AppSpacing.xs,
+                  ),
                   children: navItems,
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.xs),
             _buildCurrentUserCard(),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSidebarBrandHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.lg,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(AppSpacing.xxl),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Flexible(
+            child: _buildBrandLogo(
+              height: 118,
+              borderRadius: BorderRadius.circular(AppSpacing.lg),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -3478,125 +3522,131 @@ class _MainScreenState extends State<MainScreen> {
         ),
       ),
       child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460),
-          child: Card(
-            margin: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(22),
-            ),
-            elevation: 0,
-            color: Colors.white,
-            child: Padding(
-              padding: const EdgeInsets.all(22),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Center(
-                          child: _buildBrandLogo(
-                            height: 150,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Connexion Utilisateur',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Gestion d\'élevage porcin • $dateLabel',
-                    style: const TextStyle(
-                      color: Color(0xFF64748B),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  TextField(
-                    controller: _loginController,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
-                      labelText: 'Login',
-                      hintText: 'admin',
-                      prefixIcon: Icon(Icons.person_outline),
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _passwordController,
-                    obscureText: _hidePassword,
-                    onSubmitted: (_) => _attemptLogin(),
-                    decoration: InputDecoration(
-                      labelText: 'Mot de passe',
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      suffixIcon: IconButton(
-                        onPressed: () {
-                          setState(() => _hidePassword = !_hidePassword);
-                        },
-                        icon: Icon(
-                          _hidePassword
-                              ? Icons.visibility_off_outlined
-                              : Icons.visibility_outlined,
-                        ),
-                      ),
-                      border: const OutlineInputBorder(),
-                    ),
-                  ),
-                  if (_authError != null) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      _authError!,
-                      style: const TextStyle(
-                        color: Color(0xFFB91C1C),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: _attemptLogin,
-                      icon: const Icon(Icons.login),
-                      label: const Text('Se connecter'),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: const Text(
-                      'Sécurité active: les accès sont gérés par l\'administrateur.\n'
-                      'Utilisez votre login personnel et votre mot de passe.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF475569),
-                        height: 1.35,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: _buildLoginCard(dateLabel),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoginCard(String dateLabel) {
+    return Card(
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppSpacing.xxxl),
+      ),
+      elevation: 0,
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xxxl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Align(
+              alignment: Alignment.center,
+              child: _buildBrandLogo(
+                height: 150,
+                borderRadius: BorderRadius.circular(AppSpacing.xl),
               ),
             ),
-          ),
+            const SizedBox(height: AppSpacing.xs),
+            const Text(
+              'Connexion Utilisateur',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.s6),
+            Text(
+              'Gestion d\'élevage porcin • $dateLabel',
+              style: const TextStyle(
+                color: Color(0xFF64748B),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xxl),
+            TextField(
+              controller: _loginController,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Login',
+                hintText: 'admin',
+                prefixIcon: Icon(Icons.person_outline),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: _passwordController,
+              obscureText: _hidePassword,
+              onSubmitted: (_) => _attemptLogin(),
+              decoration: InputDecoration(
+                labelText: 'Mot de passe',
+                prefixIcon: const Icon(Icons.lock_outline),
+                suffixIcon: IconButton(
+                  onPressed: () {
+                    setState(() => _hidePassword = !_hidePassword);
+                  },
+                  icon: Icon(
+                    _hidePassword
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                  ),
+                ),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            if (_authError != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                _authError!,
+                style: const TextStyle(
+                  color: Color(0xFFB91C1C),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+            const SizedBox(height: AppSpacing.lg),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _attemptLogin,
+                icon: const Icon(Icons.login),
+                label: const Text('Se connecter'),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            _buildLoginSecurityNote(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoginSecurityNote() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(AppSpacing.md),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: const Text(
+        'Sécurité active: les accès sont gérés par l\'administrateur.\n'
+        'Utilisez votre login personnel et votre mot de passe.',
+        style: TextStyle(
+          fontSize: 12,
+          color: Color(0xFF475569),
+          height: 1.35,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -3611,17 +3661,24 @@ class _MainScreenState extends State<MainScreen> {
       errorBuilder: (context, error, stackTrace) {
         return Container(
           height: height * 0.56,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.xs,
+          ),
           decoration: BoxDecoration(
             color: _accentTeal.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(AppSpacing.lg),
             border: Border.all(color: _accentTeal.withValues(alpha: 0.5)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: const [
-              Icon(LucideIcons.piggyBank, color: Color(0xFF0F766E), size: 18),
-              SizedBox(width: 8),
+              Icon(
+                LucideIcons.piggyBank,
+                color: Color(0xFF0F766E),
+                size: AppSpacing.xxl,
+              ),
+              SizedBox(width: AppSpacing.xs),
               Text(
                 'PIGIA',
                 style: TextStyle(
@@ -3649,7 +3706,7 @@ class _MainScreenState extends State<MainScreen> {
     final isActive = _activeTab == tabId;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: () {
@@ -3670,7 +3727,10 @@ class _MainScreenState extends State<MainScreen> {
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.s14,
+            vertical: AppSpacing.s12,
+          ),
           decoration: BoxDecoration(
             color: isActive
                 ? _accentTeal.withValues(alpha: 0.2)
@@ -3698,7 +3758,7 @@ class _MainScreenState extends State<MainScreen> {
                     : const Color(0xFF94A3B8),
                 size: 18,
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: AppSpacing.s10),
               Expanded(
                 child: Text(
                   label,
@@ -3720,7 +3780,7 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildCurrentUserCard() {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(AppSpacing.s14),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(18),
@@ -3731,7 +3791,7 @@ class _MainScreenState extends State<MainScreen> {
           Row(
             children: [
               _buildUserAvatar(_currentUser, radius: 18),
-              const SizedBox(width: 10),
+              const SizedBox(width: AppSpacing.s10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3758,14 +3818,17 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpacing.s10),
           Container(
             width: double.infinity,
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.s10,
+              vertical: AppSpacing.s8,
+            ),
             child: Text(
               'Login: ${_currentUser.login}',
               style: const TextStyle(
@@ -3775,7 +3838,7 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpacing.s10),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
@@ -3804,7 +3867,11 @@ class _MainScreenState extends State<MainScreen> {
 
     return Container(
       height: tiny ? 68 : 78,
-      padding: EdgeInsets.symmetric(horizontal: tiny ? 6 : (compact ? 10 : 18)),
+      padding: EdgeInsets.symmetric(
+        horizontal: tiny
+            ? AppSpacing.s6
+            : (compact ? AppSpacing.s10 : AppSpacing.s18),
+      ),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(bottom: BorderSide(color: Color(0xFFDCE4EE))),
@@ -3845,10 +3912,10 @@ class _MainScreenState extends State<MainScreen> {
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpacing.s8),
           _buildHeaderNotificationButton(notificationCount),
           if (showDate) ...[
-            const SizedBox(width: 10),
+            const SizedBox(width: AppSpacing.s10),
             Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -3875,10 +3942,13 @@ class _MainScreenState extends State<MainScreen> {
               ],
             ),
           ],
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpacing.s8),
           if (showLoginBadge)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s10,
+                vertical: AppSpacing.s7,
+              ),
               decoration: BoxDecoration(
                 color: _surfaceSlate,
                 borderRadius: BorderRadius.circular(12),
@@ -3887,7 +3957,7 @@ class _MainScreenState extends State<MainScreen> {
               child: Row(
                 children: [
                   _buildUserAvatar(_currentUser, radius: 12),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppSpacing.s8),
                   Text(
                     'Login: ${_currentUser.login}',
                     style: const TextStyle(
@@ -3899,15 +3969,15 @@ class _MainScreenState extends State<MainScreen> {
                 ],
               ),
             ),
-          if (showLoginBadge) const SizedBox(width: 8),
+          if (showLoginBadge) const SizedBox(width: AppSpacing.s8),
           if (showLoginBadge)
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 foregroundColor: _accentTealDeep,
                 side: BorderSide(color: _accentTeal.withValues(alpha: 0.4)),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
+                  horizontal: AppSpacing.s12,
+                  vertical: AppSpacing.s10,
                 ),
               ),
               onPressed: () {
@@ -3917,15 +3987,15 @@ class _MainScreenState extends State<MainScreen> {
               icon: const Icon(Icons.account_circle_outlined, size: 16),
               label: const Text('Profil'),
             ),
-          if (showLoginBadge) const SizedBox(width: 8),
+          if (showLoginBadge) const SizedBox(width: AppSpacing.s8),
           if (showLoginBadge)
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFF334155),
                 side: const BorderSide(color: Color(0xFFCBD5E1)),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
+                  horizontal: AppSpacing.s12,
+                  vertical: AppSpacing.s10,
                 ),
               ),
               onPressed: _logout,
@@ -3959,7 +4029,7 @@ class _MainScreenState extends State<MainScreen> {
           hintText: 'Recherche rapide: IA, truie, verrat, santé, actualités...',
           border: InputBorder.none,
           prefixIcon: Icon(Icons.search, size: 20, color: Color(0xFF64748B)),
-          contentPadding: EdgeInsets.only(top: 10),
+          contentPadding: EdgeInsets.only(top: AppSpacing.s10),
         ),
       ),
     );
@@ -3989,7 +4059,10 @@ class _MainScreenState extends State<MainScreen> {
             top: -5,
             right: -4,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s6,
+                vertical: AppSpacing.s3,
+              ),
               decoration: BoxDecoration(
                 color: const Color(0xFFDC2626),
                 borderRadius: BorderRadius.circular(999),
@@ -4112,7 +4185,12 @@ class _MainScreenState extends State<MainScreen> {
       builder: (sheetContext) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.s16,
+              AppSpacing.s4,
+              AppSpacing.s16,
+              AppSpacing.s16,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -4125,11 +4203,11 @@ class _MainScreenState extends State<MainScreen> {
                     fontSize: 18,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: AppSpacing.s10),
                 ...notifications.map((item) {
                   final disabled = item.count <= 0;
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.only(bottom: AppSpacing.s8),
                     child: ListTile(
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
@@ -4149,8 +4227,8 @@ class _MainScreenState extends State<MainScreen> {
                           ? const Icon(Icons.check, color: Color(0xFF94A3B8))
                           : Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
+                                horizontal: AppSpacing.s10,
+                                vertical: AppSpacing.s6,
                               ),
                               decoration: BoxDecoration(
                                 color: item.color.withValues(alpha: 0.12),
@@ -4653,9 +4731,9 @@ class _MainScreenState extends State<MainScreen> {
                     return Row(
                       children: [
                         Expanded(child: summary[0]),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: AppSpacing.s12),
                         Expanded(child: summary[1]),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: AppSpacing.s12),
                         Expanded(child: summary[2]),
                       ],
                     );
@@ -4664,22 +4742,22 @@ class _MainScreenState extends State<MainScreen> {
                   return Column(
                     children: [
                       summary[0],
-                      const SizedBox(height: 10),
+                      const SizedBox(height: AppSpacing.s10),
                       summary[1],
-                      const SizedBox(height: 10),
+                      const SizedBox(height: AppSpacing.s10),
                       summary[2],
                     ],
                   );
                 },
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: AppSpacing.s14),
               _buildSalesFilterControl(),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.s12),
               _buildSalesEvolutionChart(filteredSales),
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Récapitulation suivi inséminateurs',
           subtitle:
@@ -4700,7 +4778,7 @@ class _MainScreenState extends State<MainScreen> {
           ],
           rows: inseminatorRows,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Récapitulation gestion éleveurs (truies pour IA)',
           subtitle:
@@ -4717,7 +4795,7 @@ class _MainScreenState extends State<MainScreen> {
           ],
           rows: breederIaRows,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Contrôle éleveurs et porcs',
           subtitle:
@@ -4736,7 +4814,7 @@ class _MainScreenState extends State<MainScreen> {
           ],
           rows: breederControlRows,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Performance terrain par district',
           subtitle:
@@ -4752,7 +4830,7 @@ class _MainScreenState extends State<MainScreen> {
           ],
           rows: districtRows,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Qualité des données par éleveur',
           subtitle:
@@ -4770,7 +4848,7 @@ class _MainScreenState extends State<MainScreen> {
           ],
           rows: qualityRows,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Journal d\'audit opérationnel',
           subtitle: 'Traçabilité des actions critiques utilisateurs et terrain',
@@ -4785,7 +4863,7 @@ class _MainScreenState extends State<MainScreen> {
           ],
           rows: auditRows,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Clients',
           subtitle: 'Base commerciale active',
@@ -4805,7 +4883,7 @@ class _MainScreenState extends State<MainScreen> {
           ],
           rows: clientRows,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Fournisseurs',
           subtitle: 'Partenaires ravitaillement et intrants',
@@ -4965,9 +5043,9 @@ class _MainScreenState extends State<MainScreen> {
                     return Row(
                       children: [
                         Expanded(child: indicators[0]),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: AppSpacing.s12),
                         Expanded(child: indicators[1]),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: AppSpacing.s12),
                         Expanded(child: indicators[2]),
                       ],
                     );
@@ -4976,15 +5054,15 @@ class _MainScreenState extends State<MainScreen> {
                   return Column(
                     children: [
                       indicators[0],
-                      const SizedBox(height: 10),
+                      const SizedBox(height: AppSpacing.s10),
                       indicators[1],
-                      const SizedBox(height: 10),
+                      const SizedBox(height: AppSpacing.s10),
                       indicators[2],
                     ],
                   );
                 },
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.s12),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -5000,7 +5078,7 @@ class _MainScreenState extends State<MainScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         LayoutBuilder(
           builder: (context, constraints) {
             final width = constraints.maxWidth;
@@ -5021,7 +5099,7 @@ class _MainScreenState extends State<MainScreen> {
             );
           },
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildSectionCard(
           title: 'Protocoles Techniques Prioritaires',
           subtitle:
@@ -5054,8 +5132,8 @@ class _MainScreenState extends State<MainScreen> {
                 subtitle: Text('${protocol.window} • ${protocol.detail}'),
                 trailing: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
+                    horizontal: AppSpacing.s10,
+                    vertical: AppSpacing.s5,
                   ),
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.12),
@@ -5074,7 +5152,7 @@ class _MainScreenState extends State<MainScreen> {
             },
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Plan d\'Intervention Terrain (30 jours)',
           subtitle:
@@ -5101,7 +5179,7 @@ class _MainScreenState extends State<MainScreen> {
               )
               .toList(),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildSectionCard(
           title: 'Référentiel de Performance',
           subtitle:
@@ -5110,14 +5188,14 @@ class _MainScreenState extends State<MainScreen> {
             children: serviceBenchmarks
                 .map(
                   (benchmark) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.only(bottom: AppSpacing.s12),
                     child: _buildServiceBenchmarkRow(benchmark),
                   ),
                 )
                 .toList(),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildSectionCard(
           title: 'Audit Biosécurité Express',
           subtitle:
@@ -5134,7 +5212,7 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildServiceOfferCard(_ServiceOffer service) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(AppSpacing.s18),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
@@ -5144,14 +5222,14 @@ class _MainScreenState extends State<MainScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(AppSpacing.s10),
             decoration: BoxDecoration(
               color: service.color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(service.icon, color: service.color),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.s12),
           Text(
             service.title,
             style: const TextStyle(
@@ -5160,7 +5238,7 @@ class _MainScreenState extends State<MainScreen> {
               fontSize: 16,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.s8),
           Text(
             service.description,
             style: const TextStyle(
@@ -5169,7 +5247,7 @@ class _MainScreenState extends State<MainScreen> {
               height: 1.35,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.s8),
           Text(
             'Cadence: ${service.cadence}',
             style: TextStyle(
@@ -5219,7 +5297,7 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpacing.s8),
             Text(
               '${benchmark.currentValue.toStringAsFixed(0)}${benchmark.unit} / '
               '${benchmark.targetValue.toStringAsFixed(0)}${benchmark.unit}',
@@ -5232,7 +5310,7 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: AppSpacing.s6),
         ClipRRect(
           borderRadius: BorderRadius.circular(999),
           child: LinearProgressIndicator(
@@ -5250,10 +5328,10 @@ class _MainScreenState extends State<MainScreen> {
     final color = item.ok ? const Color(0xFF15803D) : const Color(0xFFB91C1C);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: AppSpacing.s10),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppSpacing.s12),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(12),
@@ -5267,7 +5345,7 @@ class _MainScreenState extends State<MainScreen> {
               color: color,
               size: 18,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpacing.s8),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -5276,7 +5354,7 @@ class _MainScreenState extends State<MainScreen> {
                     item.title,
                     style: TextStyle(color: color, fontWeight: FontWeight.w800),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: AppSpacing.s2),
                   Text(
                     item.detail,
                     style: const TextStyle(
@@ -5707,7 +5785,7 @@ class _MainScreenState extends State<MainScreen> {
                   Chip(label: Text('Inventaire des animaux')),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: AppSpacing.s10),
               const Text(
                 'Les éleveurs peuvent ajouter et modifier les données d\'élevage '
                 '(bâtiments, bandes, croissance, soins porcelets) directement ici.',
@@ -5719,11 +5797,11 @@ class _MainScreenState extends State<MainScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildGestationCalendarSection(),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildPigletCareCalendarSection(),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Porcherie / Bâtiment',
           subtitle: 'Capacité et occupation par bâtiment',
@@ -5745,7 +5823,7 @@ class _MainScreenState extends State<MainScreen> {
           ],
           rows: buildingRows,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildSectionCard(
           title: 'Cycle de production',
           subtitle: 'Référentiel standard reproduction et croissance',
@@ -5760,7 +5838,7 @@ class _MainScreenState extends State<MainScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Gestion des bandes',
           subtitle: 'Suivi des lots de production',
@@ -5782,7 +5860,7 @@ class _MainScreenState extends State<MainScreen> {
           ],
           rows: batchRows,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Suivi de croissance',
           subtitle: 'Poids moyen et gain moyen quotidien',
@@ -5803,7 +5881,7 @@ class _MainScreenState extends State<MainScreen> {
           ],
           rows: growthRows,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Maternité / Portées',
           subtitle:
@@ -5831,7 +5909,7 @@ class _MainScreenState extends State<MainScreen> {
           ],
           rows: farrowingRows,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Prise en charge des porcelets',
           subtitle:
@@ -5855,7 +5933,7 @@ class _MainScreenState extends State<MainScreen> {
           ],
           rows: pigletRows,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Publication animaux à vendre',
           subtitle:
@@ -5885,7 +5963,7 @@ class _MainScreenState extends State<MainScreen> {
           ],
           rows: animalSaleRows,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Inventaire des animaux',
           subtitle: 'Effectif actuel par catégorie',
@@ -6018,7 +6096,7 @@ class _MainScreenState extends State<MainScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildSalesFilterControl(),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.s12),
               LayoutBuilder(
                 builder: (context, constraints) {
                   final isWide = constraints.maxWidth > 860;
@@ -6044,9 +6122,9 @@ class _MainScreenState extends State<MainScreen> {
                     return Row(
                       children: [
                         Expanded(child: cards[0]),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: AppSpacing.s12),
                         Expanded(child: cards[1]),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: AppSpacing.s12),
                         Expanded(child: cards[2]),
                       ],
                     );
@@ -6055,15 +6133,15 @@ class _MainScreenState extends State<MainScreen> {
                   return Column(
                     children: [
                       cards[0],
-                      const SizedBox(height: 10),
+                      const SizedBox(height: AppSpacing.s10),
                       cards[1],
-                      const SizedBox(height: 10),
+                      const SizedBox(height: AppSpacing.s10),
                       cards[2],
                     ],
                   );
                 },
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.s12),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -6082,7 +6160,7 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.s12),
               LayoutBuilder(
                 builder: (context, constraints) {
                   final isWide = constraints.maxWidth > 860;
@@ -6108,9 +6186,9 @@ class _MainScreenState extends State<MainScreen> {
                     return Row(
                       children: [
                         Expanded(child: indicators[0]),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: AppSpacing.s12),
                         Expanded(child: indicators[1]),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: AppSpacing.s12),
                         Expanded(child: indicators[2]),
                       ],
                     );
@@ -6119,9 +6197,9 @@ class _MainScreenState extends State<MainScreen> {
                   return Column(
                     children: [
                       indicators[0],
-                      const SizedBox(height: 10),
+                      const SizedBox(height: AppSpacing.s10),
                       indicators[1],
-                      const SizedBox(height: 10),
+                      const SizedBox(height: AppSpacing.s10),
                       indicators[2],
                     ],
                   );
@@ -6130,7 +6208,7 @@ class _MainScreenState extends State<MainScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Gestion des ventes',
           subtitle: 'Vente de porcs (charcutiers), porcelets et autres ventes',
@@ -6152,7 +6230,7 @@ class _MainScreenState extends State<MainScreen> {
           ],
           rows: salesRows,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Animaux publiés pour vente',
           subtitle:
@@ -6182,7 +6260,7 @@ class _MainScreenState extends State<MainScreen> {
           ],
           rows: animalSaleRows,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Gestion de stock (Aliments / Doses)',
           subtitle: 'Disponibilité des intrants critiques',
@@ -6196,7 +6274,7 @@ class _MainScreenState extends State<MainScreen> {
           ],
           rows: stockRows,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Ravitaillements',
           subtitle: 'Achats et approvisionnements de la période filtrée',
@@ -6396,20 +6474,20 @@ class _MainScreenState extends State<MainScreen> {
             );
           },
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildInseminationOutcomeCharts(
           successCount: successCount,
           failedCount: failedCount,
           pendingCount: pendingCount,
           successRate: successRate,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildBreedingActionPlanCard(actionPlan),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildZootechKpiSection(zootechKpis),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildOperationalTasksSection(operationalTasks),
-        const SizedBox(height: 20),
+        const SizedBox(height: AppSpacing.s20),
         LayoutBuilder(
           builder: (context, constraints) {
             if (constraints.maxWidth > 980) {
@@ -6421,7 +6499,7 @@ class _MainScreenState extends State<MainScreen> {
                       recentIa.take(5).toList(),
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: AppSpacing.s16),
                   Expanded(
                     child: _buildUpcomingHealthCard(
                       nextHealthActions.take(5).toList(),
@@ -6434,17 +6512,17 @@ class _MainScreenState extends State<MainScreen> {
             return Column(
               children: [
                 _buildRecentInseminationCard(recentIa.take(5).toList()),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpacing.s16),
                 _buildUpcomingHealthCard(nextHealthActions.take(5).toList()),
               ],
             );
           },
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildPedigreeCoverageCard(),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildBreederAnimalSection(breederAnimalStats),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildExpertRecommendationsCard(expertTips),
       ],
     );
@@ -6458,7 +6536,7 @@ class _MainScreenState extends State<MainScreen> {
     String? badgeLabel,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.s16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
@@ -6474,14 +6552,14 @@ class _MainScreenState extends State<MainScreen> {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(AppSpacing.s10),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: color, size: 20),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: AppSpacing.s10),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -6489,10 +6567,10 @@ class _MainScreenState extends State<MainScreen> {
               children: [
                 if (badgeLabel != null && badgeLabel.trim().isNotEmpty)
                   Container(
-                    margin: const EdgeInsets.only(bottom: 5),
+                    margin: const EdgeInsets.only(bottom: AppSpacing.s5),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
+                      horizontal: AppSpacing.s8,
+                      vertical: AppSpacing.s2,
                     ),
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.1),
@@ -6576,7 +6654,7 @@ class _MainScreenState extends State<MainScreen> {
                 total: total,
                 color: const Color(0xFFB45309),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: AppSpacing.s10),
               Text(
                 'Taux de réussite (dossiers clôturés): $successRate% '
                 '($successCount réussies / ${successCount + failedCount})',
@@ -6585,7 +6663,7 @@ class _MainScreenState extends State<MainScreen> {
                   color: Color(0xFF334155),
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: AppSpacing.s4),
               Text(
                 'Total pas réussie + en attente: $failedOrPendingCount',
                 style: const TextStyle(
@@ -6602,13 +6680,19 @@ class _MainScreenState extends State<MainScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 donut,
-                const SizedBox(width: 24),
+                const SizedBox(width: AppSpacing.s24),
                 Expanded(child: detail),
               ],
             );
           }
 
-          return Column(children: [donut, const SizedBox(height: 16), detail]);
+          return Column(
+            children: [
+              donut,
+              const SizedBox(height: AppSpacing.s16),
+              detail,
+            ],
+          );
         },
       ),
     );
@@ -6684,7 +6768,7 @@ class _MainScreenState extends State<MainScreen> {
     final percent = (ratio * 100).round();
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: AppSpacing.s10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -6707,7 +6791,7 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: AppSpacing.s6),
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
             child: LinearProgressIndicator(
@@ -6862,7 +6946,7 @@ class _MainScreenState extends State<MainScreen> {
             children: kpis
                 .map(
                   (kpi) => Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(AppSpacing.s12),
                     decoration: BoxDecoration(
                       color: kpi.color.withValues(alpha: 0.09),
                       borderRadius: BorderRadius.circular(12),
@@ -7130,7 +7214,10 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s10,
+        vertical: AppSpacing.s5,
+      ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
@@ -7156,19 +7243,19 @@ class _MainScreenState extends State<MainScreen> {
         children: recommendations
             .map(
               (tip) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: AppSpacing.s8),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Padding(
-                      padding: EdgeInsets.only(top: 2),
+                      padding: EdgeInsets.only(top: AppSpacing.s2),
                       child: Icon(
                         LucideIcons.badgeInfo,
                         size: 16,
                         color: Color(0xFF0F766E),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: AppSpacing.s8),
                     Expanded(
                       child: Text(
                         tip,
@@ -7309,9 +7396,9 @@ class _MainScreenState extends State<MainScreen> {
             return Row(
               children: [
                 Expanded(child: cards[0]),
-                const SizedBox(width: 12),
+                const SizedBox(width: AppSpacing.s12),
                 Expanded(child: cards[1]),
-                const SizedBox(width: 12),
+                const SizedBox(width: AppSpacing.s12),
                 Expanded(child: cards[2]),
               ],
             );
@@ -7320,9 +7407,9 @@ class _MainScreenState extends State<MainScreen> {
           return Column(
             children: [
               cards[0],
-              const SizedBox(height: 10),
+              const SizedBox(height: AppSpacing.s10),
               cards[1],
-              const SizedBox(height: 10),
+              const SizedBox(height: AppSpacing.s10),
               cards[2],
             ],
           );
@@ -7927,7 +8014,7 @@ class _MainScreenState extends State<MainScreen> {
     required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.s12),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
@@ -7944,7 +8031,7 @@ class _MainScreenState extends State<MainScreen> {
               fontSize: 12,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.s8),
           Text(
             value,
             style: TextStyle(
@@ -8089,7 +8176,7 @@ class _MainScreenState extends State<MainScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildGestationCalendarSection(),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Qualité semence (contrôle laboratoire)',
           subtitle:
@@ -8116,7 +8203,7 @@ class _MainScreenState extends State<MainScreen> {
           ],
           rows: semenQualityRows,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Suivi semence (lots IA)',
           subtitle:
@@ -8135,7 +8222,7 @@ class _MainScreenState extends State<MainScreen> {
           ],
           rows: semenRows,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Gestion des inséminations',
           subtitle:
@@ -8264,7 +8351,7 @@ class _MainScreenState extends State<MainScreen> {
                   onPressed: () => _changeGestationCalendarMonth(1),
                   icon: const Icon(LucideIcons.chevronRight),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpacing.s8),
                 OutlinedButton(
                   onPressed: () {
                     final today = _currentDate();
@@ -8282,7 +8369,7 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ],
             ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.s8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -8305,7 +8392,7 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.s12),
           LayoutBuilder(
             builder: (context, constraints) {
               final gap = tinyCalendar ? 3.0 : (compactCalendar ? 4.0 : 6.0);
@@ -8327,7 +8414,9 @@ class _MainScreenState extends State<MainScreen> {
                           (dayName) => Expanded(
                             child: Padding(
                               padding: EdgeInsets.symmetric(
-                                vertical: compactCalendar ? 4 : 6,
+                                vertical: compactCalendar
+                                    ? AppSpacing.s4
+                                    : AppSpacing.s6,
                               ),
                               child: Text(
                                 dayName,
@@ -8395,7 +8484,11 @@ class _MainScreenState extends State<MainScreen> {
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 180),
                           padding: EdgeInsets.all(
-                            tinyCalendar ? 3 : (compactCalendar ? 4 : 6),
+                            tinyCalendar
+                                ? AppSpacing.s3
+                                : (compactCalendar
+                                      ? AppSpacing.s4
+                                      : AppSpacing.s6),
                           ),
                           decoration: BoxDecoration(
                             color: isSelected
@@ -8428,8 +8521,8 @@ class _MainScreenState extends State<MainScreen> {
                                   if (dayEvents.isNotEmpty)
                                     Container(
                                       padding: const EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                        vertical: 1,
+                                        horizontal: AppSpacing.s4,
+                                        vertical: AppSpacing.s1,
                                       ),
                                       decoration: BoxDecoration(
                                         color: const Color(0xFF0F172A),
@@ -8474,7 +8567,7 @@ class _MainScreenState extends State<MainScreen> {
               );
             },
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpacing.s14),
           _buildSelectedGestationDayCard(selectedDate, selectedEvents),
         ],
       ),
@@ -8583,7 +8676,7 @@ class _MainScreenState extends State<MainScreen> {
                   onPressed: () => _changePigletCalendarMonth(1),
                   icon: const Icon(LucideIcons.chevronRight),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpacing.s8),
                 OutlinedButton(
                   onPressed: () {
                     final today = _currentDate();
@@ -8601,7 +8694,7 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ],
             ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.s8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -8624,7 +8717,7 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.s12),
           LayoutBuilder(
             builder: (context, constraints) {
               final gap = tinyCalendar ? 3.0 : (compactCalendar ? 4.0 : 6.0);
@@ -8646,7 +8739,9 @@ class _MainScreenState extends State<MainScreen> {
                           (dayName) => Expanded(
                             child: Padding(
                               padding: EdgeInsets.symmetric(
-                                vertical: compactCalendar ? 4 : 6,
+                                vertical: compactCalendar
+                                    ? AppSpacing.s4
+                                    : AppSpacing.s6,
                               ),
                               child: Text(
                                 dayName,
@@ -8712,7 +8807,11 @@ class _MainScreenState extends State<MainScreen> {
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 180),
                           padding: EdgeInsets.all(
-                            tinyCalendar ? 3 : (compactCalendar ? 4 : 6),
+                            tinyCalendar
+                                ? AppSpacing.s3
+                                : (compactCalendar
+                                      ? AppSpacing.s4
+                                      : AppSpacing.s6),
                           ),
                           decoration: BoxDecoration(
                             color: isSelected
@@ -8745,8 +8844,8 @@ class _MainScreenState extends State<MainScreen> {
                                   if (dayEvents.isNotEmpty)
                                     Container(
                                       padding: const EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                        vertical: 1,
+                                        horizontal: AppSpacing.s4,
+                                        vertical: AppSpacing.s1,
                                       ),
                                       decoration: BoxDecoration(
                                         color: const Color(0xFF7C2D12),
@@ -8791,7 +8890,7 @@ class _MainScreenState extends State<MainScreen> {
               );
             },
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpacing.s14),
           _buildSelectedPigletDayCard(selectedDate, selectedEvents),
         ],
       ),
@@ -8804,7 +8903,7 @@ class _MainScreenState extends State<MainScreen> {
   ) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(AppSpacing.s14),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(12),
@@ -8821,7 +8920,7 @@ class _MainScreenState extends State<MainScreen> {
               color: Color(0xFF0F172A),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.s8),
           if (events.isEmpty)
             const Text(
               'Aucune action planifiée sur cette date.',
@@ -8833,12 +8932,12 @@ class _MainScreenState extends State<MainScreen> {
           else
             ...events.map(
               (event) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: AppSpacing.s8),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(event.icon, size: 16, color: event.color),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: AppSpacing.s8),
                     Expanded(
                       child: Text(
                         event.label,
@@ -8873,7 +8972,7 @@ class _MainScreenState extends State<MainScreen> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(AppSpacing.s14),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(12),
@@ -8894,7 +8993,7 @@ class _MainScreenState extends State<MainScreen> {
                     color: Color(0xFF0F172A),
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpacing.s8),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: FilledButton.icon(
@@ -8927,7 +9026,7 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ],
             ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpacing.s10),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -8966,7 +9065,7 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpacing.s10),
           if (events.isEmpty)
             const Text(
               'Aucun suivi porcelet planifié sur cette date.',
@@ -8978,12 +9077,12 @@ class _MainScreenState extends State<MainScreen> {
           else
             ...events.map(
               (event) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: AppSpacing.s8),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(event.icon, size: 16, color: event.color),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: AppSpacing.s8),
                     Expanded(
                       child: Text(
                         event.label,
@@ -9017,8 +9116,8 @@ class _MainScreenState extends State<MainScreen> {
     final compact = MediaQuery.of(context).size.width < 460;
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: compact ? 8 : 10,
-        vertical: compact ? 5 : 6,
+        horizontal: compact ? AppSpacing.s8 : AppSpacing.s10,
+        vertical: compact ? AppSpacing.s5 : AppSpacing.s6,
       ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
@@ -9028,7 +9127,7 @@ class _MainScreenState extends State<MainScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           _buildDayMarker(color),
-          const SizedBox(width: 6),
+          const SizedBox(width: AppSpacing.s6),
           Text(
             label,
             style: TextStyle(
@@ -9124,7 +9223,7 @@ class _MainScreenState extends State<MainScreen> {
                   },
                 ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Gestion des verrats',
           subtitle:
@@ -9153,7 +9252,7 @@ class _MainScreenState extends State<MainScreen> {
     final selected = _isPreferredBoar(boar.code);
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(AppSpacing.s14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -9167,7 +9266,7 @@ class _MainScreenState extends State<MainScreen> {
           Row(
             children: [
               _buildBoarPhoto(boar, size: 62),
-              const SizedBox(width: 10),
+              const SizedBox(width: AppSpacing.s10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -9193,7 +9292,7 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpacing.s10),
           Text(
             'Origine: ${boar.origin}',
             style: const TextStyle(
@@ -9449,7 +9548,7 @@ class _MainScreenState extends State<MainScreen> {
           ],
           rows: followUpRows,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Gestion des truies',
           subtitle:
@@ -9608,7 +9707,7 @@ class _MainScreenState extends State<MainScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildSectionCard(
           title: 'Arbre généalogique détaillé',
           subtitle:
@@ -9644,7 +9743,7 @@ class _MainScreenState extends State<MainScreen> {
                         setState(() => _selectedPedigreeAnimalCode = value);
                       },
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppSpacing.s12),
                     LayoutBuilder(
                       builder: (context, constraints) {
                         final isWide = constraints.maxWidth > 860;
@@ -9669,9 +9768,9 @@ class _MainScreenState extends State<MainScreen> {
                           return Row(
                             children: [
                               Expanded(child: indicators[0]),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: AppSpacing.s12),
                               Expanded(child: indicators[1]),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: AppSpacing.s12),
                               Expanded(child: indicators[2]),
                             ],
                           );
@@ -9679,15 +9778,15 @@ class _MainScreenState extends State<MainScreen> {
                         return Column(
                           children: [
                             indicators[0],
-                            const SizedBox(height: 10),
+                            const SizedBox(height: AppSpacing.s10),
                             indicators[1],
-                            const SizedBox(height: 10),
+                            const SizedBox(height: AppSpacing.s10),
                             indicators[2],
                           ],
                         );
                       },
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: AppSpacing.s14),
                     if (selectedNode == null)
                       _buildEmptyState(
                         'Impossible de charger cet animal. Vérifiez son code.',
@@ -9702,7 +9801,7 @@ class _MainScreenState extends State<MainScreen> {
                         maternalSire: maternalSireNode,
                         maternalDam: maternalDamNode,
                       ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppSpacing.s12),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -9740,7 +9839,7 @@ class _MainScreenState extends State<MainScreen> {
                   ],
                 ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildSectionCard(
           title: 'Amélioration descendance & anti-consanguinité',
           subtitle:
@@ -9770,9 +9869,9 @@ class _MainScreenState extends State<MainScreen> {
                 return Row(
                   children: [
                     Expanded(child: indicators[0]),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AppSpacing.s12),
                     Expanded(child: indicators[1]),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AppSpacing.s12),
                     Expanded(child: indicators[2]),
                   ],
                 );
@@ -9781,16 +9880,16 @@ class _MainScreenState extends State<MainScreen> {
               return Column(
                 children: [
                   indicators[0],
-                  const SizedBox(height: 10),
+                  const SizedBox(height: AppSpacing.s10),
                   indicators[1],
-                  const SizedBox(height: 10),
+                  const SizedBox(height: AppSpacing.s10),
                   indicators[2],
                 ],
               );
             },
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Registre de filiation',
           subtitle: 'Consolidé verrats et truies',
@@ -9806,7 +9905,7 @@ class _MainScreenState extends State<MainScreen> {
           ],
           rows: rows,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Alertes consanguinité',
           subtitle:
@@ -9889,7 +9988,7 @@ class _MainScreenState extends State<MainScreen> {
                       accent: const Color(0xFF2563EB),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: AppSpacing.s12),
                   Expanded(
                     child: _buildPedigreeNodeCard(
                       relation: 'Mère',
@@ -9906,7 +10005,7 @@ class _MainScreenState extends State<MainScreen> {
                     node: sire,
                     accent: const Color(0xFF2563EB),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: AppSpacing.s10),
                   _buildPedigreeNodeCard(
                     relation: 'Mère',
                     node: dam,
@@ -9925,7 +10024,7 @@ class _MainScreenState extends State<MainScreen> {
                       accent: const Color(0xFF0284C7),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: AppSpacing.s10),
                   Expanded(
                     child: _buildPedigreeNodeCard(
                       relation: 'Grand-mère paternelle',
@@ -9933,7 +10032,7 @@ class _MainScreenState extends State<MainScreen> {
                       accent: const Color(0xFF6366F1),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: AppSpacing.s10),
                   Expanded(
                     child: _buildPedigreeNodeCard(
                       relation: 'Grand-père maternel',
@@ -9941,7 +10040,7 @@ class _MainScreenState extends State<MainScreen> {
                       accent: const Color(0xFF0891B2),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: AppSpacing.s10),
                   Expanded(
                     child: _buildPedigreeNodeCard(
                       relation: 'Grand-mère maternelle',
@@ -9962,7 +10061,7 @@ class _MainScreenState extends State<MainScreen> {
                           accent: const Color(0xFF0284C7),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: AppSpacing.s10),
                       Expanded(
                         child: _buildPedigreeNodeCard(
                           relation: 'Grand-mère paternelle',
@@ -9972,7 +10071,7 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: AppSpacing.s10),
                   Row(
                     children: [
                       Expanded(
@@ -9982,7 +10081,7 @@ class _MainScreenState extends State<MainScreen> {
                           accent: const Color(0xFF0891B2),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: AppSpacing.s10),
                       Expanded(
                         child: _buildPedigreeNodeCard(
                           relation: 'Grand-mère maternelle',
@@ -10010,13 +10109,13 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.s8),
             _buildPedigreeTreeConnector(widthFactor: isWide ? 0.45 : 0.7),
-            const SizedBox(height: 10),
+            const SizedBox(height: AppSpacing.s10),
             parentSection,
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.s8),
             _buildPedigreeTreeConnector(widthFactor: isWide ? 0.95 : 0.8),
-            const SizedBox(height: 10),
+            const SizedBox(height: AppSpacing.s10),
             grandParentSection,
           ],
         );
@@ -10037,7 +10136,7 @@ class _MainScreenState extends State<MainScreen> {
 
     return Container(
       constraints: const BoxConstraints(minHeight: 124),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.s12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
@@ -10063,7 +10162,7 @@ class _MainScreenState extends State<MainScreen> {
               fontSize: 11,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: AppSpacing.s6),
           Text(
             isMissing ? 'Non renseigné' : '${node.code} • ${node.name}',
             maxLines: 2,
@@ -10076,7 +10175,7 @@ class _MainScreenState extends State<MainScreen> {
               fontSize: 14,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpacing.s4),
           Text(
             isMissing
                 ? 'Ajoutez la filiation pour compléter la lignée.'
@@ -10088,7 +10187,7 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
           if (!isMissing) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpacing.s4),
             Text(
               'P: ${node.sireCode.isEmpty ? '-' : node.sireCode} • '
               'M: ${node.damCode.isEmpty ? '-' : node.damCode}',
@@ -10178,7 +10277,7 @@ class _MainScreenState extends State<MainScreen> {
                     children: [
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.all(10),
+                        padding: const EdgeInsets.all(AppSpacing.s10),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF8FAFC),
                           borderRadius: BorderRadius.circular(12),
@@ -10192,7 +10291,7 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(
                         sireCtrl,
                         'Code père (manuel)',
@@ -10227,7 +10326,7 @@ class _MainScreenState extends State<MainScreen> {
                           });
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(
                         damCtrl,
                         'Code mère (manuel)',
@@ -10262,7 +10361,7 @@ class _MainScreenState extends State<MainScreen> {
                           });
                         },
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: AppSpacing.s10),
                       OutlinedButton.icon(
                         onPressed: () {
                           final suggestion = _suggestPedigreeLinksForAnimal(
@@ -10780,7 +10879,12 @@ class _MainScreenState extends State<MainScreen> {
                 ],
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 58, 24, 22),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.s24,
+                  AppSpacing.s58,
+                  AppSpacing.s24,
+                  AppSpacing.s22,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -10792,7 +10896,7 @@ class _MainScreenState extends State<MainScreen> {
                         color: Color(0xFF0F172A),
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: AppSpacing.s4),
                     Text(
                       '${user.role} • ${user.code} • @${user.login}',
                       style: const TextStyle(
@@ -10800,7 +10904,7 @@ class _MainScreenState extends State<MainScreen> {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: AppSpacing.s10),
                     Text(
                       user.bio.trim().isEmpty
                           ? 'Ajoutez une bio pour décrire votre rôle terrain et vos objectifs.'
@@ -10811,7 +10915,7 @@ class _MainScreenState extends State<MainScreen> {
                         height: 1.35,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppSpacing.s16),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -10840,7 +10944,7 @@ class _MainScreenState extends State<MainScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildSectionCard(
           title: 'Infos Profil',
           subtitle: 'Informations personnelles et zone d\'intervention',
@@ -10866,7 +10970,7 @@ class _MainScreenState extends State<MainScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildSectionCard(
           title: 'Activité récente',
           subtitle: 'Historique des dernières actions sur la plateforme',
@@ -10906,7 +11010,10 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildProfileChip({required IconData icon, required String text}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s10,
+        vertical: AppSpacing.s8,
+      ),
       decoration: BoxDecoration(
         color: const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(999),
@@ -10915,7 +11022,7 @@ class _MainScreenState extends State<MainScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 14, color: const Color(0xFF334155)),
-          const SizedBox(width: 6),
+          const SizedBox(width: AppSpacing.s6),
           Text(
             text,
             style: const TextStyle(
@@ -10935,7 +11042,7 @@ class _MainScreenState extends State<MainScreen> {
     bool withDivider = true,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.s10),
       decoration: BoxDecoration(
         border: withDivider
             ? const Border(bottom: BorderSide(color: Color(0xFFE2E8F0)))
@@ -10993,7 +11100,7 @@ class _MainScreenState extends State<MainScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildNewsComposerCard(),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpacing.s12),
         if (posts.isEmpty)
           _buildSectionCard(
             title: 'Fil d\'actualité',
@@ -11007,7 +11114,8 @@ class _MainScreenState extends State<MainScreen> {
             itemCount: posts.length,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            separatorBuilder: (_, index) => const SizedBox(height: 12),
+            separatorBuilder: (_, index) =>
+                const SizedBox(height: AppSpacing.s12),
             itemBuilder: (context, index) => _buildNewsTimelineItem(
               post: posts[index],
               isLast: index == posts.length - 1,
@@ -11038,7 +11146,7 @@ class _MainScreenState extends State<MainScreen> {
                             color: const Color(0xFF2563EB),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: AppSpacing.s10),
                         Expanded(
                           child: _buildMiniIndicator(
                             label: 'J\'aime reçus',
@@ -11048,7 +11156,7 @@ class _MainScreenState extends State<MainScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: AppSpacing.s10),
                     Row(
                       children: [
                         Expanded(
@@ -11058,7 +11166,7 @@ class _MainScreenState extends State<MainScreen> {
                             color: const Color(0xFF0F766E),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: AppSpacing.s10),
                         Expanded(
                           child: _buildMiniIndicator(
                             label: 'Photos',
@@ -11071,7 +11179,7 @@ class _MainScreenState extends State<MainScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.s12),
               feedList,
             ],
           );
@@ -11089,14 +11197,14 @@ class _MainScreenState extends State<MainScreen> {
                 photosCount: photosCount,
               ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: AppSpacing.s14),
             Expanded(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 700),
                 child: feedList,
               ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: AppSpacing.s14),
             SizedBox(width: 280, child: _buildNewsRightRail(posts.length)),
           ],
         );
@@ -11106,7 +11214,12 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildNewsComposerCard() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.s14,
+        AppSpacing.s12,
+        AppSpacing.s14,
+        AppSpacing.s10,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
@@ -11124,15 +11237,15 @@ class _MainScreenState extends State<MainScreen> {
           Row(
             children: [
               _buildUserAvatar(_currentUser, radius: 20),
-              const SizedBox(width: 10),
+              const SizedBox(width: AppSpacing.s10),
               Expanded(
                 child: InkWell(
                   onTap: _showAddNewsPostDialog,
                   borderRadius: BorderRadius.circular(999),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
+                      horizontal: AppSpacing.s14,
+                      vertical: AppSpacing.s10,
                     ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF1F5F9),
@@ -11150,9 +11263,9 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpacing.s10),
           const Divider(height: 1),
-          const SizedBox(height: 6),
+          const SizedBox(height: AppSpacing.s6),
           Row(
             children: [
               Expanded(
@@ -11196,12 +11309,15 @@ class _MainScreenState extends State<MainScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.s6,
+          vertical: AppSpacing.s8,
+        ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, size: 16, color: color),
-            const SizedBox(width: 6),
+            const SizedBox(width: AppSpacing.s6),
             Flexible(
               child: Text(
                 label,
@@ -11230,7 +11346,7 @@ class _MainScreenState extends State<MainScreen> {
       children: [
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(AppSpacing.s12),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(14),
@@ -11242,7 +11358,7 @@ class _MainScreenState extends State<MainScreen> {
               Row(
                 children: [
                   _buildUserAvatar(_currentUser, radius: 17),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppSpacing.s8),
                   Expanded(
                     child: Text(
                       _currentUser.name,
@@ -11257,7 +11373,7 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: AppSpacing.s10),
               _buildNewsRailStatRow('Mes posts', '$myPostsCount'),
               _buildNewsRailStatRow('J\'aime reçus', '$myLikesCount'),
               _buildNewsRailStatRow('Commentaires', '$commentsCount'),
@@ -11271,7 +11387,7 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildNewsRailStatRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: AppSpacing.s8),
       child: Row(
         children: [
           Expanded(
@@ -11301,7 +11417,7 @@ class _MainScreenState extends State<MainScreen> {
       children: [
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(AppSpacing.s12),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(14),
@@ -11317,7 +11433,7 @@ class _MainScreenState extends State<MainScreen> {
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              SizedBox(height: 8),
+              SizedBox(height: AppSpacing.s8),
               Text(
                 'Utilisez ce fil pour les alertes de chaleur, diagnostics J28, mise-bas et suivi porcelets.',
                 style: TextStyle(
@@ -11330,10 +11446,10 @@ class _MainScreenState extends State<MainScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: AppSpacing.s10),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(AppSpacing.s12),
           decoration: BoxDecoration(
             color: const Color(0xFFEFF6FF),
             borderRadius: BorderRadius.circular(14),
@@ -11382,7 +11498,7 @@ class _MainScreenState extends State<MainScreen> {
                 Container(
                   width: 2,
                   height: 118,
-                  margin: const EdgeInsets.only(top: 2),
+                  margin: const EdgeInsets.only(top: AppSpacing.s2),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
@@ -11397,7 +11513,7 @@ class _MainScreenState extends State<MainScreen> {
             ],
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: AppSpacing.s8),
         Expanded(child: _buildNewsPostCard(post)),
       ],
     );
@@ -11430,12 +11546,17 @@ class _MainScreenState extends State<MainScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 10, 8),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.s12,
+              AppSpacing.s12,
+              AppSpacing.s10,
+              AppSpacing.s8,
+            ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildNewsAuthorAvatar(authorProfile, post.authorName),
-                const SizedBox(width: 10),
+                const SizedBox(width: AppSpacing.s10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -11448,7 +11569,7 @@ class _MainScreenState extends State<MainScreen> {
                           fontSize: 14,
                         ),
                       ),
-                      const SizedBox(height: 1),
+                      const SizedBox(height: AppSpacing.s1),
                       Text(
                         '${post.authorRole} • ${_newsTimeLabel(post.createdAt)}',
                         style: const TextStyle(
@@ -11493,7 +11614,12 @@ class _MainScreenState extends State<MainScreen> {
           ),
           if (post.text.trim().isNotEmpty) ...[
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.s12,
+                AppSpacing.zero,
+                AppSpacing.s12,
+                AppSpacing.s8,
+              ),
               child: Text(
                 post.text.trim(),
                 style: const TextStyle(
@@ -11508,7 +11634,12 @@ class _MainScreenState extends State<MainScreen> {
             _buildNewsPostImage(post.imageBase64),
             if (post.imageName.trim().isNotEmpty) ...[
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.s12,
+                  AppSpacing.s6,
+                  AppSpacing.s12,
+                  AppSpacing.zero,
+                ),
                 child: Text(
                   post.imageName.trim(),
                   style: const TextStyle(
@@ -11521,7 +11652,12 @@ class _MainScreenState extends State<MainScreen> {
             ],
           ],
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.s12,
+              AppSpacing.s8,
+              AppSpacing.s12,
+              AppSpacing.zero,
+            ),
             child: Row(
               children: [
                 Icon(
@@ -11529,7 +11665,7 @@ class _MainScreenState extends State<MainScreen> {
                   size: 14,
                   color: const Color(0xFF2563EB).withValues(alpha: 0.9),
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: AppSpacing.s4),
                 Text(
                   '${post.likedByUserIds.length}',
                   style: const TextStyle(
@@ -11551,11 +11687,19 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
           const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: EdgeInsets.symmetric(
+              horizontal: AppSpacing.s12,
+              vertical: AppSpacing.s8,
+            ),
             child: Divider(height: 1),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(6, 0, 6, 2),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.s6,
+              AppSpacing.zero,
+              AppSpacing.s6,
+              AppSpacing.s2,
+            ),
             child: Row(
               children: [
                 Expanded(
@@ -11591,12 +11735,17 @@ class _MainScreenState extends State<MainScreen> {
           ),
           if (comments.isNotEmpty) ...[
             const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
+              padding: EdgeInsets.symmetric(horizontal: AppSpacing.s12),
               child: Divider(height: 14),
             ),
             if (comments.length > visibleComments.length)
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.s12,
+                  AppSpacing.zero,
+                  AppSpacing.s12,
+                  AppSpacing.s8,
+                ),
                 child: Text(
                   '${comments.length - visibleComments.length} commentaire(s) plus ancien(s)...',
                   style: const TextStyle(
@@ -11609,7 +11758,12 @@ class _MainScreenState extends State<MainScreen> {
             ...visibleComments.map((comment) {
               final commentUser = _findUserById(comment.authorId);
               return Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.s12,
+                  AppSpacing.zero,
+                  AppSpacing.s12,
+                  AppSpacing.s8,
+                ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -11618,12 +11772,12 @@ class _MainScreenState extends State<MainScreen> {
                       comment.authorName,
                       radius: 14,
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: AppSpacing.s8),
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
+                          horizontal: AppSpacing.s10,
+                          vertical: AppSpacing.s8,
                         ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF1F5F9),
@@ -11640,7 +11794,7 @@ class _MainScreenState extends State<MainScreen> {
                                 fontSize: 12,
                               ),
                             ),
-                            const SizedBox(height: 2),
+                            const SizedBox(height: AppSpacing.s2),
                             Text(
                               comment.text,
                               style: const TextStyle(
@@ -11649,7 +11803,7 @@ class _MainScreenState extends State<MainScreen> {
                                 height: 1.35,
                               ),
                             ),
-                            const SizedBox(height: 2),
+                            const SizedBox(height: AppSpacing.s2),
                             Text(
                               _newsTimeLabel(comment.createdAt),
                               style: const TextStyle(
@@ -11682,12 +11836,12 @@ class _MainScreenState extends State<MainScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.s8),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, size: 18, color: color),
-            const SizedBox(width: 6),
+            const SizedBox(width: AppSpacing.s6),
             Text(
               label,
               style: TextStyle(
@@ -11799,7 +11953,7 @@ class _MainScreenState extends State<MainScreen> {
                       Row(
                         children: [
                           _buildUserAvatar(_currentUser, radius: 16),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: AppSpacing.s8),
                           Expanded(
                             child: Text(
                               _currentUser.name,
@@ -11811,7 +11965,7 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: AppSpacing.s10),
                       TextField(
                         controller: textCtrl,
                         minLines: 3,
@@ -11823,9 +11977,9 @@ class _MainScreenState extends State<MainScreen> {
                           border: OutlineInputBorder(),
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: AppSpacing.s10),
                       _buildImagePreviewBox(selectedImageBase64, size: 110),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: AppSpacing.s8),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
@@ -12226,7 +12380,7 @@ class _MainScreenState extends State<MainScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       _buildCoverPreviewBox(coverImageBase64, height: 104),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: AppSpacing.s8),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
@@ -12252,12 +12406,12 @@ class _MainScreenState extends State<MainScreen> {
                             ),
                         ],
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: AppSpacing.s10),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildImagePreviewBox(profileImageBase64, size: 84),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: AppSpacing.s10),
                           Expanded(
                             child: Wrap(
                               spacing: 8,
@@ -12297,7 +12451,7 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(nameCtrl, 'Nom complet *'),
                       _dialogField(bioCtrl, 'Bio', maxLines: 3),
                       _dialogField(addressCtrl, 'Adresse *'),
@@ -12453,7 +12607,7 @@ class _MainScreenState extends State<MainScreen> {
                       activeConversationId: activeConversation.id,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: AppSpacing.s12),
                   Expanded(child: thread),
                 ],
               ),
@@ -12498,7 +12652,7 @@ class _MainScreenState extends State<MainScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildMessengerConversationSearchField(),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpacing.s10),
           Expanded(
             child: filteredConversations.isEmpty
                 ? _buildEmptyState(
@@ -12508,7 +12662,8 @@ class _MainScreenState extends State<MainScreen> {
                   )
                 : ListView.separated(
                     itemCount: filteredConversations.length,
-                    separatorBuilder: (_, index) => const SizedBox(height: 8),
+                    separatorBuilder: (_, index) =>
+                        const SizedBox(height: AppSpacing.s8),
                     itemBuilder: (context, index) {
                       final conversation = filteredConversations[index];
                       final isActive = conversation.id == activeConversation.id;
@@ -12596,7 +12751,7 @@ class _MainScreenState extends State<MainScreen> {
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: Color(0xFFDCE4EE)),
         ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+        contentPadding: const EdgeInsets.symmetric(vertical: AppSpacing.s10),
       ),
     );
   }
@@ -12616,11 +12771,16 @@ class _MainScreenState extends State<MainScreen> {
       child: Column(
         children: [
           const Padding(
-            padding: EdgeInsets.fromLTRB(12, 12, 12, 6),
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.s12,
+              AppSpacing.s12,
+              AppSpacing.s12,
+              AppSpacing.s6,
+            ),
             child: Row(
               children: [
                 Icon(Icons.forum_outlined, size: 16, color: Color(0xFF0F766E)),
-                SizedBox(width: 8),
+                SizedBox(width: AppSpacing.s8),
                 Text(
                   'Conversations',
                   style: TextStyle(
@@ -12632,7 +12792,12 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.s12,
+              AppSpacing.zero,
+              AppSpacing.s12,
+              AppSpacing.s10,
+            ),
             child: _buildMessengerConversationSearchField(),
           ),
           const Divider(height: 1, color: Color(0xFFDCE4EE)),
@@ -12645,7 +12810,8 @@ class _MainScreenState extends State<MainScreen> {
                   )
                 : ListView.separated(
                     itemCount: filteredConversations.length,
-                    separatorBuilder: (_, index) => const SizedBox(height: 2),
+                    separatorBuilder: (_, index) =>
+                        const SizedBox(height: AppSpacing.s2),
                     itemBuilder: (context, index) {
                       final conversation = filteredConversations[index];
                       final isActive = conversation.id == activeConversationId;
@@ -12687,8 +12853,8 @@ class _MainScreenState extends State<MainScreen> {
               : null,
         ),
         padding: EdgeInsets.symmetric(
-          horizontal: mobile ? 12 : 10,
-          vertical: mobile ? 12 : 10,
+          horizontal: mobile ? AppSpacing.s12 : AppSpacing.s10,
+          vertical: mobile ? AppSpacing.s12 : AppSpacing.s10,
         ),
         child: Row(
           children: [
@@ -12720,7 +12886,7 @@ class _MainScreenState extends State<MainScreen> {
                   ),
               ],
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: AppSpacing.s10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -12735,7 +12901,7 @@ class _MainScreenState extends State<MainScreen> {
                       fontSize: mobile ? 14 : 13,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: AppSpacing.s2),
                   Text(
                     conversation.subtitle,
                     maxLines: 1,
@@ -12746,7 +12912,7 @@ class _MainScreenState extends State<MainScreen> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 1),
+                  const SizedBox(height: AppSpacing.s1),
                   Text(
                     conversation.preview,
                     maxLines: 1,
@@ -12759,7 +12925,7 @@ class _MainScreenState extends State<MainScreen> {
                 ],
               ),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: AppSpacing.s6),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -12773,12 +12939,12 @@ class _MainScreenState extends State<MainScreen> {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: AppSpacing.s4),
                 if (conversation.unreadCount > 0)
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 2,
+                      horizontal: AppSpacing.s7,
+                      vertical: AppSpacing.s2,
                     ),
                     decoration: BoxDecoration(
                       color: _accentTealDeep,
@@ -12830,7 +12996,10 @@ class _MainScreenState extends State<MainScreen> {
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.s10,
+              vertical: AppSpacing.s10,
+            ),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 begin: Alignment.topLeft,
@@ -12870,7 +13039,7 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: AppSpacing.s10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -12929,8 +13098,8 @@ class _MainScreenState extends State<MainScreen> {
                     )
                   : ListView.builder(
                       padding: EdgeInsets.symmetric(
-                        horizontal: mobile ? 8 : 12,
-                        vertical: 12,
+                        horizontal: mobile ? AppSpacing.s8 : AppSpacing.s12,
+                        vertical: AppSpacing.s12,
                       ),
                       itemCount: messages.length,
                       itemBuilder: (context, index) {
@@ -12951,7 +13120,7 @@ class _MainScreenState extends State<MainScreen> {
                           children: [
                             if (showDateChip) ...[
                               _buildMessengerDateChip(message.sentAt),
-                              const SizedBox(height: 6),
+                              const SizedBox(height: AppSpacing.s6),
                             ],
                             Align(
                               alignment: isMine
@@ -12962,10 +13131,12 @@ class _MainScreenState extends State<MainScreen> {
                                   maxWidth: maxBubbleWidth,
                                 ),
                                 child: Container(
-                                  margin: const EdgeInsets.only(bottom: 8),
+                                  margin: const EdgeInsets.only(
+                                    bottom: AppSpacing.s8,
+                                  ),
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 11,
-                                    vertical: 8,
+                                    horizontal: AppSpacing.s11,
+                                    vertical: AppSpacing.s8,
                                   ),
                                   decoration: BoxDecoration(
                                     color: isMine
@@ -13007,7 +13178,7 @@ class _MainScreenState extends State<MainScreen> {
                                       if (showSender)
                                         Padding(
                                           padding: const EdgeInsets.only(
-                                            bottom: 4,
+                                            bottom: AppSpacing.s4,
                                           ),
                                           child: Text(
                                             message.senderName,
@@ -13022,7 +13193,7 @@ class _MainScreenState extends State<MainScreen> {
                                         message: message,
                                         isMine: isMine,
                                       ),
-                                      const SizedBox(height: 4),
+                                      const SizedBox(height: AppSpacing.s4),
                                       Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
@@ -13037,7 +13208,9 @@ class _MainScreenState extends State<MainScreen> {
                                             ),
                                           ),
                                           if (isMine) ...[
-                                            const SizedBox(width: 5),
+                                            const SizedBox(
+                                              width: AppSpacing.s5,
+                                            ),
                                             Icon(
                                               readByOthers
                                                   ? Icons.done_all_rounded
@@ -13063,10 +13236,10 @@ class _MainScreenState extends State<MainScreen> {
           ),
           Container(
             padding: EdgeInsets.fromLTRB(
-              mobile ? 8 : 12,
-              8,
-              mobile ? 8 : 12,
-              mobile ? 10 : 12,
+              mobile ? AppSpacing.s8 : AppSpacing.s12,
+              AppSpacing.s8,
+              mobile ? AppSpacing.s8 : AppSpacing.s12,
+              mobile ? AppSpacing.s10 : AppSpacing.s12,
             ),
             decoration: const BoxDecoration(
               color: Colors.white,
@@ -13076,7 +13249,7 @@ class _MainScreenState extends State<MainScreen> {
               children: [
                 if (!mobile)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.only(bottom: AppSpacing.s8),
                     child: Row(
                       children: [
                         OutlinedButton.icon(
@@ -13087,7 +13260,7 @@ class _MainScreenState extends State<MainScreen> {
                           icon: const Icon(Icons.image_outlined, size: 16),
                           label: const Text('Image'),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: AppSpacing.s8),
                         OutlinedButton.icon(
                           onPressed: () => _pickAndSendChatAttachment(
                             activeConversation.id,
@@ -13096,7 +13269,7 @@ class _MainScreenState extends State<MainScreen> {
                           icon: const Icon(Icons.videocam_outlined, size: 16),
                           label: const Text('Vidéo'),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: AppSpacing.s8),
                         OutlinedButton.icon(
                           onPressed: () => _pickAndSendChatAttachment(
                             activeConversation.id,
@@ -13134,7 +13307,7 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AppSpacing.s8),
                     ],
                     Expanded(
                       child: TextField(
@@ -13162,13 +13335,13 @@ class _MainScreenState extends State<MainScreen> {
                             ),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
+                            horizontal: AppSpacing.s14,
+                            vertical: AppSpacing.s10,
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: AppSpacing.s8),
                     Container(
                       width: 42,
                       height: 42,
@@ -13200,7 +13373,10 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildMessengerDateChip(DateTime date) {
     return Center(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.s10,
+          vertical: AppSpacing.s4,
+        ),
         decoration: BoxDecoration(
           color: const Color(0xFFE2E8F0),
           borderRadius: BorderRadius.circular(999),
@@ -13374,9 +13550,9 @@ class _MainScreenState extends State<MainScreen> {
                 return Row(
                   children: [
                     Expanded(child: indicators[0]),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AppSpacing.s12),
                     Expanded(child: indicators[1]),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AppSpacing.s12),
                     Expanded(child: indicators[2]),
                   ],
                 );
@@ -13385,16 +13561,16 @@ class _MainScreenState extends State<MainScreen> {
               return Column(
                 children: [
                   indicators[0],
-                  const SizedBox(height: 10),
+                  const SizedBox(height: AppSpacing.s10),
                   indicators[1],
-                  const SizedBox(height: 10),
+                  const SizedBox(height: AppSpacing.s10),
                   indicators[2],
                 ],
               );
             },
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.s16),
         _buildDataTableSection(
           title: 'Gestion des utilisateurs',
           subtitle: 'Créer, modifier, sécuriser les comptes et gérer les rôles',
@@ -13435,7 +13611,7 @@ class _MainScreenState extends State<MainScreen> {
 
     return RepaintBoundary(
       child: Container(
-        padding: EdgeInsets.all(compact ? 14 : 22),
+        padding: EdgeInsets.all(compact ? AppSpacing.s14 : AppSpacing.xxxl),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(26),
@@ -13460,7 +13636,7 @@ class _MainScreenState extends State<MainScreen> {
                 letterSpacing: -0.35,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpacing.s4),
             Text(
               subtitle,
               style: TextStyle(
@@ -13496,7 +13672,7 @@ class _MainScreenState extends State<MainScreen> {
         children: [
           if (actions.isNotEmpty) ...[
             Wrap(spacing: 8, runSpacing: 8, children: actions),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.s12),
           ],
           rows.isEmpty
               ? _buildEmptyState(emptyMessage)
@@ -13526,7 +13702,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildEmptyState(String message) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 24),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.s24),
       decoration: BoxDecoration(
         color: _surfaceSlate,
         borderRadius: BorderRadius.circular(16),
@@ -13943,7 +14119,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(sireCtrl, 'Code père (optionnel)'),
                       _dialogField(damCtrl, 'Code mère (optionnel)'),
                       _dialogField(
@@ -13951,12 +14127,12 @@ class _MainScreenState extends State<MainScreen> {
                         'Type semence',
                         hint: 'Fraîche / Congelée',
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: AppSpacing.s2),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildImagePreviewBox(selectedImageBase64, size: 88),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: AppSpacing.s10),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -13968,7 +14144,7 @@ class _MainScreenState extends State<MainScreen> {
                                     color: Color(0xFF334155),
                                   ),
                                 ),
-                                const SizedBox(height: 6),
+                                const SizedBox(height: AppSpacing.s6),
                                 Wrap(
                                   spacing: 8,
                                   runSpacing: 8,
@@ -14011,7 +14187,7 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(notesCtrl, 'Notes', maxLines: 2),
                     ],
                   ),
@@ -14152,15 +14328,15 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(sireCtrl, 'Code père (optionnel)'),
                       _dialogField(damCtrl, 'Code mère (optionnel)'),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: AppSpacing.s2),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildImagePreviewBox(selectedImageBase64, size: 88),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: AppSpacing.s10),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -14172,7 +14348,7 @@ class _MainScreenState extends State<MainScreen> {
                                     color: Color(0xFF334155),
                                   ),
                                 ),
-                                const SizedBox(height: 6),
+                                const SizedBox(height: AppSpacing.s6),
                                 Wrap(
                                   spacing: 8,
                                   runSpacing: 8,
@@ -14215,7 +14391,7 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(notesCtrl, 'Notes', maxLines: 2),
                     ],
                   ),
@@ -14343,7 +14519,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       DropdownButtonFormField<String>(
                         initialValue: selectedBoarCode,
                         decoration: const InputDecoration(
@@ -14368,7 +14544,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
@@ -14379,14 +14555,14 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: AppSpacing.s8),
                       SizedBox(
                         height: 112,
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
                           itemCount: _boars.length,
                           separatorBuilder: (_, index) =>
-                              const SizedBox(width: 8),
+                              const SizedBox(width: AppSpacing.s8),
                           itemBuilder: (context, index) {
                             final boar = _boars[index];
                             final selected = boar.code == selectedBoarCode;
@@ -14399,7 +14575,7 @@ class _MainScreenState extends State<MainScreen> {
                               },
                               child: Container(
                                 width: 148,
-                                padding: const EdgeInsets.all(8),
+                                padding: const EdgeInsets.all(AppSpacing.s8),
                                 decoration: BoxDecoration(
                                   color: selected
                                       ? const Color(0xFFDCFCE7)
@@ -14414,7 +14590,7 @@ class _MainScreenState extends State<MainScreen> {
                                 child: Row(
                                   children: [
                                     _buildBoarPhoto(boar, size: 52),
-                                    const SizedBox(width: 8),
+                                    const SizedBox(width: AppSpacing.s8),
                                     Expanded(
                                       child: Column(
                                         crossAxisAlignment:
@@ -14460,7 +14636,7 @@ class _MainScreenState extends State<MainScreen> {
                           },
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(
                         lotCtrl,
                         'Lot semence *',
@@ -14504,7 +14680,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(notesCtrl, 'Notes', maxLines: 2),
                     ],
                   ),
@@ -14658,7 +14834,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       if (animalCodes.isEmpty)
                         const Text(
                           'Aucun animal disponible pour ce type.',
@@ -14689,7 +14865,7 @@ class _MainScreenState extends State<MainScreen> {
                             }
                           },
                         ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       DropdownButtonFormField<String>(
                         initialValue: selectedEventType,
                         decoration: const InputDecoration(
@@ -14713,7 +14889,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(
                         dateCtrl,
                         'Date acte *',
@@ -15262,7 +15438,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(
                         dateCtrl,
                         'Date mesure *',
@@ -15394,7 +15570,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(
                         dateCtrl,
                         'Date mesure *',
@@ -15559,7 +15735,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(
                         dateCtrl,
                         'Date collecte *',
@@ -15741,7 +15917,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(dateCtrl, 'Date collecte *'),
                       _dialogField(
                         concentrationCtrl,
@@ -15945,7 +16121,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(groupNameCtrl, 'Nom portée / groupe *'),
                       DropdownButtonFormField<String>(
                         initialValue: selectedEventType,
@@ -15968,7 +16144,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(
                         eventDateCtrl,
                         'Date soin *',
@@ -16123,7 +16299,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(groupNameCtrl, 'Nom portée / groupe *'),
                       DropdownButtonFormField<String>(
                         initialValue: selectedEventType,
@@ -16146,7 +16322,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(
                         eventDateCtrl,
                         'Date soin *',
@@ -16294,7 +16470,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(
                         dateCtrl,
                         'Date mise-bas *',
@@ -16515,7 +16691,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(dateCtrl, 'Date mise-bas *'),
                       _dialogField(
                         totalCtrl,
@@ -16854,7 +17030,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       DropdownButtonFormField<String>(
                         initialValue: selectedClientId,
                         decoration: const InputDecoration(
@@ -16876,7 +17052,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(
                         dateCtrl,
                         'Date vente *',
@@ -17004,7 +17180,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       DropdownButtonFormField<String>(
                         initialValue: selectedSupplierId,
                         decoration: const InputDecoration(
@@ -17026,7 +17202,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(
                         dateCtrl,
                         'Date ravitaillement *',
@@ -17196,7 +17372,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(
                         codeCtrl,
                         'Code animal / lot *',
@@ -17212,7 +17388,7 @@ class _MainScreenState extends State<MainScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildImagePreviewBox(selectedImageBase64, size: 88),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: AppSpacing.s10),
                           Expanded(
                             child: Wrap(
                               spacing: 8,
@@ -17252,7 +17428,7 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(
                         quantityCtrl,
                         'Quantité *',
@@ -17306,7 +17482,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: AppSpacing.s8),
                       SwitchListTile.adaptive(
                         contentPadding: EdgeInsets.zero,
                         title: const Text('Annonce publiée'),
@@ -17497,7 +17673,7 @@ class _MainScreenState extends State<MainScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       _buildCoverPreviewBox(coverImageBase64, height: 96),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: AppSpacing.s8),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
@@ -17523,12 +17699,12 @@ class _MainScreenState extends State<MainScreen> {
                             ),
                         ],
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: AppSpacing.s10),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildImagePreviewBox(profileImageBase64, size: 84),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: AppSpacing.s10),
                           Expanded(
                             child: Wrap(
                               spacing: 8,
@@ -17568,7 +17744,7 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(
                         codeCtrl,
                         'Code utilisateur *',
@@ -17613,14 +17789,14 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(
                         loginCtrl,
                         'Login *',
                         hint: 'identifiant de connexion',
                       ),
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.only(bottom: AppSpacing.s12),
                         child: TextField(
                           controller: passwordCtrl,
                           obscureText: hidePassword,
@@ -17780,7 +17956,7 @@ class _MainScreenState extends State<MainScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       _buildCoverPreviewBox(coverImageBase64, height: 96),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: AppSpacing.s8),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
@@ -17806,12 +17982,12 @@ class _MainScreenState extends State<MainScreen> {
                             ),
                         ],
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: AppSpacing.s10),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildImagePreviewBox(profileImageBase64, size: 84),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: AppSpacing.s10),
                           Expanded(
                             child: Wrap(
                               spacing: 8,
@@ -17851,7 +18027,7 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(codeCtrl, 'Code utilisateur *'),
                       _dialogField(nameCtrl, 'Nom complet *'),
                       _dialogField(bioCtrl, 'Bio', maxLines: 3),
@@ -17892,7 +18068,7 @@ class _MainScreenState extends State<MainScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.s12),
                       _dialogField(loginCtrl, 'Login *'),
                     ],
                   ),
@@ -18033,7 +18209,7 @@ class _MainScreenState extends State<MainScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.only(bottom: AppSpacing.s12),
                       child: TextField(
                         controller: passwordCtrl,
                         obscureText: hidePassword,
@@ -18154,7 +18330,7 @@ class _MainScreenState extends State<MainScreen> {
     int maxLines = 1,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: AppSpacing.s12),
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
@@ -18226,9 +18402,9 @@ class _MainScreenState extends State<MainScreen> {
             color: Color(0xFF334155),
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: AppSpacing.s10),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s10),
           decoration: BoxDecoration(
             border: Border.all(color: const Color(0xFFE2E8F0)),
             borderRadius: BorderRadius.circular(8),
@@ -18290,7 +18466,7 @@ class _MainScreenState extends State<MainScreen> {
           for (var i = 0; i < bucketCount; i++)
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -18304,7 +18480,7 @@ class _MainScreenState extends State<MainScreen> {
                         color: Color(0xFF64748B),
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: AppSpacing.s4),
                     Container(
                       height: math.max(8, 120 * (amounts[i] / adjustedMax)),
                       decoration: BoxDecoration(
@@ -18312,7 +18488,7 @@ class _MainScreenState extends State<MainScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: AppSpacing.s6),
                     Text(
                       DateFormat(
                         'd MMM',
@@ -18334,7 +18510,10 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildAmountChip(String label, double amount) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s10,
+        vertical: AppSpacing.s8,
+      ),
       decoration: BoxDecoration(
         color: const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(999),
@@ -20077,7 +20256,7 @@ class _MainScreenState extends State<MainScreen> {
                       size: 28,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: AppSpacing.s10),
                   Text(
                     title,
                     style: const TextStyle(
@@ -20085,7 +20264,7 @@ class _MainScreenState extends State<MainScreen> {
                       color: Color(0xFF0F172A),
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: AppSpacing.s4),
                   Text(
                     _formatDuration(elapsedSeconds),
                     style: const TextStyle(
@@ -20094,7 +20273,7 @@ class _MainScreenState extends State<MainScreen> {
                       fontSize: 13,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: AppSpacing.s10),
                   const Text(
                     'Simulation locale: journal d’appel enregistré dans la messagerie.',
                     textAlign: TextAlign.center,
@@ -20200,7 +20379,7 @@ class _MainScreenState extends State<MainScreen> {
             if (message.text.trim().isNotEmpty &&
                 message.text.trim() != 'Image envoyé')
               Padding(
-                padding: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.only(bottom: AppSpacing.s6),
                 child: Text(
                   message.text,
                   style: TextStyle(
@@ -20219,7 +20398,7 @@ class _MainScreenState extends State<MainScreen> {
                 fit: BoxFit.cover,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpacing.s6),
             Text(
               message.mediaName.trim().isEmpty ? 'Image' : message.mediaName,
               style: TextStyle(
@@ -20254,7 +20433,7 @@ class _MainScreenState extends State<MainScreen> {
       final isVideo = messageType == 'video';
       final title = isVideo ? 'Vidéo jointe' : 'Audio joint';
       return Container(
-        padding: const EdgeInsets.all(9),
+        padding: const EdgeInsets.all(AppSpacing.s9),
         decoration: BoxDecoration(
           color: isMine
               ? Colors.white.withValues(alpha: 0.14)
@@ -20271,7 +20450,7 @@ class _MainScreenState extends State<MainScreen> {
               color: textColor,
               size: 18,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpacing.s8),
             Flexible(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -20327,7 +20506,7 @@ class _MainScreenState extends State<MainScreen> {
           : message.text.trim();
 
       return Container(
-        padding: const EdgeInsets.all(9),
+        padding: const EdgeInsets.all(AppSpacing.s9),
         decoration: BoxDecoration(
           color: isMine
               ? Colors.white.withValues(alpha: 0.14)
@@ -20342,7 +20521,7 @@ class _MainScreenState extends State<MainScreen> {
               color: textColor,
               size: 18,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpacing.s8),
             Flexible(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
