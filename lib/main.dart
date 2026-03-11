@@ -788,6 +788,13 @@ class _MainScreenState extends State<MainScreen> {
   static const Color _accentTealDeep = Color(0xFF0F766E);
   static const Color _sidebarDark = Color(0xFF0B1220);
   static const Color _sidebarDarkSoft = Color(0xFF111C33);
+  static const Color _durocChatHeader = Color(0xFF6B4B3E);
+  static const Color _durocChatHeaderSoft = Color(0xFF8A6450);
+  static const Color _durocChatOutgoingBubble = Color(0xFFD9F3C3);
+  static const Color _durocChatIncomingBubble = Color(0xFFFFFBF8);
+  static const Color _durocChatBackgroundTop = Color(0xFFF9F2EC);
+  static const Color _durocChatBackgroundBottom = Color(0xFFF3E8DF);
+  static const Color _durocChatInputSurface = Color(0xFFF7EFE8);
   static const String _passwordHashPrefix = 'sha256:';
   static const int _maxSessionHours = 12;
   static const String _teamConversationId = 'GROUP_ALL_USERS';
@@ -839,6 +846,14 @@ class _MainScreenState extends State<MainScreen> {
   static const String _callRingingStatus = 'En sonnerie';
   static const String _callAcceptedStatus = 'Accepté';
   static const String _callRejectedStatus = 'Refusé';
+  static const List<String> _newsFeedFilters = [
+    'Tous',
+    'Élevage',
+    'IA',
+    'Santé',
+    'Vente',
+    'Photos',
+  ];
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _loginController = TextEditingController();
@@ -864,6 +879,7 @@ class _MainScreenState extends State<MainScreen> {
   String _activeChatConversationId = _teamConversationId;
   bool _isMobileMessengerThreadOpen = false;
   String _messengerConversationFilter = '';
+  String _newsFeedFilter = 'Tous';
   bool _chatReadSyncScheduled = false;
   final Map<String, bool> _taskDoneById = <String, bool>{};
   final Map<String, Uint8List> _imageBytesCache = <String, Uint8List>{};
@@ -1429,8 +1445,10 @@ class _MainScreenState extends State<MainScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth >= 980;
     final isMobile = screenWidth < 760;
+    final isMessengerMobileFullBleed =
+        isMobile && _activeTab == AppTabs.messenger;
     final contentPadding = isMobile
-        ? AppSpacing.s10
+        ? (isMessengerMobileFullBleed ? AppSpacing.zero : AppSpacing.s10)
         : (screenWidth > 720 ? AppSpacing.s24 : AppSpacing.s12);
     final showExtendedFab = screenWidth >= 520;
     final desktopMaxContentWidth = screenWidth >= 1700
@@ -1452,50 +1470,53 @@ class _MainScreenState extends State<MainScreen> {
             Expanded(
               child: Column(
                 children: [
-                  _buildHeader(isDesktop),
-                  if (_incomingCallOffer != null) _buildIncomingCallBanner(),
+                  if (!isMessengerMobileFullBleed) _buildHeader(isDesktop),
+                  if (!isMessengerMobileFullBleed && _incomingCallOffer != null)
+                    _buildIncomingCallBanner(),
                   Expanded(
-                    child: SingleChildScrollView(
-                      padding: EdgeInsets.all(contentPadding),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 320),
-                        switchInCurve: Curves.easeOutCubic,
-                        switchOutCurve: Curves.easeInCubic,
-                        transitionBuilder: (child, animation) {
-                          final slide =
-                              Tween<Offset>(
-                                begin: const Offset(0.025, 0),
-                                end: Offset.zero,
-                              ).animate(
-                                CurvedAnimation(
-                                  parent: animation,
-                                  curve: Curves.easeOutCubic,
-                                ),
-                              );
-                          return FadeTransition(
-                            opacity: animation,
-                            child: SlideTransition(
-                              position: slide,
-                              child: child,
-                            ),
-                          );
-                        },
-                        child: KeyedSubtree(
-                          key: ValueKey<String>(_activeTab),
-                          child: isDesktop
-                              ? Align(
-                                  alignment: Alignment.topCenter,
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      maxWidth: desktopMaxContentWidth,
-                                    ),
-                                    child: _buildActiveContent(),
+                    child: isMessengerMobileFullBleed
+                        ? _buildActiveContent()
+                        : SingleChildScrollView(
+                            padding: EdgeInsets.all(contentPadding),
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 320),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              transitionBuilder: (child, animation) {
+                                final slide =
+                                    Tween<Offset>(
+                                      begin: const Offset(0.025, 0),
+                                      end: Offset.zero,
+                                    ).animate(
+                                      CurvedAnimation(
+                                        parent: animation,
+                                        curve: Curves.easeOutCubic,
+                                      ),
+                                    );
+                                return FadeTransition(
+                                  opacity: animation,
+                                  child: SlideTransition(
+                                    position: slide,
+                                    child: child,
                                   ),
-                                )
-                              : _buildActiveContent(),
-                        ),
-                      ),
-                    ),
+                                );
+                              },
+                              child: KeyedSubtree(
+                                key: ValueKey<String>(_activeTab),
+                                child: isDesktop
+                                    ? Align(
+                                        alignment: Alignment.topCenter,
+                                        child: ConstrainedBox(
+                                          constraints: BoxConstraints(
+                                            maxWidth: desktopMaxContentWidth,
+                                          ),
+                                          child: _buildActiveContent(),
+                                        ),
+                                      )
+                                    : _buildActiveContent(),
+                              ),
+                            ),
+                          ),
                   ),
                 ],
               ),
@@ -3879,6 +3900,50 @@ class _MainScreenState extends State<MainScreen> {
     final showSearch = screenWidth >= 1180;
     final showLoginBadge = screenWidth >= 980;
     final notificationCount = _headerNotificationCount();
+
+    if (_activeTab == AppTabs.actualites) {
+      return Container(
+        height: 68,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s10),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(bottom: BorderSide(color: Color(0xFFDCE4EE))),
+        ),
+        child: Row(
+          children: [
+            if (!isDesktop)
+              IconButton(
+                tooltip: 'Menu',
+                onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                icon: const Icon(LucideIcons.menu),
+              ),
+            const Expanded(
+              child: Text(
+                'Actualités',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 20,
+                  letterSpacing: -0.4,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Créer une publication',
+              onPressed: _showAddNewsPostDialog,
+              icon: const Icon(
+                Icons.add_circle_outline,
+                color: Color(0xFF0F766E),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.s4),
+            _buildHeaderNotificationButton(notificationCount),
+          ],
+        ),
+      );
+    }
 
     return Container(
       height: tiny ? 68 : 78,
@@ -11180,158 +11245,249 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildNewsFeedHub() {
     final posts = List<NewsPost>.from(_newsPosts)
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    final myPostsCount = posts
-        .where((post) => post.authorId == _currentUser.id)
-        .length;
-    final myLikesCount = posts.fold<int>(0, (sum, post) {
-      if (post.authorId != _currentUser.id) {
-        return sum;
-      }
-      return sum + post.likedByUserIds.length;
-    });
-    final commentsCount = posts.fold<int>(
-      0,
-      (sum, post) => sum + post.comments.length,
-    );
-    final photosCount = posts
-        .where((post) => post.imageBase64.trim().isNotEmpty)
-        .length;
+    final filteredPosts = _filteredNewsPostsForFeed(posts);
+    final isCompact = MediaQuery.of(context).size.width < 400;
 
-    final feedList = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildNewsComposerCard(),
-        const SizedBox(height: AppSpacing.s12),
-        if (posts.isEmpty)
-          _buildSectionCard(
-            title: 'Fil d\'actualité',
-            subtitle: 'Aucune publication pour le moment',
-            child: _buildEmptyState(
-              'Publiez la première actualité de votre élevage.',
-            ),
-          )
-        else
-          ListView.separated(
-            itemCount: posts.length,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            separatorBuilder: (_, index) =>
-                const SizedBox(height: AppSpacing.s12),
-            itemBuilder: (context, index) => _buildNewsTimelineItem(
-              post: posts[index],
-              isLast: index == posts.length - 1,
-            ),
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F7FB),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        isCompact ? AppSpacing.s8 : AppSpacing.s10,
+        isCompact ? AppSpacing.s8 : AppSpacing.s10,
+        isCompact ? AppSpacing.s8 : AppSpacing.s10,
+        90,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildNewsFeedHeader(
+            totalPosts: posts.length,
+            visiblePosts: filteredPosts.length,
           ),
-      ],
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isDesktopFeed = constraints.maxWidth >= 1180;
-        if (!isDesktopFeed) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSectionCard(
-                title: 'Actualités Élevage',
-                subtitle:
-                    'Fil social terrain (style Facebook) pour publier, commenter et suivre la ferme',
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildMiniIndicator(
-                            label: 'Mes posts',
-                            value: '$myPostsCount',
-                            color: const Color(0xFF2563EB),
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.s10),
-                        Expanded(
-                          child: _buildMiniIndicator(
-                            label: 'J\'aime reçus',
-                            value: '$myLikesCount',
-                            color: const Color(0xFFDC2626),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.s10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildMiniIndicator(
-                            label: 'Commentaires',
-                            value: '$commentsCount',
-                            color: const Color(0xFF0F766E),
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.s10),
-                        Expanded(
-                          child: _buildMiniIndicator(
-                            label: 'Photos',
-                            value: '$photosCount',
-                            color: const Color(0xFFEA580C),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+          const SizedBox(height: AppSpacing.s10),
+          _buildNewsComposerCard(),
+          const SizedBox(height: AppSpacing.s10),
+          _buildNewsFilterBar(posts),
+          const SizedBox(height: AppSpacing.s12),
+          if (filteredPosts.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpacing.s16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE3E8EF)),
+              ),
+              child: const Text(
+                'Aucune publication pour ce filtre. Essayez "Tous" ou créez une nouvelle publication.',
+                style: TextStyle(
+                  color: Color(0xFF64748B),
+                  fontWeight: FontWeight.w600,
+                  height: 1.35,
                 ),
               ),
-              const SizedBox(height: AppSpacing.s12),
-              feedList,
-            ],
-          );
-        }
+            )
+          else
+            ListView.separated(
+              itemCount: filteredPosts.length,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              separatorBuilder: (_, index) =>
+                  const SizedBox(height: AppSpacing.s10),
+              itemBuilder: (context, index) =>
+                  _buildNewsPostCard(filteredPosts[index]),
+            ),
+        ],
+      ),
+    );
+  }
 
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 260,
-              child: _buildNewsLeftRail(
-                myPostsCount: myPostsCount,
-                myLikesCount: myLikesCount,
-                commentsCount: commentsCount,
-                photosCount: photosCount,
+  List<NewsPost> _filteredNewsPostsForFeed(List<NewsPost> posts) {
+    if (!_newsFeedFilters.contains(_newsFeedFilter) ||
+        _newsFeedFilter == 'Tous') {
+      return posts;
+    }
+    return posts
+        .where((post) => _matchesNewsFeedFilter(post, _newsFeedFilter))
+        .toList();
+  }
+
+  bool _matchesNewsFeedFilter(NewsPost post, String filter) {
+    if (filter == 'Tous') {
+      return true;
+    }
+    if (filter == 'Photos') {
+      return post.imageBase64.trim().isNotEmpty;
+    }
+    return _newsCategoryForPost(post) == filter;
+  }
+
+  String _newsCategoryForPost(NewsPost post) {
+    final normalized = _normalizeLookup(
+      '${post.text} ${post.imageName} ${post.authorRole}',
+    );
+    if (normalized.contains('vente') ||
+        normalized.contains('vendre') ||
+        normalized.contains('disponible') ||
+        normalized.contains('prix') ||
+        normalized.contains('march')) {
+      return 'Vente';
+    }
+    if (normalized.contains('vaccin') ||
+        normalized.contains('traitement') ||
+        normalized.contains('sante') ||
+        normalized.contains('santé') ||
+        normalized.contains('prophylaxie') ||
+        normalized.contains('alerte') ||
+        normalized.contains('urgence')) {
+      return 'Santé';
+    }
+    if (normalized.contains('insemin') ||
+        normalized.contains('insémin') ||
+        normalized.contains(' ia ') ||
+        normalized.startsWith('ia') ||
+        normalized.contains('semence') ||
+        normalized.contains('chaleur') ||
+        normalized.contains('diagnostic')) {
+      return 'IA';
+    }
+    if (post.imageBase64.trim().isNotEmpty) {
+      return 'Photos';
+    }
+    return 'Élevage';
+  }
+
+  Color _newsCategoryColor(String category) {
+    switch (category) {
+      case 'IA':
+        return const Color(0xFF15803D);
+      case 'Santé':
+        return const Color(0xFFB45309);
+      case 'Vente':
+        return const Color(0xFF0369A1);
+      case 'Photos':
+        return const Color(0xFF1D4ED8);
+      default:
+        return const Color(0xFF0F766E);
+    }
+  }
+
+  Widget _buildNewsFeedHeader({
+    required int totalPosts,
+    required int visiblePosts,
+  }) {
+    final isFiltered = _newsFeedFilter != 'Tous';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s14,
+        vertical: AppSpacing.s12,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE3E8EF)),
+      ),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Actualités',
+              style: TextStyle(
+                color: Color(0xFF0F172A),
+                fontWeight: FontWeight.w900,
+                fontSize: 20,
+                letterSpacing: -0.3,
               ),
             ),
-            const SizedBox(width: AppSpacing.s14),
-            Expanded(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 700),
-                child: feedList,
-              ),
+          ),
+          Text(
+            isFiltered
+                ? '$visiblePosts / $totalPosts'
+                : '$totalPosts publication(s)',
+            style: const TextStyle(
+              color: Color(0xFF64748B),
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
             ),
-            const SizedBox(width: AppSpacing.s14),
-            SizedBox(width: 280, child: _buildNewsRightRail(posts.length)),
-          ],
-        );
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNewsFilterBar(List<NewsPost> posts) {
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _newsFeedFilters.length,
+        separatorBuilder: (_, index) => const SizedBox(width: AppSpacing.s6),
+        itemBuilder: (context, index) {
+          final filter = _newsFeedFilters[index];
+          final count = posts
+              .where((post) => _matchesNewsFeedFilter(post, filter))
+              .length;
+          return _buildNewsFilterChip(filter: filter, count: count);
+        },
+      ),
+    );
+  }
+
+  Widget _buildNewsFilterChip({required String filter, required int count}) {
+    final selected = _newsFeedFilter == filter;
+    final accent = _newsCategoryColor(filter);
+    return InkWell(
+      onTap: () {
+        if (_newsFeedFilter == filter) {
+          return;
+        }
+        setState(() => _newsFeedFilter = filter);
       },
+      borderRadius: BorderRadius.circular(999),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.s12,
+          vertical: AppSpacing.s8,
+        ),
+        decoration: BoxDecoration(
+          color: selected ? accent.withValues(alpha: 0.14) : Colors.white,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected
+                ? accent.withValues(alpha: 0.55)
+                : const Color(0xFFDCE4EE),
+          ),
+        ),
+        child: Text(
+          '$filter ($count)',
+          style: TextStyle(
+            color: selected ? accent : const Color(0xFF475569),
+            fontWeight: FontWeight.w800,
+            fontSize: 12,
+          ),
+        ),
+      ),
     );
   }
 
   Widget _buildNewsComposerCard() {
+    final firstName = _currentUser.name.trim().split(' ').first;
     return Container(
       padding: const EdgeInsets.fromLTRB(
-        AppSpacing.s14,
         AppSpacing.s12,
-        AppSpacing.s14,
+        AppSpacing.s12,
+        AppSpacing.s12,
         AppSpacing.s10,
       ),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFDCE4EE)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x110F172A),
-            blurRadius: 16,
-            offset: Offset(0, 8),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE3E8EF)),
       ),
       child: Column(
         children: [
@@ -11346,14 +11502,14 @@ class _MainScreenState extends State<MainScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.s14,
-                      vertical: AppSpacing.s10,
+                      vertical: AppSpacing.s11,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
+                      color: const Color(0xFFF2F5FA),
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
-                      'Que voulez-vous partager, ${_currentUser.name.split(' ').first} ?',
+                      'Que voulez-vous partager, $firstName ?',
                       style: const TextStyle(
                         color: Color(0xFF64748B),
                         fontWeight: FontWeight.w600,
@@ -11366,13 +11522,13 @@ class _MainScreenState extends State<MainScreen> {
           ),
           const SizedBox(height: AppSpacing.s10),
           const Divider(height: 1),
-          const SizedBox(height: AppSpacing.s6),
+          const SizedBox(height: AppSpacing.s8),
           Row(
             children: [
               Expanded(
                 child: _buildNewsComposerQuickButton(
-                  icon: Icons.image_outlined,
-                  color: const Color(0xFF16A34A),
+                  icon: Icons.photo_library_outlined,
+                  color: const Color(0xFF0EA5A4),
                   label: 'Photo',
                   onTap: _showAddNewsPostDialog,
                 ),
@@ -11380,7 +11536,7 @@ class _MainScreenState extends State<MainScreen> {
               Expanded(
                 child: _buildNewsComposerQuickButton(
                   icon: LucideIcons.syringe,
-                  color: const Color(0xFF0F766E),
+                  color: const Color(0xFF15803D),
                   label: 'Annonce IA',
                   onTap: _showAddNewsPostDialog,
                 ),
@@ -11388,8 +11544,16 @@ class _MainScreenState extends State<MainScreen> {
               Expanded(
                 child: _buildNewsComposerQuickButton(
                   icon: LucideIcons.shieldCheck,
-                  color: const Color(0xFF0284C7),
+                  color: const Color(0xFFB45309),
                   label: 'Alerte Santé',
+                  onTap: _showAddNewsPostDialog,
+                ),
+              ),
+              Expanded(
+                child: _buildNewsComposerQuickButton(
+                  icon: Icons.sell_outlined,
+                  color: const Color(0xFF0369A1),
+                  label: 'Vente',
                   onTap: _showAddNewsPostDialog,
                 ),
               ),
@@ -11411,14 +11575,14 @@ class _MainScreenState extends State<MainScreen> {
       borderRadius: BorderRadius.circular(10),
       child: Padding(
         padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.s6,
+          horizontal: AppSpacing.s4,
           vertical: AppSpacing.s8,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, size: 16, color: color),
-            const SizedBox(width: AppSpacing.s6),
+            const SizedBox(width: AppSpacing.s4),
             Flexible(
               child: Text(
                 label,
@@ -11427,7 +11591,7 @@ class _MainScreenState extends State<MainScreen> {
                 style: const TextStyle(
                   color: Color(0xFF334155),
                   fontWeight: FontWeight.w700,
-                  fontSize: 12,
+                  fontSize: 11,
                 ),
               ),
             ),
@@ -11437,211 +11601,28 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildNewsLeftRail({
-    required int myPostsCount,
-    required int myLikesCount,
-    required int commentsCount,
-    required int photosCount,
-  }) {
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(AppSpacing.s12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  _buildUserAvatar(_currentUser, radius: 17),
-                  const SizedBox(width: AppSpacing.s8),
-                  Expanded(
-                    child: Text(
-                      _currentUser.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF0F172A),
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.s10),
-              _buildNewsRailStatRow('Mes posts', '$myPostsCount'),
-              _buildNewsRailStatRow('J\'aime reçus', '$myLikesCount'),
-              _buildNewsRailStatRow('Commentaires', '$commentsCount'),
-              _buildNewsRailStatRow('Photos publiées', '$photosCount'),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNewsRailStatRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.s8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: Color(0xFF475569),
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-              ),
-            ),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Color(0xFF0F172A),
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNewsRightRail(int totalPosts) {
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(AppSpacing.s12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-          ),
-          child: const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Actualités IA',
-                style: TextStyle(
-                  color: Color(0xFF0F172A),
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              SizedBox(height: AppSpacing.s8),
-              Text(
-                'Utilisez ce fil pour les alertes de chaleur, diagnostics J28, mise-bas et suivi porcelets.',
-                style: TextStyle(
-                  color: Color(0xFF475569),
-                  fontSize: 12,
-                  height: 1.35,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: AppSpacing.s10),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(AppSpacing.s12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFEFF6FF),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFBFDBFE)),
-          ),
-          child: Text(
-            'Publications totales: $totalPosts',
-            style: const TextStyle(
-              color: Color(0xFF1E3A8A),
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNewsTimelineItem({
-    required NewsPost post,
-    required bool isLast,
-  }) {
-    final markerColor = _roleColor(post.authorRole);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 26,
-          child: Column(
-            children: [
-              Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: markerColor,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: markerColor.withValues(alpha: 0.35),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-              ),
-              if (!isLast)
-                Container(
-                  width: 2,
-                  height: 118,
-                  margin: const EdgeInsets.only(top: AppSpacing.s2),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        markerColor.withValues(alpha: 0.4),
-                        const Color(0xFFE2E8F0),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(width: AppSpacing.s8),
-        Expanded(child: _buildNewsPostCard(post)),
-      ],
-    );
-  }
-
   Widget _buildNewsPostCard(NewsPost post) {
     final isLiked = post.likedByUserIds.contains(_currentUser.id);
     final canManage = _canManageNewsPost(post);
+    final category = _newsCategoryForPost(post);
+    final categoryColor = _newsCategoryColor(category);
     final authorProfile = _findUserById(post.authorId);
     final comments = List<NewsComment>.from(post.comments)
       ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-    final visibleComments = comments.length > 4
-        ? comments.sublist(comments.length - 4)
+    final visibleComments = comments.length > 2
+        ? comments.sublist(comments.length - 2)
         : comments;
+    final shareCount =
+        ((post.likedByUserIds.length + post.comments.length) ~/ 3).clamp(
+          0,
+          999,
+        );
 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFDCE4EE)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x110F172A),
-            blurRadius: 18,
-            offset: Offset(0, 8),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE3E8EF)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -11650,7 +11631,7 @@ class _MainScreenState extends State<MainScreen> {
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.s12,
               AppSpacing.s12,
-              AppSpacing.s10,
+              AppSpacing.s12,
               AppSpacing.s8,
             ),
             child: Row(
@@ -11666,7 +11647,7 @@ class _MainScreenState extends State<MainScreen> {
                         post.authorName,
                         style: const TextStyle(
                           color: Color(0xFF0F172A),
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w900,
                           fontSize: 14,
                         ),
                       ),
@@ -11675,41 +11656,15 @@ class _MainScreenState extends State<MainScreen> {
                         '${post.authorRole} • ${_newsTimeLabel(post.createdAt)}',
                         style: const TextStyle(
                           color: Color(0xFF64748B),
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                           fontSize: 11,
                         ),
                       ),
                     ],
                   ),
                 ),
-                if (canManage)
-                  PopupMenuButton<String>(
-                    tooltip: 'Actions',
-                    onSelected: (value) {
-                      switch (value) {
-                        case 'edit':
-                          _showAddNewsPostDialog(existing: post);
-                          break;
-                        case 'delete':
-                          _deleteNewsPost(post.id);
-                          break;
-                      }
-                    },
-                    itemBuilder: (context) => const [
-                      PopupMenuItem<String>(
-                        value: 'edit',
-                        child: Text('Modifier'),
-                      ),
-                      PopupMenuItem<String>(
-                        value: 'delete',
-                        child: Text('Supprimer'),
-                      ),
-                    ],
-                    icon: const Icon(
-                      Icons.more_horiz,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
+                _buildNewsCategoryBadge(label: category, color: categoryColor),
+                _buildNewsPostMenu(post: post, canManage: canManage),
               ],
             ),
           ),
@@ -11724,8 +11679,8 @@ class _MainScreenState extends State<MainScreen> {
               child: Text(
                 post.text.trim(),
                 style: const TextStyle(
-                  color: Color(0xFF1E293B),
-                  height: 1.38,
+                  color: Color(0xFF111827),
+                  height: 1.45,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -11739,7 +11694,7 @@ class _MainScreenState extends State<MainScreen> {
                   AppSpacing.s12,
                   AppSpacing.s6,
                   AppSpacing.s12,
-                  AppSpacing.zero,
+                  AppSpacing.s4,
                 ),
                 child: Text(
                   post.imageName.trim(),
@@ -11752,41 +11707,7 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ],
           ],
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.s12,
-              AppSpacing.s8,
-              AppSpacing.s12,
-              AppSpacing.zero,
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.thumb_up_alt,
-                  size: 14,
-                  color: const Color(0xFF2563EB).withValues(alpha: 0.9),
-                ),
-                const SizedBox(width: AppSpacing.s4),
-                Text(
-                  '${post.likedByUserIds.length}',
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '${post.comments.length} commentaires',
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _buildNewsStatsRow(post: post, shareCount: shareCount),
           const Padding(
             padding: EdgeInsets.symmetric(
               horizontal: AppSpacing.s12,
@@ -11810,7 +11731,7 @@ class _MainScreenState extends State<MainScreen> {
                         : Icons.thumb_up_alt_outlined,
                     label: 'J’aime',
                     color: isLiked
-                        ? const Color(0xFF2563EB)
+                        ? const Color(0xFF0F766E)
                         : const Color(0xFF475569),
                     onTap: () => _toggleNewsLike(post.id),
                   ),
@@ -11845,83 +11766,160 @@ class _MainScreenState extends State<MainScreen> {
                   AppSpacing.s12,
                   AppSpacing.zero,
                   AppSpacing.s12,
-                  AppSpacing.s8,
+                  AppSpacing.s4,
                 ),
-                child: Text(
-                  '${comments.length - visibleComments.length} commentaire(s) plus ancien(s)...',
-                  style: const TextStyle(
-                    color: Color(0xFF94A3B8),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.s8,
+                        vertical: AppSpacing.s4,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () {
+                      _showInfo(
+                        '${comments.length} commentaires disponibles sur cette publication.',
+                      );
+                    },
+                    child: Text(
+                      'Voir plus de commentaires (${comments.length})',
+                      style: const TextStyle(
+                        color: Color(0xFF2563EB),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ...visibleComments.map((comment) {
-              final commentUser = _findUserById(comment.authorId);
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.s12,
-                  AppSpacing.zero,
-                  AppSpacing.s12,
-                  AppSpacing.s8,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildNewsAuthorAvatar(
-                      commentUser,
-                      comment.authorName,
-                      radius: 14,
-                    ),
-                    const SizedBox(width: AppSpacing.s8),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.s10,
-                          vertical: AppSpacing.s8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              comment.authorName,
-                              style: const TextStyle(
-                                color: Color(0xFF0F172A),
-                                fontWeight: FontWeight.w800,
-                                fontSize: 12,
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.s2),
-                            Text(
-                              comment.text,
-                              style: const TextStyle(
-                                color: Color(0xFF334155),
-                                fontWeight: FontWeight.w600,
-                                height: 1.35,
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.s2),
-                            Text(
-                              _newsTimeLabel(comment.createdAt),
-                              style: const TextStyle(
-                                color: Color(0xFF64748B),
-                                fontWeight: FontWeight.w700,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
+            ...visibleComments.map(_buildNewsCommentPreview),
+            const SizedBox(height: AppSpacing.s2),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNewsCategoryBadge({
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s8,
+        vertical: AppSpacing.s4,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 10,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNewsPostMenu({required NewsPost post, required bool canManage}) {
+    return PopupMenuButton<String>(
+      tooltip: 'Options',
+      onSelected: (value) async {
+        switch (value) {
+          case 'edit':
+            _showAddNewsPostDialog(existing: post);
+            return;
+          case 'delete':
+            _deleteNewsPost(post.id);
+            return;
+          case 'copy':
+            await Clipboard.setData(ClipboardData(text: post.text));
+            _showInfo('Texte de publication copié.');
+            return;
+          case 'hide':
+            _showInfo('Publication masquée localement (simulation).');
+            return;
+          case 'report':
+            _showInfo('Signalement transmis au responsable.');
+            return;
+          default:
+            return;
+        }
+      },
+      itemBuilder: (context) {
+        if (canManage) {
+          return const [
+            PopupMenuItem<String>(value: 'edit', child: Text('Modifier')),
+            PopupMenuItem<String>(value: 'delete', child: Text('Supprimer')),
+            PopupMenuItem<String>(
+              value: 'copy',
+              child: Text('Copier le texte'),
+            ),
+          ];
+        }
+        return const [
+          PopupMenuItem<String>(value: 'copy', child: Text('Copier le texte')),
+          PopupMenuItem<String>(value: 'hide', child: Text('Masquer')),
+          PopupMenuItem<String>(value: 'report', child: Text('Signaler')),
+        ];
+      },
+      icon: const Icon(Icons.more_horiz, color: Color(0xFF64748B)),
+    );
+  }
+
+  Widget _buildNewsStatsRow({required NewsPost post, required int shareCount}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.s12,
+        AppSpacing.s6,
+        AppSpacing.s12,
+        AppSpacing.zero,
+      ),
+      child: Wrap(
+        spacing: AppSpacing.s10,
+        runSpacing: AppSpacing.s4,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.favorite,
+                size: 14,
+                color: const Color(0xFF0F766E).withValues(alpha: 0.9),
+              ),
+              const SizedBox(width: AppSpacing.s4),
+              Text(
+                '${post.likedByUserIds.length} réaction(s)',
+                style: const TextStyle(
+                  color: Color(0xFF64748B),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+          Text(
+            '${post.comments.length} commentaire(s)',
+            style: const TextStyle(
+              color: Color(0xFF64748B),
+              fontWeight: FontWeight.w700,
+              fontSize: 11,
+            ),
+          ),
+          Text(
+            '$shareCount partage(s)',
+            style: const TextStyle(
+              color: Color(0xFF64748B),
+              fontWeight: FontWeight.w700,
+              fontSize: 11,
+            ),
+          ),
         ],
       ),
     );
@@ -11941,7 +11939,7 @@ class _MainScreenState extends State<MainScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 18, color: color),
+            Icon(icon, size: 17, color: color),
             const SizedBox(width: AppSpacing.s6),
             Text(
               label,
@@ -11953,6 +11951,76 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildNewsCommentPreview(NewsComment comment) {
+    final commentUser = _findUserById(comment.authorId);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.s12,
+        AppSpacing.zero,
+        AppSpacing.s12,
+        AppSpacing.s8,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildNewsAuthorAvatar(commentUser, comment.authorName, radius: 14),
+          const SizedBox(width: AppSpacing.s8),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s10,
+                vertical: AppSpacing.s8,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF2F5FA),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          comment.authorName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF0F172A),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.s6),
+                      Text(
+                        _newsTimeLabel(comment.createdAt),
+                        style: const TextStyle(
+                          color: Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.s2),
+                  Text(
+                    comment.text,
+                    style: const TextStyle(
+                      color: Color(0xFF334155),
+                      fontWeight: FontWeight.w600,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -12656,7 +12724,14 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildMessengerHub() {
     final conversations = _buildChatConversationSummaries();
+    final isMobile = MediaQuery.of(context).size.width < 760;
     if (conversations.isEmpty) {
+      if (isMobile) {
+        return _buildMessengerMobileChatListScreen(
+          conversations: const [],
+          activeConversationId: null,
+        );
+      }
       return _buildSectionCard(
         title: 'Messagerie Interne',
         subtitle:
@@ -12672,6 +12747,14 @@ class _MainScreenState extends State<MainScreen> {
     );
     _markConversationAsReadDeferred(activeConversation.id);
     final messages = _messagesForConversation(activeConversation.id);
+
+    if (isMobile) {
+      return _buildMessengerMobileExperience(
+        conversations: conversations,
+        activeConversation: activeConversation,
+        messages: messages,
+      );
+    }
 
     return _buildSectionCard(
       title: 'Messagerie Interne',
@@ -12724,6 +12807,678 @@ class _MainScreenState extends State<MainScreen> {
         },
       ),
     );
+  }
+
+  Widget _buildMessengerMobileExperience({
+    required List<_ChatConversationSummary> conversations,
+    required _ChatConversationSummary activeConversation,
+    required List<ChatMessage> messages,
+  }) {
+    if (_isMobileMessengerThreadOpen) {
+      return _buildMessengerMobileThreadScreen(
+        activeConversation: activeConversation,
+        messages: messages,
+      );
+    }
+    return _buildMessengerMobileChatListScreen(
+      conversations: conversations,
+      activeConversationId: activeConversation.id,
+    );
+  }
+
+  Widget _buildMessengerMobileChatListScreen({
+    required List<_ChatConversationSummary> conversations,
+    required String? activeConversationId,
+  }) {
+    final filteredConversations = _filteredChatConversations(conversations);
+
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: const BoxDecoration(color: _durocChatBackgroundBottom),
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.s4,
+              vertical: AppSpacing.s6,
+            ),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [_durocChatHeader, _durocChatHeaderSoft],
+              ),
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  tooltip: 'Menu',
+                  onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                  icon: const Icon(Icons.menu_rounded, color: Colors.white),
+                ),
+                const SizedBox(width: AppSpacing.s2),
+                const Expanded(
+                  child: Text(
+                    'Discussions',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Nouveau message',
+                  onPressed: () {
+                    if (conversations.isNotEmpty) {
+                      _openMobileMessengerConversation(conversations.first.id);
+                    }
+                  },
+                  icon: const Icon(Icons.chat_outlined, color: Colors.white),
+                ),
+                IconButton(
+                  tooltip: 'Options',
+                  onPressed: () {},
+                  icon: const Icon(Icons.more_vert, color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.s10,
+              AppSpacing.s8,
+              AppSpacing.s10,
+              AppSpacing.s8,
+            ),
+            color: _durocChatInputSurface,
+            child: _buildMessengerMobileConversationSearchField(),
+          ),
+          Expanded(
+            child: filteredConversations.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.s16,
+                      ),
+                      child: Text(
+                        _messengerConversationFilter.trim().isEmpty
+                            ? 'Aucune conversation disponible.'
+                            : 'Aucun résultat pour "${_messengerConversationFilter.trim()}".',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  )
+                : ListView.separated(
+                    itemCount: filteredConversations.length,
+                    separatorBuilder: (_, index) =>
+                        const SizedBox(height: AppSpacing.s4),
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.s8,
+                      AppSpacing.s8,
+                      AppSpacing.s8,
+                      AppSpacing.s8,
+                    ),
+                    itemBuilder: (context, index) {
+                      final conversation = filteredConversations[index];
+                      final isActive = conversation.id == activeConversationId;
+                      return _buildMessengerMobileConversationTile(
+                        conversation: conversation,
+                        isActive: isActive,
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessengerMobileConversationSearchField() {
+    if (_messengerSearchController.text != _messengerConversationFilter) {
+      _messengerSearchController.value = TextEditingValue(
+        text: _messengerConversationFilter,
+        selection: TextSelection.collapsed(
+          offset: _messengerConversationFilter.length,
+        ),
+      );
+    }
+
+    return TextField(
+      controller: _messengerSearchController,
+      onChanged: (value) {
+        setState(() => _messengerConversationFilter = value);
+      },
+      decoration: InputDecoration(
+        hintText: 'Rechercher',
+        prefixIcon: const Icon(Icons.search_rounded, size: 20),
+        suffixIcon: _messengerConversationFilter.trim().isEmpty
+            ? null
+            : IconButton(
+                tooltip: 'Effacer',
+                onPressed: () {
+                  _messengerSearchController.clear();
+                  setState(() => _messengerConversationFilter = '');
+                },
+                icon: const Icon(Icons.close_rounded, size: 18),
+              ),
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(999),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(999),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(999),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.s12,
+          vertical: AppSpacing.s10,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessengerMobileConversationTile({
+    required _ChatConversationSummary conversation,
+    required bool isActive,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => _openMobileMessengerConversation(conversation.id),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.78),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.s10,
+          vertical: AppSpacing.s10,
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 22,
+              backgroundColor: conversation.avatarColor.withValues(alpha: 0.16),
+              child: Text(
+                conversation.avatarLabel,
+                style: TextStyle(
+                  color: conversation.avatarColor,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.s10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    conversation.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF0F172A),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.s3),
+                  Text(
+                    conversation.preview,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.s8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  conversation.lastMessageAt == null
+                      ? '-'
+                      : _chatTimeLabel(conversation.lastMessageAt!),
+                  style: TextStyle(
+                    color: isActive
+                        ? _durocChatHeader
+                        : const Color(0xFF94A3B8),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.s4),
+                if (conversation.unreadCount > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.s7,
+                      vertical: AppSpacing.s2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _durocChatHeader,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '${conversation.unreadCount}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessengerMobileThreadScreen({
+    required _ChatConversationSummary activeConversation,
+    required List<ChatMessage> messages,
+  }) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final maxBubbleWidth = math.max(220.0, screenWidth * 0.76);
+
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [_durocChatBackgroundTop, _durocChatBackgroundBottom],
+        ),
+      ),
+      child: Column(
+        children: [
+          _buildMessengerMobileThreadHeader(activeConversation),
+          Expanded(
+            child: messages.isEmpty
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: AppSpacing.s16),
+                      child: Text(
+                        'Aucun message pour cette conversation.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.s8,
+                      AppSpacing.s10,
+                      AppSpacing.s8,
+                      AppSpacing.s10,
+                    ),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final message = messages[index];
+                      final previous = index > 0 ? messages[index - 1] : null;
+                      final showDateChip =
+                          previous == null ||
+                          !_isSameDate(previous.sentAt, message.sentAt);
+                      final isMine = message.senderId == _currentUser.id;
+                      final showSender = !isMine && activeConversation.isGroup;
+                      final readByOthers = message.readByUserIds.any(
+                        (userId) => userId != message.senderId,
+                      );
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (showDateChip) ...[
+                            _buildMessengerMobileDateSeparator(message.sentAt),
+                            const SizedBox(height: AppSpacing.s8),
+                          ],
+                          Align(
+                            alignment: isMine
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: maxBubbleWidth,
+                              ),
+                              child: Container(
+                                margin: const EdgeInsets.only(
+                                  bottom: AppSpacing.s8,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.s11,
+                                  vertical: AppSpacing.s8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isMine
+                                      ? _durocChatOutgoingBubble
+                                      : _durocChatIncomingBubble,
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: const Radius.circular(18),
+                                    topRight: const Radius.circular(18),
+                                    bottomLeft: Radius.circular(
+                                      isMine ? 18 : AppSpacing.s6,
+                                    ),
+                                    bottomRight: Radius.circular(
+                                      isMine ? AppSpacing.s6 : 18,
+                                    ),
+                                  ),
+                                  border: isMine
+                                      ? null
+                                      : Border.all(
+                                          color: const Color(0xFFE9DFD7),
+                                        ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (showSender)
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: AppSpacing.s4,
+                                        ),
+                                        child: Text(
+                                          message.senderName,
+                                          style: const TextStyle(
+                                            color: Color(0xFF8A6450),
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ),
+                                    _buildChatMessageContent(
+                                      message: message,
+                                      isMine: isMine,
+                                      mineTextColor: const Color(0xFF0F172A),
+                                      mineSubTextColor: const Color(0xFF64748B),
+                                    ),
+                                    const SizedBox(height: AppSpacing.s4),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          _chatClockLabel(message.sentAt),
+                                          style: const TextStyle(
+                                            color: Color(0xFF64748B),
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        if (isMine) ...[
+                                          const SizedBox(width: AppSpacing.s4),
+                                          Icon(
+                                            readByOthers
+                                                ? Icons.done_all_rounded
+                                                : Icons.done_rounded,
+                                            size: 13,
+                                            color: readByOthers
+                                                ? const Color(0xFF15803D)
+                                                : const Color(0xFF94A3B8),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+          ),
+          _buildMessengerMobileInputBar(activeConversation.id),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessengerMobileThreadHeader(
+    _ChatConversationSummary activeConversation,
+  ) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s4,
+        vertical: AppSpacing.s6,
+      ),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [_durocChatHeader, _durocChatHeaderSoft],
+        ),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Retour',
+            onPressed: () {
+              setState(() => _isMobileMessengerThreadOpen = false);
+            },
+            icon: const Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: Colors.white.withValues(alpha: 0.18),
+            child: Text(
+              activeConversation.avatarLabel,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.s10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  activeConversation.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    fontSize: 15,
+                  ),
+                ),
+                Text(
+                  _messengerMobilePresenceLabel(activeConversation),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.84),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Appel audio',
+            onPressed: () => _startChatCall(activeConversation.id, 'audio'),
+            icon: const Icon(Icons.call_outlined, color: Colors.white),
+          ),
+          IconButton(
+            tooltip: 'Appel vidéo',
+            onPressed: () => _startChatCall(activeConversation.id, 'video'),
+            icon: const Icon(Icons.videocam_outlined, color: Colors.white),
+          ),
+          IconButton(
+            tooltip: 'Options',
+            onPressed: () {},
+            icon: const Icon(Icons.more_vert, color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessengerMobileInputBar(String conversationId) {
+    return Container(
+      width: double.infinity,
+      color: _durocChatInputSurface,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.s8,
+        AppSpacing.s8,
+        AppSpacing.s8,
+        AppSpacing.s8,
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: _durocChatHeader.withValues(alpha: 0.16),
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                tooltip: 'Pièce jointe',
+                onPressed: () => _openMessengerAttachmentSheet(conversationId),
+                icon: const Icon(
+                  Icons.add_rounded,
+                  color: _durocChatHeader,
+                  size: 21,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.s8),
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s10),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.sentiment_satisfied_alt_outlined,
+                      color: Color(0xFF94A3B8),
+                      size: 20,
+                    ),
+                    const SizedBox(width: AppSpacing.s6),
+                    Expanded(
+                      child: TextField(
+                        controller: _chatComposerController,
+                        minLines: 1,
+                        maxLines: 4,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _sendChatMessage(conversationId),
+                        decoration: const InputDecoration(
+                          hintText: 'Écrire un message...',
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(
+                            vertical: AppSpacing.s10,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.s8),
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _chatComposerController,
+              builder: (context, value, child) {
+                final hasText = value.text.trim().isNotEmpty;
+                return Container(
+                  width: 42,
+                  height: 42,
+                  decoration: const BoxDecoration(
+                    color: _durocChatHeader,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    tooltip: hasText ? 'Envoyer' : 'Audio',
+                    onPressed: hasText
+                        ? () => _sendChatMessage(conversationId)
+                        : () => _pickAndSendChatAttachment(
+                            conversationId,
+                            'audio',
+                          ),
+                    icon: Icon(
+                      hasText ? Icons.send_rounded : Icons.mic_none_rounded,
+                      color: Colors.white,
+                      size: 19,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessengerMobileDateSeparator(DateTime date) {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.s10,
+          vertical: AppSpacing.s4,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          _chatDayLabel(date),
+          style: const TextStyle(
+            color: Color(0xFF64748B),
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _messengerMobilePresenceLabel(_ChatConversationSummary conversation) {
+    if (conversation.id == _teamConversationId) {
+      return 'en ligne';
+    }
+    if (conversation.lastMessageAt == null) {
+      return 'en ligne';
+    }
+    return 'actif à ${_chatClockLabel(conversation.lastMessageAt!)}';
   }
 
   Widget _buildMessengerMobileShell({
@@ -13990,7 +14745,7 @@ class _MainScreenState extends State<MainScreen> {
       case AppTabs.boars:
         return LucideIcons.badgeInfo;
       case AppTabs.actualites:
-        return Icons.dynamic_feed_outlined;
+        return Icons.edit_rounded;
       case AppTabs.sows:
         return LucideIcons.piggyBank;
       case AppTabs.pedigree:
@@ -14012,7 +14767,7 @@ class _MainScreenState extends State<MainScreen> {
       case AppTabs.boars:
         return 'Ajouter Verrat';
       case AppTabs.actualites:
-        return 'Publier actualité';
+        return 'Publier';
       case AppTabs.sows:
         return 'Ajouter Truie';
       case AppTabs.pedigree:
@@ -19913,6 +20668,8 @@ class _MainScreenState extends State<MainScreen> {
     final durationSeconds = await _showActiveCallDialog(
       callType: offer.callType,
       title: offer.callerName,
+      remoteUserId: offer.callerId,
+      remoteUserName: offer.callerName,
     );
     if (!mounted) {
       return;
@@ -20519,16 +21276,26 @@ class _MainScreenState extends State<MainScreen> {
   Future<int?> _showActiveCallDialog({
     required String callType,
     required String title,
+    String? remoteUserId,
+    String? remoteUserName,
   }) async {
     var elapsedSeconds = 0;
     Timer? ticker;
     var tickerStarted = false;
     final isVideo = callType == 'video';
+    final localUser = _currentUser;
+    final remoteUser = _findUserById(_readString(remoteUserId).trim());
+    final trimmedRemoteName = _readString(remoteUserName).trim();
+    final remoteName = trimmedRemoteName.isEmpty ? title : trimmedRemoteName;
 
     final result = await showDialog<int>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
+        final maxWidth = math.min(
+          MediaQuery.of(dialogContext).size.width * 0.9,
+          560.0,
+        );
         return StatefulBuilder(
           builder: (context, setModalState) {
             if (!tickerStarted) {
@@ -20546,48 +21313,19 @@ class _MainScreenState extends State<MainScreen> {
               title: Text(
                 isVideo ? 'Appel vidéo en cours' : 'Appel audio en cours',
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircleAvatar(
-                    radius: 34,
-                    backgroundColor: const Color(
-                      0xFF0F766E,
-                    ).withValues(alpha: 0.12),
-                    child: Icon(
-                      isVideo ? Icons.videocam_outlined : Icons.call_outlined,
-                      color: const Color(0xFF0F766E),
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.s10),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.s4),
-                  Text(
-                    _formatDuration(elapsedSeconds),
-                    style: const TextStyle(
-                      color: Color(0xFF64748B),
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.s10),
-                  const Text(
-                    'Appel en cours. Utilisez "Terminer" pour clôturer le journal d’appel.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Color(0xFF64748B),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+              content: SizedBox(
+                width: maxWidth,
+                child: isVideo
+                    ? _buildActiveVideoCallContent(
+                        localUser: localUser,
+                        remoteUser: remoteUser,
+                        remoteName: remoteName,
+                        elapsedSeconds: elapsedSeconds,
+                      )
+                    : _buildActiveAudioCallContent(
+                        title: remoteName,
+                        elapsedSeconds: elapsedSeconds,
+                      ),
               ),
               actions: [
                 TextButton(
@@ -20613,6 +21351,240 @@ class _MainScreenState extends State<MainScreen> {
 
     ticker?.cancel();
     return result;
+  }
+
+  Widget _buildActiveAudioCallContent({
+    required String title,
+    required int elapsedSeconds,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        CircleAvatar(
+          radius: 34,
+          backgroundColor: const Color(0xFF0F766E).withValues(alpha: 0.12),
+          child: const Icon(
+            Icons.call_outlined,
+            color: Color(0xFF0F766E),
+            size: 28,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.s10),
+        Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF0F172A),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.s4),
+        Text(
+          _formatDuration(elapsedSeconds),
+          style: const TextStyle(
+            color: Color(0xFF64748B),
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.s10),
+        const Text(
+          'Appel en cours. Utilisez "Terminer" pour clôturer le journal d’appel.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Color(0xFF64748B),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActiveVideoCallContent({
+    required UserProfile localUser,
+    required UserProfile? remoteUser,
+    required String remoteName,
+    required int elapsedSeconds,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AspectRatio(
+          aspectRatio: 16 / 9,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: _buildInCallVideoTile(
+                  user: remoteUser,
+                  label: remoteName,
+                  accentColor: const Color(0xFF0F766E),
+                ),
+              ),
+              Positioned(
+                top: AppSpacing.s8,
+                right: AppSpacing.s8,
+                width: 128,
+                height: 78,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(AppSpacing.s8),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.95),
+                      width: 2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: _buildInCallVideoTile(
+                    user: localUser,
+                    label: 'Vous',
+                    accentColor: const Color(0xFF1D4ED8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.s10),
+        Row(
+          children: [
+            const Icon(
+              Icons.videocam_outlined,
+              color: Color(0xFF0F766E),
+              size: 18,
+            ),
+            const SizedBox(width: AppSpacing.s6),
+            Expanded(
+              child: Text(
+                remoteName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.s8),
+            Text(
+              _formatDuration(elapsedSeconds),
+              style: const TextStyle(
+                color: Color(0xFF64748B),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.s6),
+        const Text(
+          'Aperçu vidéo actif. Utilisez "Terminer" pour clôturer l’appel.',
+          style: TextStyle(
+            color: Color(0xFF64748B),
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInCallVideoTile({
+    required UserProfile? user,
+    required String label,
+    required Color accentColor,
+  }) {
+    final avatarLabel = _inCallAvatarLabel(user, label);
+    final imageBase64 = user?.profileImageBase64.trim() ?? '';
+    final imageBytes = imageBase64.isEmpty
+        ? null
+        : _decodeImageBytesCached(imageBase64);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppSpacing.s8),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (imageBytes != null)
+            Image.memory(imageBytes, fit: BoxFit.cover)
+          else
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    accentColor.withValues(alpha: 0.85),
+                    const Color(0xFF0F172A),
+                  ],
+                ),
+              ),
+              child: Center(
+                child: CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Colors.white.withValues(alpha: 0.2),
+                  child: Text(
+                    avatarLabel,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 24,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s8,
+                vertical: AppSpacing.s6,
+              ),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0),
+                    Colors.black.withValues(alpha: 0.58),
+                  ],
+                ),
+              ),
+              child: Text(
+                label.trim().isEmpty ? 'Participant' : label.trim(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _inCallAvatarLabel(UserProfile? user, String fallbackLabel) {
+    final avatar = user?.avatar.trim() ?? '';
+    if (avatar.isNotEmpty) {
+      return avatar.substring(0, 1).toUpperCase();
+    }
+    final trimmed = fallbackLabel.trim();
+    if (trimmed.isEmpty) {
+      return '?';
+    }
+    return trimmed.substring(0, 1).toUpperCase();
   }
 
   String _formatDuration(int totalSeconds) {
@@ -20659,9 +21631,15 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildChatMessageContent({
     required ChatMessage message,
     required bool isMine,
+    Color? mineTextColor,
+    Color? mineSubTextColor,
   }) {
-    final textColor = isMine ? Colors.white : const Color(0xFF0F172A);
-    final subTextColor = isMine ? Colors.white70 : const Color(0xFF64748B);
+    final textColor = isMine
+        ? (mineTextColor ?? Colors.white)
+        : const Color(0xFF0F172A);
+    final subTextColor = isMine
+        ? (mineSubTextColor ?? Colors.white70)
+        : const Color(0xFF64748B);
     final messageType = message.messageType.trim().toLowerCase();
 
     if (messageType == 'image') {
