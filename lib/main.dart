@@ -6,6 +6,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:crypto/crypto.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
@@ -14,8 +16,62 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _initializeRealtimeBackend();
   await initializeDateFormatting('fr_FR', null);
   runApp(const PigBreedingApp());
+}
+
+Future<void> _initializeRealtimeBackend() async {
+  try {
+    if (Firebase.apps.isNotEmpty) {
+      return;
+    }
+    final options = _firebaseOptionsFromEnvironment();
+    if (options == null) {
+      await Firebase.initializeApp();
+      return;
+    }
+    await Firebase.initializeApp(options: options);
+  } catch (_) {
+    // Keep local mode available if Firebase is not configured.
+  }
+}
+
+FirebaseOptions? _firebaseOptionsFromEnvironment() {
+  const apiKey = String.fromEnvironment('FIREBASE_API_KEY');
+  const appId = String.fromEnvironment('FIREBASE_APP_ID');
+  const projectId = String.fromEnvironment('FIREBASE_PROJECT_ID');
+  const messagingSenderId = String.fromEnvironment(
+    'FIREBASE_MESSAGING_SENDER_ID',
+  );
+  if (apiKey.isEmpty ||
+      appId.isEmpty ||
+      projectId.isEmpty ||
+      messagingSenderId.isEmpty) {
+    return null;
+  }
+
+  const authDomain = String.fromEnvironment('FIREBASE_AUTH_DOMAIN');
+  const storageBucket = String.fromEnvironment('FIREBASE_STORAGE_BUCKET');
+  const iosBundleId = String.fromEnvironment('FIREBASE_IOS_BUNDLE_ID');
+  const androidClientId = String.fromEnvironment('FIREBASE_ANDROID_CLIENT_ID');
+  const iosClientId = String.fromEnvironment('FIREBASE_IOS_CLIENT_ID');
+  const measurementId = String.fromEnvironment('FIREBASE_MEASUREMENT_ID');
+  const databaseURL = String.fromEnvironment('FIREBASE_DATABASE_URL');
+
+  return FirebaseOptions(
+    apiKey: apiKey,
+    appId: appId,
+    projectId: projectId,
+    messagingSenderId: messagingSenderId,
+    authDomain: authDomain.isEmpty ? null : authDomain,
+    storageBucket: storageBucket.isEmpty ? null : storageBucket,
+    iosBundleId: iosBundleId.isEmpty ? null : iosBundleId,
+    androidClientId: androidClientId.isEmpty ? null : androidClientId,
+    iosClientId: iosClientId.isEmpty ? null : iosClientId,
+    measurementId: measurementId.isEmpty ? null : measurementId,
+    databaseURL: databaseURL.isEmpty ? null : databaseURL,
+  );
 }
 
 class PigBreedingApp extends StatelessWidget {
@@ -706,6 +762,11 @@ class _MainScreenState extends State<MainScreen> {
   static const String _prefsNewsPostsKey = 'porc_news_posts_v1';
   static const String _prefsActiveConversationKey =
       'porc_active_conversation_v1';
+  static const String _cloudSyncCollection = 'porc_realtime_sync';
+  static const String _cloudSyncDocumentId = 'chat_news_v1';
+  static const int _cloudChatSyncLimit = 180;
+  static const int _cloudNewsSyncLimit = 80;
+  static const int _cloudInlineMediaBase64MaxLength = 48000;
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _loginController = TextEditingController();
@@ -738,6 +799,14 @@ class _MainScreenState extends State<MainScreen> {
   int _failedLoginAttempts = 0;
   DateTime? _loginLockedUntil;
   bool _stateLoading = true;
+  final String _cloudClientId =
+      'CLIENT-${DateTime.now().microsecondsSinceEpoch}';
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
+  _cloudSyncSubscription;
+  Timer? _cloudSyncDebounceTimer;
+  int _lastCloudVersionSeen = 0;
+  bool _cloudSyncActive = false;
+  bool _cloudApplyingSnapshot = false;
 
   final List<Boar> _boars = [
     Boar(
@@ -1395,6 +1464,8 @@ class _MainScreenState extends State<MainScreen> {
     _chatComposerController.dispose();
     _messengerSearchController.dispose();
     _headerSearchController.dispose();
+    _cloudSyncDebounceTimer?.cancel();
+    _cloudSyncSubscription?.cancel();
     _imageBytesCache.clear();
     super.dispose();
   }
@@ -1733,9 +1804,10 @@ class _MainScreenState extends State<MainScreen> {
       }
       setState(() => _stateLoading = false);
     }
+    _startCloudRealtimeSync();
   }
 
-  Future<void> _persistState() async {
+  Future<void> _persistState({bool pushCloud = true}) async {
     if (_stateLoading) {
       return;
     }
@@ -1863,9 +1935,227 @@ class _MainScreenState extends State<MainScreen> {
           _normalizeDate(_selectedPigletDate!).toIso8601String(),
         );
       }
+      if (pushCloud) {
+        _scheduleCloudSyncPush();
+      }
     } catch (_) {
       // Keep UI responsive even if local persistence fails.
     }
+  }
+
+  bool _isCloudSyncAvailable() {
+    return Firebase.apps.isNotEmpty;
+  }
+
+  DocumentReference<Map<String, dynamic>> get _cloudSyncDocRef {
+    return FirebaseFirestore.instance
+        .collection(_cloudSyncCollection)
+        .doc(_cloudSyncDocumentId);
+  }
+
+  Future<void> _startCloudRealtimeSync() async {
+    if (!mounted || _cloudSyncActive || !_isCloudSyncAvailable()) {
+      return;
+    }
+    try {
+      final initialSnapshot = await _cloudSyncDocRef.get();
+      _applyCloudSnapshot(initialSnapshot.data());
+      _cloudSyncSubscription = _cloudSyncDocRef.snapshots().listen(
+        (snapshot) {
+          _applyCloudSnapshot(snapshot.data());
+        },
+        onError: (_) {
+          // Keep local mode if realtime stream fails.
+        },
+      );
+      _cloudSyncActive = true;
+      _scheduleCloudSyncPush();
+    } catch (_) {
+      _cloudSyncActive = false;
+    }
+  }
+
+  void _scheduleCloudSyncPush() {
+    if (!mounted ||
+        !_cloudSyncActive ||
+        !_isCloudSyncAvailable() ||
+        _cloudApplyingSnapshot ||
+        _stateLoading) {
+      return;
+    }
+    _cloudSyncDebounceTimer?.cancel();
+    _cloudSyncDebounceTimer = Timer(const Duration(milliseconds: 900), () {
+      _pushCloudSnapshotNow();
+    });
+  }
+
+  Future<void> _pushCloudSnapshotNow() async {
+    if (!mounted ||
+        !_cloudSyncActive ||
+        !_isCloudSyncAvailable() ||
+        _cloudApplyingSnapshot ||
+        _stateLoading) {
+      return;
+    }
+
+    final version = DateTime.now().millisecondsSinceEpoch;
+    final payload = <String, dynamic>{
+      'version': version,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedAtMsClient': version,
+      'updatedByUserId': _currentUser.id,
+      'updatedByClientId': _cloudClientId,
+      'chatMessages': _buildCloudChatPayload(),
+      'newsPosts': _buildCloudNewsPayload(),
+    };
+
+    try {
+      await _cloudSyncDocRef.set(payload, SetOptions(merge: true));
+      _lastCloudVersionSeen = math.max(_lastCloudVersionSeen, version);
+    } catch (_) {
+      // Keep app usable offline or when backend is unavailable.
+    }
+  }
+
+  void _applyCloudSnapshot(Map<String, dynamic>? data) {
+    if (!mounted || data == null || data.isEmpty) {
+      return;
+    }
+
+    var remoteVersion = _readInt(data['version']);
+    if (remoteVersion <= 0) {
+      remoteVersion = _readInt(data['updatedAtMsClient']);
+    }
+    if (remoteVersion <= 0) {
+      final rawUpdatedAt = data['updatedAt'];
+      if (rawUpdatedAt is Timestamp) {
+        remoteVersion = rawUpdatedAt.millisecondsSinceEpoch;
+      } else {
+        final parsed = _parseDateTimeFromString(_readString(rawUpdatedAt));
+        remoteVersion = parsed?.millisecondsSinceEpoch ?? 0;
+      }
+    }
+    if (remoteVersion <= _lastCloudVersionSeen) {
+      return;
+    }
+
+    final hasChat = data.containsKey('chatMessages');
+    final hasNews = data.containsKey('newsPosts');
+    if (!hasChat && !hasNews) {
+      _lastCloudVersionSeen = remoteVersion;
+      return;
+    }
+
+    final remoteChat = hasChat
+        ? _readObjectMapList(
+            data['chatMessages'],
+          ).map(_chatMessageFromJson).whereType<ChatMessage>().toList()
+        : const <ChatMessage>[];
+    final remoteNews = hasNews
+        ? _readObjectMapList(
+            data['newsPosts'],
+          ).map(_newsPostFromJson).whereType<NewsPost>().toList()
+        : const <NewsPost>[];
+
+    final sortedChat = List<ChatMessage>.from(remoteChat)
+      ..sort((a, b) => a.sentAt.compareTo(b.sentAt));
+    final sortedNews = List<NewsPost>.from(remoteNews)
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    if (sortedChat.length > 2500) {
+      sortedChat.removeRange(0, sortedChat.length - 2500);
+    }
+    if (sortedNews.length > 400) {
+      sortedNews.removeRange(400, sortedNews.length);
+    }
+
+    _cloudApplyingSnapshot = true;
+    setState(() {
+      if (hasChat) {
+        _chatMessages
+          ..clear()
+          ..addAll(sortedChat);
+      }
+      if (hasNews) {
+        _newsPosts
+          ..clear()
+          ..addAll(sortedNews);
+      }
+      _lastCloudVersionSeen = remoteVersion;
+    });
+    _persistState(pushCloud: false);
+    _cloudApplyingSnapshot = false;
+  }
+
+  List<Map<String, dynamic>> _readObjectMapList(dynamic value) {
+    if (value is! List) {
+      return const [];
+    }
+    final items = <Map<String, dynamic>>[];
+    for (final item in value) {
+      if (item is Map) {
+        items.add(Map<String, dynamic>.from(item));
+      }
+    }
+    return items;
+  }
+
+  List<Map<String, dynamic>> _buildCloudChatPayload() {
+    final sorted = List<ChatMessage>.from(_chatMessages)
+      ..sort((a, b) => a.sentAt.compareTo(b.sentAt));
+    final fromIndex = math.max(0, sorted.length - _cloudChatSyncLimit);
+    final limited = sorted.sublist(fromIndex);
+    return limited.map(_chatMessageToCloudJson).toList();
+  }
+
+  Map<String, dynamic> _chatMessageToCloudJson(ChatMessage message) {
+    return {
+      'id': message.id,
+      'conversationId': message.conversationId,
+      'senderId': message.senderId,
+      'senderName': message.senderName,
+      'text': message.text,
+      'sentAt': message.sentAt.toIso8601String(),
+      'readByUserIds': message.readByUserIds,
+      'messageType': message.messageType,
+      'mediaBase64': _cloudTrimBase64(message.mediaBase64),
+      'mediaName': message.mediaName,
+      'mediaMimeType': message.mediaMimeType,
+      'mediaSizeBytes': message.mediaSizeBytes,
+      'callType': message.callType,
+      'callStatus': message.callStatus,
+      'callDurationSeconds': message.callDurationSeconds,
+    };
+  }
+
+  List<Map<String, dynamic>> _buildCloudNewsPayload() {
+    final sorted = List<NewsPost>.from(_newsPosts)
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final limited = sorted.take(_cloudNewsSyncLimit).toList();
+    return limited.map(_newsPostToCloudJson).toList();
+  }
+
+  Map<String, dynamic> _newsPostToCloudJson(NewsPost post) {
+    return {
+      'id': post.id,
+      'authorId': post.authorId,
+      'authorName': post.authorName,
+      'authorRole': post.authorRole,
+      'text': post.text,
+      'createdAt': post.createdAt.toIso8601String(),
+      'imageBase64': _cloudTrimBase64(post.imageBase64),
+      'imageName': post.imageName,
+      'likedByUserIds': post.likedByUserIds,
+      'comments': post.comments.take(40).map(_newsCommentToJson).toList(),
+    };
+  }
+
+  String _cloudTrimBase64(String raw) {
+    final value = raw.trim();
+    if (value.length > _cloudInlineMediaBase64MaxLength) {
+      return '';
+    }
+    return value;
   }
 
   List<Map<String, dynamic>>? _decodeObjectListOrNull(String? raw) {
