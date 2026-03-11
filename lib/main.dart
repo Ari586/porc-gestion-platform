@@ -2606,7 +2606,7 @@ class _MainScreenState extends State<MainScreen> {
       'senderId': message.senderId,
       'senderName': message.senderName,
       'text': message.text,
-      'sentAt': message.sentAt.toIso8601String(),
+      'sentAt': message.sentAt.toUtc().toIso8601String(),
       'readByUserIds': message.readByUserIds,
       'messageType': message.messageType,
       'mediaBase64': _cloudTrimBase64(message.mediaBase64),
@@ -2737,7 +2737,11 @@ class _MainScreenState extends State<MainScreen> {
     if (raw == null || raw.trim().isEmpty) {
       return null;
     }
-    return DateTime.tryParse(raw.trim());
+    final parsed = DateTime.tryParse(raw.trim());
+    if (parsed == null) {
+      return null;
+    }
+    return parsed.toLocal();
   }
 
   String? _resolvePreferredBoarCode(String? rawCode) {
@@ -3622,7 +3626,7 @@ class _MainScreenState extends State<MainScreen> {
       'senderId': message.senderId,
       'senderName': message.senderName,
       'text': message.text,
-      'sentAt': message.sentAt.toIso8601String(),
+      'sentAt': message.sentAt.toUtc().toIso8601String(),
       'readByUserIds': message.readByUserIds,
       'messageType': message.messageType,
       'mediaBase64': message.mediaBase64,
@@ -22019,6 +22023,7 @@ class _MainScreenState extends State<MainScreen> {
     final sorted = List<ChatMessage>.from(_chatMessages)
       ..sort((a, b) => b.sentAt.compareTo(a.sentAt));
     final closedSessions = <String>{};
+    final now = DateTime.now();
     for (final message in sorted) {
       if (_normalizeLookup(message.messageType) != 'call') {
         continue;
@@ -22034,8 +22039,11 @@ class _MainScreenState extends State<MainScreen> {
         closedSessions.add(sessionId);
         continue;
       }
-      if (DateTime.now().difference(message.sentAt).inMinutes >
-          _incomingCallMaxAgeMinutes) {
+      final invitationAgeMinutes = now
+          .difference(message.sentAt)
+          .inMinutes
+          .abs();
+      if (invitationAgeMinutes > _incomingCallMaxAgeMinutes) {
         closedSessions.add(sessionId);
         continue;
       }
