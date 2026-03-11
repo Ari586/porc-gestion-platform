@@ -29,11 +29,14 @@ class PigBreedingApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0F766E),
-          primary: const Color(0xFF0F766E),
-          surface: const Color(0xFFF8FAFC),
+          seedColor: const Color(0xFF0D9488),
+          primary: const Color(0xFF0D9488),
+          secondary: const Color(0xFF0F766E),
+          surface: const Color(0xFFF1F5F9),
+          surfaceContainerHighest: const Color(0xFFE2E8F0),
+          brightness: Brightness.light,
         ),
-        scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+        scaffoldBackgroundColor: const Color(0xFFF1F5F9),
         textTheme: GoogleFonts.interTextTheme(),
       ),
       home: const MainScreen(),
@@ -657,6 +660,11 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
+  static const Color _surfaceSlate = Color(0xFFF1F5F9);
+  static const Color _accentTeal = Color(0xFF0D9488);
+  static const Color _accentTealDeep = Color(0xFF0F766E);
+  static const Color _sidebarDark = Color(0xFF0B1220);
+  static const Color _sidebarDarkSoft = Color(0xFF111C33);
   static const String _passwordHashPrefix = 'sha256:';
   static const int _maxSessionHours = 12;
   static const String _teamConversationId = 'GROUP_ALL_USERS';
@@ -703,6 +711,7 @@ class _MainScreenState extends State<MainScreen> {
   final TextEditingController _loginController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _chatComposerController = TextEditingController();
+  final TextEditingController _headerSearchController = TextEditingController();
   final List<UserProfile> _users = List<UserProfile>.from(initialUsers);
 
   UserProfile _currentUser = initialUsers.first;
@@ -1291,9 +1300,28 @@ class _MainScreenState extends State<MainScreen> {
                     child: SingleChildScrollView(
                       padding: EdgeInsets.all(contentPadding),
                       child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 220),
+                        duration: const Duration(milliseconds: 320),
                         switchInCurve: Curves.easeOutCubic,
                         switchOutCurve: Curves.easeInCubic,
+                        transitionBuilder: (child, animation) {
+                          final slide =
+                              Tween<Offset>(
+                                begin: const Offset(0.025, 0),
+                                end: Offset.zero,
+                              ).animate(
+                                CurvedAnimation(
+                                  parent: animation,
+                                  curve: Curves.easeOutCubic,
+                                ),
+                              );
+                          return FadeTransition(
+                            opacity: animation,
+                            child: SlideTransition(
+                              position: slide,
+                              child: child,
+                            ),
+                          );
+                        },
                         child: KeyedSubtree(
                           key: ValueKey<String>(_activeTab),
                           child: isDesktop
@@ -1322,7 +1350,15 @@ class _MainScreenState extends State<MainScreen> {
               onPressed: _openAddDialogForTab,
               icon: Icon(_fabIconForTab(_activeTab)),
               label: Text(_fabLabelForTab(_activeTab)),
-              backgroundColor: const Color(0xFF0F766E),
+              elevation: 10,
+              extendedPadding: const EdgeInsets.symmetric(
+                horizontal: 18,
+                vertical: 2,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              backgroundColor: _accentTealDeep,
               foregroundColor: Colors.white,
             )
           : null,
@@ -1334,6 +1370,7 @@ class _MainScreenState extends State<MainScreen> {
     _loginController.dispose();
     _passwordController.dispose();
     _chatComposerController.dispose();
+    _headerSearchController.dispose();
     _imageBytesCache.clear();
     super.dispose();
   }
@@ -2957,50 +2994,71 @@ class _MainScreenState extends State<MainScreen> {
         ),
     ];
 
-    return Container(
-      color: const Color(0xFF0F172A),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
-            child: Row(
-              children: [
-                const Icon(
-                  LucideIcons.piggyBank,
-                  color: Color(0xFF2DD4BF),
-                  size: 30,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'PORC GESTION',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.4,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [_sidebarDark, _sidebarDarkSoft],
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(9),
+                    decoration: BoxDecoration(
+                      color: _accentTeal.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      LucideIcons.piggyBank,
+                      color: Color(0xFF5EEAD4),
+                      size: 24,
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Scrollbar(
-              thumbVisibility: true,
-              child: ListView(
-                padding: const EdgeInsets.only(right: 4, bottom: 8),
-                children: navItems,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'PORC GESTION',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          _buildCurrentUserCard(),
-        ],
+            const SizedBox(height: 12),
+            Expanded(
+              child: Scrollbar(
+                thumbVisibility: true,
+                child: ListView(
+                  padding: const EdgeInsets.only(right: 4, bottom: 8),
+                  children: navItems,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildCurrentUserCard(),
+          ],
+        ),
       ),
     );
   }
@@ -3157,7 +3215,7 @@ class _MainScreenState extends State<MainScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         onTap: () {
           if (!_canAccessTab(tabId)) {
             _showError('Accès refusé pour le rôle ${_currentUser.role}.');
@@ -3169,18 +3227,35 @@ class _MainScreenState extends State<MainScreen> {
             Navigator.of(context).pop();
           }
         },
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: isActive ? const Color(0xFF0F766E) : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
+            color: isActive
+                ? _accentTeal.withValues(alpha: 0.2)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+            border: isActive
+                ? Border.all(color: _accentTeal.withValues(alpha: 0.75))
+                : null,
+            boxShadow: isActive
+                ? [
+                    BoxShadow(
+                      color: _accentTeal.withValues(alpha: 0.25),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
+                    ),
+                  ]
+                : const [],
           ),
           child: Row(
             children: [
               Icon(
                 icon,
-                color: isActive ? Colors.white : const Color(0xFF94A3B8),
-                size: 19,
+                color: isActive
+                    ? const Color(0xFFCCFBF1)
+                    : const Color(0xFF94A3B8),
+                size: 18,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -3206,8 +3281,9 @@ class _MainScreenState extends State<MainScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
       ),
       child: Column(
         children: [
@@ -3245,8 +3321,8 @@ class _MainScreenState extends State<MainScreen> {
           Container(
             width: double.infinity,
             decoration: BoxDecoration(
-              color: const Color(0xFF334155),
-              borderRadius: BorderRadius.circular(8),
+              color: Colors.white.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: Text(
@@ -3264,7 +3340,7 @@ class _MainScreenState extends State<MainScreen> {
             child: OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.white,
-                side: const BorderSide(color: Color(0xFF475569)),
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.25)),
               ),
               onPressed: _logout,
               icon: const Icon(Icons.logout, size: 16),
@@ -3278,17 +3354,19 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildHeader(bool isDesktop) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final compact = screenWidth < 650;
-    final tiny = screenWidth < 420;
-    final showDate = screenWidth >= 620;
-    final showLoginBadge = screenWidth >= 900;
+    final compact = screenWidth < 680;
+    final tiny = screenWidth < 430;
+    final showDate = screenWidth >= 700;
+    final showSearch = screenWidth >= 1180;
+    final showLoginBadge = screenWidth >= 980;
+    final notificationCount = _headerNotificationCount();
 
     return Container(
-      height: tiny ? 64 : 72,
-      padding: EdgeInsets.symmetric(horizontal: tiny ? 4 : (compact ? 8 : 20)),
+      height: tiny ? 68 : 78,
+      padding: EdgeInsets.symmetric(horizontal: tiny ? 6 : (compact ? 10 : 18)),
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+        border: Border(bottom: BorderSide(color: Color(0xFFDCE4EE))),
       ),
       child: Row(
         children: [
@@ -3300,23 +3378,34 @@ class _MainScreenState extends State<MainScreen> {
                     icon: const Icon(LucideIcons.menu),
                     onPressed: () => _scaffoldKey.currentState?.openDrawer(),
                   ),
-                Expanded(
-                  child: Text(
-                    _titleForTab(_activeTab),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontSize: tiny ? 11 : (compact ? 13 : 17),
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.5,
-                      color: const Color(0xFF0F172A),
-                    ),
+                if (!showSearch)
+                  IconButton(
+                    tooltip: 'Recherche',
+                    onPressed: _openSearchDialog,
+                    icon: const Icon(Icons.search, color: Color(0xFF334155)),
                   ),
+                Expanded(
+                  child: showSearch
+                      ? _buildHeaderSearchField()
+                      : Text(
+                          _titleForTab(_activeTab),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(
+                            fontSize: tiny ? 11 : (compact ? 13 : 17),
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.5,
+                            color: const Color(0xFF0F172A),
+                          ),
+                        ),
                 ),
               ],
             ),
           ),
-          if (showDate)
+          const SizedBox(width: 8),
+          _buildHeaderNotificationButton(notificationCount),
+          if (showDate) ...[
+            const SizedBox(width: 10),
             Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -3342,14 +3431,15 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ],
             ),
-          SizedBox(width: tiny ? 2 : 10),
+          ],
+          const SizedBox(width: 8),
           if (showLoginBadge)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                color: _surfaceSlate,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFDCE4EE)),
               ),
               child: Row(
                 children: [
@@ -3370,8 +3460,8 @@ class _MainScreenState extends State<MainScreen> {
           if (showLoginBadge)
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF0F766E),
-                side: const BorderSide(color: Color(0xFFA7F3D0)),
+                foregroundColor: _accentTealDeep,
+                side: BorderSide(color: _accentTeal.withValues(alpha: 0.4)),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 10,
@@ -3405,20 +3495,385 @@ class _MainScreenState extends State<MainScreen> {
               onPressed: _logout,
               icon: const Icon(Icons.logout, color: Color(0xFF334155)),
             ),
-          if (!showDate && screenWidth >= 360) ...[
-            const SizedBox(width: 2),
-            Text(
-              DateFormat('d MMM', 'fr_FR').format(DateTime.now()),
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF64748B),
-              ),
-            ),
-          ],
         ],
       ),
     );
+  }
+
+  Widget _buildHeaderSearchField() {
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: _surfaceSlate,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFDCE4EE)),
+      ),
+      child: TextField(
+        controller: _headerSearchController,
+        textInputAction: TextInputAction.search,
+        onSubmitted: _handleHeaderSearchSubmitted,
+        decoration: const InputDecoration(
+          hintText: 'Recherche rapide: IA, truie, verrat, santé, actualités...',
+          border: InputBorder.none,
+          prefixIcon: Icon(Icons.search, size: 20, color: Color(0xFF64748B)),
+          contentPadding: EdgeInsets.only(top: 10),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderNotificationButton(int notificationCount) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: _surfaceSlate,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFDCE4EE)),
+          ),
+          child: IconButton(
+            tooltip: 'Notifications',
+            onPressed: _openNotificationsSheet,
+            icon: const Icon(
+              Icons.notifications_none_rounded,
+              color: Color(0xFF334155),
+            ),
+          ),
+        ),
+        if (notificationCount > 0)
+          Positioned(
+            top: -5,
+            right: -4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDC2626),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white, width: 1.5),
+              ),
+              child: Text(
+                notificationCount > 99 ? '99+' : '$notificationCount',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  int _headerNotificationCount() {
+    final notifications = _buildHeaderNotifications();
+    var total = notifications.fold<int>(0, (sum, item) => sum + item.count);
+    if (total < 0) {
+      total = 0;
+    }
+    if (total > 999) {
+      total = 999;
+    }
+    return total;
+  }
+
+  List<_HeaderNotificationEntry> _buildHeaderNotifications() {
+    final now = _currentDate();
+    final unreadMessages = _chatMessages.where((message) {
+      if (message.senderId == _currentUser.id) {
+        return false;
+      }
+      return !message.readByUserIds.contains(_currentUser.id);
+    }).length;
+    final overdueDiagnostics = _inseminations.where((record) {
+      if (_isSuccessfulStatus(record.status) ||
+          _isFailedStatus(record.status)) {
+        return false;
+      }
+      return now.isAfter(
+        _expectedPregnancyCheckDate(record).add(const Duration(days: 7)),
+      );
+    }).length;
+    final upcomingHealth = _healthRecords.where((record) {
+      if (record.nextDate == null) {
+        return false;
+      }
+      final due = _normalizeDate(record.nextDate!);
+      return !due.isBefore(now) &&
+          !due.isAfter(now.add(const Duration(days: 3)));
+    }).length;
+    final pendingTasks = _buildOperationalTasks().where((task) {
+      if (task.done) {
+        return false;
+      }
+      return !task.dueDate.isAfter(now.add(const Duration(days: 3)));
+    }).length;
+
+    return [
+      _HeaderNotificationEntry(
+        title: 'Messages non lus',
+        detail: unreadMessages > 0
+            ? '$unreadMessages message(s) à lire dans la messagerie.'
+            : 'Aucun message non lu.',
+        count: unreadMessages,
+        icon: Icons.forum_outlined,
+        color: const Color(0xFF0EA5E9),
+        tabId: AppTabs.messenger,
+      ),
+      _HeaderNotificationEntry(
+        title: 'Diagnostics IA en retard',
+        detail: overdueDiagnostics > 0
+            ? '$overdueDiagnostics truie(s) à diagnostiquer rapidement.'
+            : 'Aucun retard de diagnostic IA.',
+        count: overdueDiagnostics,
+        icon: LucideIcons.syringe,
+        color: const Color(0xFFEA580C),
+        tabId: AppTabs.inseminations,
+      ),
+      _HeaderNotificationEntry(
+        title: 'Rappels santé imminents',
+        detail: upcomingHealth > 0
+            ? '$upcomingHealth acte(s) santé à réaliser sous 72h.'
+            : 'Aucun rappel santé urgent.',
+        count: upcomingHealth,
+        icon: LucideIcons.shieldCheck,
+        color: const Color(0xFF16A34A),
+        tabId: AppTabs.health,
+      ),
+      _HeaderNotificationEntry(
+        title: 'Tâches terrain à exécuter',
+        detail: pendingTasks > 0
+            ? '$pendingTasks tâche(s) proche échéance.'
+            : 'Aucune tâche urgente.',
+        count: pendingTasks,
+        icon: LucideIcons.layoutDashboard,
+        color: const Color(0xFF7C3AED),
+        tabId: AppTabs.dashboard,
+      ),
+    ];
+  }
+
+  void _openNotificationsSheet() {
+    final notifications = _buildHeaderNotifications();
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Notifications opérationnelles',
+                  style: TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ...notifications.map((item) {
+                  final disabled = item.count <= 0;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        side: const BorderSide(color: Color(0xFFDCE4EE)),
+                      ),
+                      tileColor: Colors.white,
+                      leading: CircleAvatar(
+                        backgroundColor: item.color.withValues(alpha: 0.12),
+                        child: Icon(item.icon, color: item.color, size: 18),
+                      ),
+                      title: Text(
+                        item.title,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: Text(item.detail),
+                      trailing: disabled
+                          ? const Icon(Icons.check, color: Color(0xFF94A3B8))
+                          : Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: item.color.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                '${item.count}',
+                                style: TextStyle(
+                                  color: item.color,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                      onTap: disabled
+                          ? null
+                          : () {
+                              Navigator.of(sheetContext).pop();
+                              _setActiveTabFromHeader(item.tabId);
+                            },
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _openSearchDialog() {
+    final searchCtrl = TextEditingController(
+      text: _headerSearchController.text,
+    );
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Recherche rapide'),
+          content: SizedBox(
+            width: _dialogWidth(dialogContext),
+            child: TextField(
+              controller: searchCtrl,
+              autofocus: true,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (value) {
+                Navigator.of(dialogContext).pop();
+                _handleHeaderSearchSubmitted(value);
+              },
+              decoration: const InputDecoration(
+                hintText: 'Ex: truie TR-2001, messagerie, santé, vente...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _handleHeaderSearchSubmitted(searchCtrl.text);
+              },
+              child: const Text('Rechercher'),
+            ),
+          ],
+        );
+      },
+    ).then((_) => searchCtrl.dispose());
+  }
+
+  void _handleHeaderSearchSubmitted(String rawQuery) {
+    final query = rawQuery.trim();
+    if (query.isEmpty) {
+      return;
+    }
+
+    _headerSearchController.text = query;
+    final normalized = _normalizeLookup(query);
+    final routeMap = <String, List<String>>{
+      AppTabs.dashboard: ['dashboard', 'tableau', 'kpi', 'suivi'],
+      AppTabs.actualites: [
+        'actualite',
+        'actualité',
+        'feed',
+        'timeline',
+        'post',
+      ],
+      AppTabs.messenger: ['message', 'messagerie', 'chat', 'discussion'],
+      AppTabs.services: ['service', 'accompagnement', 'pack'],
+      AppTabs.elevage: [
+        'elevage',
+        'élevage',
+        'bande',
+        'batiment',
+        'croissance',
+      ],
+      AppTabs.inseminations: ['ia', 'insemination', 'insémination', 'semence'],
+      AppTabs.boars: ['verrat', 'boar', 'geniteur', 'géniteur'],
+      AppTabs.sows: ['truie', 'sow', 'mise-bas', 'gestation'],
+      AppTabs.pedigree: ['pedigree', 'pedigree', 'ascendance', 'consanguinite'],
+      AppTabs.health: ['sante', 'santé', 'vaccin', 'traitement'],
+      AppTabs.commercial: [
+        'vente',
+        'commercial',
+        'stock',
+        'annonce',
+        'publier',
+      ],
+      AppTabs.administration: [
+        'admin',
+        'administration',
+        'inseminateur',
+        'eleveur',
+      ],
+      AppTabs.users: ['utilisateur', 'login', 'mot de passe', 'compte'],
+      AppTabs.profile: ['profil', 'photo'],
+    };
+
+    for (final entry in routeMap.entries) {
+      for (final token in entry.value) {
+        if (normalized.contains(_normalizeLookup(token))) {
+          _setActiveTabFromHeader(entry.key);
+          _showInfo(
+            'Recherche: ouverture du module "${_titleForTab(entry.key)}".',
+          );
+          return;
+        }
+      }
+    }
+
+    Boar? boar;
+    for (final item in _boars) {
+      if (_normalizeLookup(item.code).contains(normalized) ||
+          _normalizeLookup(item.name).contains(normalized)) {
+        boar = item;
+        break;
+      }
+    }
+    if (boar != null) {
+      _setActiveTabFromHeader(AppTabs.boars);
+      _showInfo('Résultat trouvé: verrat ${boar.code} - ${boar.name}.');
+      return;
+    }
+
+    Sow? sow;
+    for (final item in _sows) {
+      if (_normalizeLookup(item.code).contains(normalized) ||
+          _normalizeLookup(item.name).contains(normalized)) {
+        sow = item;
+        break;
+      }
+    }
+    if (sow != null) {
+      _setActiveTabFromHeader(AppTabs.sows);
+      _showInfo('Résultat trouvé: truie ${sow.code} - ${sow.name}.');
+      return;
+    }
+
+    _showInfo(
+      'Aucun résultat direct pour "$query". Essayez un mot-clé module.',
+    );
+  }
+
+  void _setActiveTabFromHeader(String tabId) {
+    if (!_canAccessTab(tabId)) {
+      _showError('Accès refusé pour ce module (${_currentUser.role}).');
+      return;
+    }
+    setState(() => _activeTab = tabId);
+    _persistState();
   }
 
   Widget _buildActiveContent() {
@@ -5438,42 +5893,49 @@ class _MainScreenState extends State<MainScreen> {
                   value: '${_boars.length}',
                   icon: LucideIcons.badgeInfo,
                   color: const Color(0xFF0284C7),
+                  badgeLabel: 'Génétique',
                 ),
                 _buildStatCard(
                   title: 'Truies suivies',
                   value: '${_sows.length}',
                   icon: LucideIcons.piggyBank,
-                  color: const Color(0xFF7C3AED),
+                  color: const Color(0xFF2563EB),
+                  badgeLabel: 'Gestation',
                 ),
                 _buildStatCard(
                   title: 'IA enregistrées',
                   value: '${_inseminations.length}',
                   icon: LucideIcons.syringe,
                   color: const Color(0xFFEA580C),
+                  badgeLabel: 'Reproduction',
                 ),
                 _buildStatCard(
                   title: 'Taux réussite IA',
                   value: '$successRate%',
                   icon: LucideIcons.trendingUp,
                   color: const Color(0xFF16A34A),
+                  badgeLabel: 'Performance',
                 ),
                 _buildStatCard(
                   title: 'Actes santé',
                   value: '${_healthRecords.length}',
                   icon: LucideIcons.shieldCheck,
                   color: const Color(0xFF0F766E),
+                  badgeLabel: 'Sanitaire',
                 ),
                 _buildStatCard(
                   title: 'Diag en retard',
                   value: '$overdueDiagnosisCount',
                   icon: LucideIcons.badgeInfo,
                   color: const Color(0xFFB91C1C),
+                  badgeLabel: 'Alerte',
                 ),
                 _buildStatCard(
                   title: 'Mise-bas <= 14j',
                   value: '$farrowingSoonCount',
                   icon: LucideIcons.piggyBank,
-                  color: const Color(0xFF2563EB),
+                  color: const Color(0xFFDB2777),
+                  badgeLabel: 'Maternité',
                 ),
               ],
             );
@@ -5538,13 +6000,21 @@ class _MainScreenState extends State<MainScreen> {
     required String value,
     required IconData icon,
     required Color color,
+    String? badgeLabel,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFDCE4EE)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.11),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -5562,14 +6032,34 @@ class _MainScreenState extends State<MainScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (badgeLabel != null && badgeLabel.trim().isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      badgeLabel,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: color,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
                 Text(
                   title.toUpperCase(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 9,
+                    fontSize: 10,
                     color: Color(0xFF94A3B8),
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
@@ -6985,7 +7475,8 @@ class _MainScreenState extends State<MainScreen> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -9038,7 +9529,10 @@ class _MainScreenState extends State<MainScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             separatorBuilder: (_, index) => const SizedBox(height: 12),
-            itemBuilder: (context, index) => _buildNewsPostCard(posts[index]),
+            itemBuilder: (context, index) => _buildNewsTimelineItem(
+              post: posts[index],
+              isLast: index == posts.length - 1,
+            ),
           ),
       ],
     );
@@ -9136,8 +9630,15 @@ class _MainScreenState extends State<MainScreen> {
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFDCE4EE)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x110F172A),
+            blurRadius: 16,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -9371,6 +9872,58 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  Widget _buildNewsTimelineItem({
+    required NewsPost post,
+    required bool isLast,
+  }) {
+    final markerColor = _roleColor(post.authorRole);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 26,
+          child: Column(
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: markerColor,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: markerColor.withValues(alpha: 0.35),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+              ),
+              if (!isLast)
+                Container(
+                  width: 2,
+                  height: 118,
+                  margin: const EdgeInsets.only(top: 2),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        markerColor.withValues(alpha: 0.4),
+                        const Color(0xFFE2E8F0),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: _buildNewsPostCard(post)),
+      ],
+    );
+  }
+
   Widget _buildNewsPostCard(NewsPost post) {
     final isLiked = post.likedByUserIds.contains(_currentUser.id);
     final canManage = _canManageNewsPost(post);
@@ -9384,8 +9937,15 @@ class _MainScreenState extends State<MainScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFDCE4EE)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x110F172A),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -10456,8 +11016,8 @@ class _MainScreenState extends State<MainScreen> {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFDCE4EE)),
       ),
       child: Column(
         children: [
@@ -10488,9 +11048,12 @@ class _MainScreenState extends State<MainScreen> {
                 return InkWell(
                   onTap: () => _setActiveChatConversation(conversation.id),
                   child: Container(
-                    color: isActive
-                        ? const Color(0xFFE0F2FE)
-                        : Colors.transparent,
+                    decoration: BoxDecoration(
+                      color: isActive
+                          ? _accentTeal.withValues(alpha: 0.14)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
                       vertical: 10,
@@ -10595,15 +11158,23 @@ class _MainScreenState extends State<MainScreen> {
       height: maxHeight,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFDCE4EE)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x110F172A),
+            blurRadius: 20,
+            offset: Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+              color: Color(0xFFF8FAFC),
+              border: Border(bottom: BorderSide(color: Color(0xFFDCE4EE))),
             ),
             child: Row(
               children: [
@@ -10694,10 +11265,32 @@ class _MainScreenState extends State<MainScreen> {
                               vertical: 9,
                             ),
                             decoration: BoxDecoration(
-                              color: isMine
-                                  ? const Color(0xFF0F766E)
-                                  : const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(12),
+                              gradient: isMine
+                                  ? const LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        Color(0xFF0F766E),
+                                        Color(0xFF0D9488),
+                                      ],
+                                    )
+                                  : null,
+                              color: isMine ? null : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(15),
+                              border: Border.all(
+                                color: isMine
+                                    ? _accentTeal.withValues(alpha: 0.75)
+                                    : const Color(0xFFDCE4EE),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: isMine
+                                      ? _accentTeal.withValues(alpha: 0.22)
+                                      : const Color(0x120F172A),
+                                  blurRadius: 14,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -10988,11 +11581,18 @@ class _MainScreenState extends State<MainScreen> {
 
     return RepaintBoundary(
       child: Container(
-        padding: EdgeInsets.all(compact ? 12 : 18),
+        padding: EdgeInsets.all(compact ? 14 : 22),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: const Color(0xFFDCE4EE)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x110F172A),
+              blurRadius: 24,
+              offset: Offset(0, 10),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -11001,8 +11601,9 @@ class _MainScreenState extends State<MainScreen> {
               title,
               style: TextStyle(
                 fontWeight: FontWeight.w900,
-                fontSize: compact ? 15 : 17,
-                color: Color(0xFF0F172A),
+                fontSize: compact ? 16 : 18,
+                color: const Color(0xFF0F172A),
+                letterSpacing: -0.35,
               ),
             ),
             const SizedBox(height: 4),
@@ -11011,9 +11612,10 @@ class _MainScreenState extends State<MainScreen> {
               style: TextStyle(
                 color: const Color(0xFF64748B),
                 fontSize: compact ? 12 : 13,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            SizedBox(height: compact ? 10 : 14),
+            SizedBox(height: compact ? 12 : 16),
             child,
           ],
         ),
@@ -11048,12 +11650,13 @@ class _MainScreenState extends State<MainScreen> {
                   scrollDirection: Axis.horizontal,
                   child: DataTable(
                     headingTextStyle: const TextStyle(
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w900,
                       color: Color(0xFF334155),
                     ),
                     dataTextStyle: const TextStyle(
                       color: Color(0xFF0F172A),
                       fontSize: 13,
+                      fontWeight: FontWeight.w600,
                     ),
                     horizontalMargin: compact ? 8 : 24,
                     columnSpacing: compact ? 12 : 24,
@@ -11071,8 +11674,9 @@ class _MainScreenState extends State<MainScreen> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 24),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(12),
+        color: _surfaceSlate,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFDCE4EE)),
       ),
       child: Text(
         message,
@@ -18855,6 +19459,24 @@ class _ChatConversationSummary {
     required this.avatarLabel,
     required this.avatarColor,
     this.isGroup = false,
+  });
+}
+
+class _HeaderNotificationEntry {
+  final String title;
+  final String detail;
+  final int count;
+  final IconData icon;
+  final Color color;
+  final String tabId;
+
+  const _HeaderNotificationEntry({
+    required this.title,
+    required this.detail,
+    required this.count,
+    required this.icon,
+    required this.color,
+    required this.tabId,
   });
 }
 
