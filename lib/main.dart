@@ -134,6 +134,7 @@ class Sow {
   final String sireCode;
   final String damCode;
   final String notes;
+  final String imageBase64;
 
   const Sow({
     required this.id,
@@ -146,6 +147,7 @@ class Sow {
     this.sireCode = '',
     this.damCode = '',
     this.notes = '',
+    this.imageBase64 = '',
   });
 }
 
@@ -1686,6 +1688,7 @@ class _MainScreenState extends State<MainScreen> {
       'sireCode': sow.sireCode,
       'damCode': sow.damCode,
       'notes': sow.notes,
+      'imageBase64': sow.imageBase64,
     };
   }
 
@@ -1715,6 +1718,7 @@ class _MainScreenState extends State<MainScreen> {
       sireCode: _readString(json['sireCode']).trim(),
       damCode: _readString(json['damCode']).trim(),
       notes: _readString(json['notes']),
+      imageBase64: _readString(json['imageBase64']),
     );
   }
 
@@ -7156,6 +7160,51 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+  Widget _buildSowPhoto(Sow sow, {double size = 52}) {
+    if (sow.imageBase64.trim().isEmpty) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE2E8F0),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Icon(
+          LucideIcons.image,
+          color: Color(0xFF64748B),
+          size: 18,
+        ),
+      );
+    }
+
+    try {
+      final bytes = base64Decode(sow.imageBase64);
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.memory(
+          bytes,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+        ),
+      );
+    } catch (_) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEE2E2),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Icon(
+          LucideIcons.alertTriangle,
+          color: Color(0xFFB91C1C),
+          size: 18,
+        ),
+      );
+    }
+  }
+
   Widget _buildImagePreviewBox(String imageBase64, {double size = 92}) {
     if (imageBase64.trim().isEmpty) {
       return Container(
@@ -7197,6 +7246,7 @@ class _MainScreenState extends State<MainScreen> {
         .map(
           (sow) => DataRow(
             cells: [
+              DataCell(_buildSowPhoto(sow, size: 44)),
               DataCell(Text(sow.code)),
               DataCell(Text(sow.name)),
               DataCell(Text(sow.breed)),
@@ -7265,9 +7315,11 @@ class _MainScreenState extends State<MainScreen> {
         const SizedBox(height: 16),
         _buildDataTableSection(
           title: 'Gestion des truies',
-          subtitle: 'Suivi reproductrices, parité et informations de lignée',
+          subtitle:
+              'Suivi reproductrices, photo, parité et informations de lignée',
           emptyMessage: 'Aucune truie enregistrée.',
           columns: const [
+            DataColumn(label: Text('PHOTO')),
             DataColumn(label: Text('CODE')),
             DataColumn(label: Text('NOM')),
             DataColumn(label: Text('RACE')),
@@ -8245,6 +8297,7 @@ class _MainScreenState extends State<MainScreen> {
     String selectedBreederId = _currentUser.role == Roles.breeder
         ? _currentUser.id
         : (breeders.isNotEmpty ? breeders.first.id : '');
+    String selectedImageBase64 = '';
 
     showDialog<void>(
       context: context,
@@ -8300,6 +8353,67 @@ class _MainScreenState extends State<MainScreen> {
                       const SizedBox(height: 12),
                       _dialogField(sireCtrl, 'Code père (optionnel)'),
                       _dialogField(damCtrl, 'Code mère (optionnel)'),
+                      const SizedBox(height: 2),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildImagePreviewBox(selectedImageBase64, size: 88),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Photo truie',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF334155),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    OutlinedButton.icon(
+                                      onPressed: () async {
+                                        final imageBase64 =
+                                            await _pickImageAsBase64();
+                                        if (imageBase64 == null) {
+                                          return;
+                                        }
+                                        setModalState(
+                                          () =>
+                                              selectedImageBase64 = imageBase64,
+                                        );
+                                      },
+                                      icon: const Icon(
+                                        Icons.add_photo_alternate_outlined,
+                                        size: 16,
+                                      ),
+                                      label: const Text('Ajouter image'),
+                                    ),
+                                    if (selectedImageBase64.isNotEmpty)
+                                      OutlinedButton.icon(
+                                        onPressed: () {
+                                          setModalState(
+                                            () => selectedImageBase64 = '',
+                                          );
+                                        },
+                                        icon: const Icon(
+                                          Icons.delete_outline,
+                                          size: 16,
+                                        ),
+                                        label: const Text('Retirer'),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
                       _dialogField(notesCtrl, 'Notes', maxLines: 2),
                     ],
                   ),
@@ -8340,6 +8454,7 @@ class _MainScreenState extends State<MainScreen> {
                           sireCode: sireCtrl.text.trim(),
                           damCode: damCtrl.text.trim(),
                           notes: notesCtrl.text.trim(),
+                          imageBase64: selectedImageBase64,
                         ),
                       );
                     });
