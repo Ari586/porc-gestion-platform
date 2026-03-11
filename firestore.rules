@@ -1,15 +1,106 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /porc_realtime_sync/chat_news_v1 {
-      allow read: if true;
-      allow create, update: if
-          request.resource.data.chatMessages is list &&
-          request.resource.data.newsPosts is list &&
-          request.resource.data.chatMessages.size() <= 2500 &&
-          request.resource.data.newsPosts.size() <= 400 &&
+    function isSyncDocument(documentId) {
+      return documentId in [
+        'users_v2',
+        'livestock_v2',
+        'commercial_v2',
+        'operations_v2',
+        'chat_v2',
+        'news_v2',
+        // Keep backward compatibility for old clients.
+        'chat_news_v1',
+      ];
+    }
+
+    function hasSyncEnvelope() {
+      return request.resource.data.version is int &&
+          request.resource.data.updatedAtMsClient is int &&
           request.resource.data.updatedByUserId is string &&
           request.resource.data.updatedByClientId is string;
+    }
+
+    function usersPayloadValid() {
+      return request.resource.data.users is list &&
+          request.resource.data.users.size() <= 800;
+    }
+
+    function livestockPayloadValid() {
+      return request.resource.data.boars is list &&
+          request.resource.data.sows is list &&
+          request.resource.data.inseminations is list &&
+          request.resource.data.healthRecords is list &&
+          request.resource.data.semenQualityRecords is list &&
+          request.resource.data.boars.size() <= 3000 &&
+          request.resource.data.sows.size() <= 5000 &&
+          request.resource.data.inseminations.size() <= 12000 &&
+          request.resource.data.healthRecords.size() <= 12000 &&
+          request.resource.data.semenQualityRecords.size() <= 6000;
+    }
+
+    function commercialPayloadValid() {
+      return request.resource.data.clients is list &&
+          request.resource.data.suppliers is list &&
+          request.resource.data.salesRecords is list &&
+          request.resource.data.animalSaleListings is list &&
+          request.resource.data.supplyRecords is list &&
+          request.resource.data.clients.size() <= 6000 &&
+          request.resource.data.suppliers.size() <= 6000 &&
+          request.resource.data.salesRecords.size() <= 15000 &&
+          request.resource.data.animalSaleListings.size() <= 6000 &&
+          request.resource.data.supplyRecords.size() <= 12000;
+    }
+
+    function operationsPayloadValid() {
+      return request.resource.data.buildings is list &&
+          request.resource.data.batchRecords is list &&
+          request.resource.data.growthRecords is list &&
+          request.resource.data.pigletCareRecords is list &&
+          request.resource.data.farrowingRecords is list &&
+          request.resource.data.auditLogs is list &&
+          request.resource.data.taskDoneById is map &&
+          request.resource.data.buildings.size() <= 3000 &&
+          request.resource.data.batchRecords.size() <= 6000 &&
+          request.resource.data.growthRecords.size() <= 18000 &&
+          request.resource.data.pigletCareRecords.size() <= 18000 &&
+          request.resource.data.farrowingRecords.size() <= 12000 &&
+          request.resource.data.auditLogs.size() <= 240;
+    }
+
+    function chatPayloadValid() {
+      return request.resource.data.chatMessages is list &&
+          request.resource.data.chatMessages.size() <= 180;
+    }
+
+    function newsPayloadValid() {
+      return request.resource.data.newsPosts is list &&
+          request.resource.data.newsPosts.size() <= 80;
+    }
+
+    function legacyChatNewsPayloadValid() {
+      return request.resource.data.chatMessages is list &&
+          request.resource.data.newsPosts is list &&
+          request.resource.data.chatMessages.size() <= 2500 &&
+          request.resource.data.newsPosts.size() <= 400;
+    }
+
+    function syncPayloadValid(documentId) {
+      return (documentId == 'users_v2' && usersPayloadValid()) ||
+          (documentId == 'livestock_v2' && livestockPayloadValid()) ||
+          (documentId == 'commercial_v2' && commercialPayloadValid()) ||
+          (documentId == 'operations_v2' && operationsPayloadValid()) ||
+          (documentId == 'chat_v2' && chatPayloadValid()) ||
+          (documentId == 'news_v2' && newsPayloadValid()) ||
+          (documentId == 'chat_news_v1' && legacyChatNewsPayloadValid());
+    }
+
+    match /porc_realtime_sync/{documentId} {
+      allow read: if isSyncDocument(documentId);
+      allow create, update: if
+          isSyncDocument(documentId) &&
+          hasSyncEnvelope() &&
+          syncPayloadValid(documentId);
       allow delete: if false;
     }
 
