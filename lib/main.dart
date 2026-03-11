@@ -111,7 +111,7 @@ class PigBreedingApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Gestion IA Porcine',
+      title: 'PigIA',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -3449,7 +3449,7 @@ class _MainScreenState extends State<MainScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'PORC GESTION',
+                      'PIGIA',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(
@@ -13631,7 +13631,7 @@ class _MainScreenState extends State<MainScreen> {
       case AppTabs.users:
         return 'UTILISATEURS';
       default:
-        return 'PORC GESTION';
+        return 'PIGIA';
     }
   }
 
@@ -13668,7 +13668,7 @@ class _MainScreenState extends State<MainScreen> {
       case AppTabs.users:
         return 'Utilisateurs';
       default:
-        return 'PORC GESTION';
+        return 'PigIA';
     }
   }
 
