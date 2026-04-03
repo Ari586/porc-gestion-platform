@@ -43,3 +43,20 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local TURN credentials for WebRTC (do not commit)
+.env.turn
+.env.agentscope
+agentscope_backend/.env
+agentscope_backend/data/
+livekit_token_server/.env
+
+# Firebase hosting cache
+.firebase/
+
+# Agent / Claude config
+.agent/
+.claude/
+
+# Exports
+*.zip

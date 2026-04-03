@@ -1,0 +1,15 @@
+services:
+  tantsahaup-agentscope-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tantsahaup-agentscope-backend
+    env_file:
+      - .env
+    environment:
+      TANTSAHAUP_DATA_FILE: /app/data/state.json
+    ports:
+      - "8088:8088"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

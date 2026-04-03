@@ -1,41 +1,149 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="PigIA - Gestion porcine innovante.">
+  <meta name="description" content="PigIA - Gestion porcine innovante. Suivi d'élevage, reproduction, santé et commercial.">
+  <meta name="theme-color" content="#F39A2F">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="PigIA">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- PWA manifest -->
+  <link rel="manifest" href="manifest.json">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png" />
 
-  <title>PigIA</title>
+  <title>PigIA - Gestion Porcine</title>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #F5D9C9;
+      overflow: hidden;
+    }
+
+    /* Splash screen while Flutter loads */
+    #splash {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #F2D3C2 0%, #F9EBDD 100%);
+      z-index: 9999;
+      transition: opacity 0.4s ease;
+    }
+
+    #splash.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #splash .logo {
+      width: 72px;
+      height: 72px;
+      background: #F39A2F;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 32px rgba(243, 154, 47, 0.3);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    #splash .logo svg {
+      width: 36px;
+      height: 36px;
+      fill: white;
+    }
+
+    #splash .brand {
+      margin-top: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 28px;
+      font-weight: 900;
+      color: #3D2A22;
+      letter-spacing: -0.5px;
+    }
+
+    #splash .tagline {
+      margin-top: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      color: #A18578;
+      font-weight: 500;
+    }
+
+    #splash .loader {
+      margin-top: 32px;
+      width: 120px;
+      height: 4px;
+      background: rgba(243, 154, 47, 0.15);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    #splash .loader-bar {
+      width: 40%;
+      height: 100%;
+      background: linear-gradient(90deg, #F39A2F, #F7BD73);
+      border-radius: 999px;
+      animation: slide 1.4s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.04); }
+    }
+
+    @keyframes slide {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(350%); }
+    }
+  </style>
 </head>
 
 <body>
-  <!-- Bypass entier du Service Worker de Flutter Web pour forcer Safari iOS à charger le nouveau JS -->
+  <!-- Splash screen -->
+  <div id="splash">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M19 5c-1.867 0-3.467.8-4.6 2H9.6C8.467 5.8 6.867 5 5 5 2.8 5 1 6.8 1 9c0 .933.333 1.8.867 2.467C1.333 12.267 1 13.4 1 14.6 1 18.133 4.467 21 8.8 21h6.4c4.333 0 7.8-2.867 7.8-6.4 0-1.2-.333-2.333-.867-3.133C22.667 10.8 23 9.933 23 9c0-2.2-1.8-4-4-4zM8 15c-.833 0-1.5-.667-1.5-1.5S7.167 12 8 12s1.5.667 1.5 1.5S8.833 15 8 15zm8 0c-.833 0-1.5-.667-1.5-1.5S15.167 12 16 12s1.5.667 1.5 1.5S16.833 15 16 15z"/>
+      </svg>
+    </div>
+    <div class="brand">PigIA</div>
+    <div class="tagline">Gestion Porcine Innovante</div>
+    <div class="loader"><div class="loader-bar"></div></div>
+  </div>
+
   <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('firebase-messaging-sw.js').catch(function () { });
+      });
+    }
+
+    // Remove splash once Flutter renders
+    window.addEventListener('flutter-first-frame', function () {
+      var splash = document.getElementById('splash');
+      if (splash) {
+        splash.classList.add('fade-out');
+        setTimeout(function () { splash.remove(); }, 500);
+      }
+    });
+
     var script = document.createElement('script');
     script.src = "main.dart.js?v=" + new Date().getTime();
     script.type = "application/javascript";

@@ -1,0 +1,4 @@
+agentscope
+openai
+starlette
+uvicorn

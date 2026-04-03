@@ -1,6 +1,14 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function authUid() {
+      return request.auth.uid;
+    }
+
     function isSyncDocument(documentId) {
       return documentId in [
         'users_v2',
@@ -18,6 +26,8 @@ service cloud.firestore {
       return request.resource.data.version is int &&
           request.resource.data.updatedAtMsClient is int &&
           request.resource.data.updatedByUserId is string &&
+          request.resource.data.updatedByAuthUid is string &&
+          request.resource.data.updatedByAuthUid == authUid() &&
           request.resource.data.updatedByClientId is string;
     }
 
@@ -96,12 +106,231 @@ service cloud.firestore {
     }
 
     match /porc_realtime_sync/{documentId} {
-      allow read: if isSyncDocument(documentId);
+      allow read: if signedIn() && isSyncDocument(documentId);
       allow create, update: if
+          signedIn() &&
           isSyncDocument(documentId) &&
           hasSyncEnvelope() &&
           syncPayloadValid(documentId);
       allow delete: if false;
+    }
+
+    function signalingDocPath(callSessionId) {
+      return /databases/$(database)/documents/porc_webrtc_signaling/$(callSessionId);
+    }
+
+    function signalingDocExists(callSessionId) {
+      return exists(signalingDocPath(callSessionId));
+    }
+
+    function callParticipantByData(data) {
+      return data.callerAuthUid is string &&
+          data.calleeAuthUid is string &&
+          (data.callerAuthUid == authUid() || data.calleeAuthUid == authUid());
+    }
+
+    function isSignalingParticipant(callSessionId) {
+      return signalingDocExists(callSessionId) &&
+          callParticipantByData(get(signalingDocPath(callSessionId)).data);
+    }
+
+    function signalingCreateValid() {
+      return request.resource.data.callerId is string &&
+          request.resource.data.calleeId is string &&
+          request.resource.data.conversationId is string &&
+          request.resource.data.callType is string &&
+          request.resource.data.callerAuthUid is string &&
+          request.resource.data.calleeAuthUid is string &&
+          request.resource.data.callerAuthUid == authUid() &&
+          request.resource.data.hangUp == false &&
+          request.resource.data.transport is string &&
+          (
+            (request.resource.data.transport == 'webrtc' &&
+              request.resource.data.offer is map) ||
+            (request.resource.data.transport == 'livekit' &&
+              request.resource.data.roomName is string)
+          );
+    }
+
+    function signalingUpdateValid() {
+      return callParticipantByData(resource.data) &&
+          request.resource.data.callerId == resource.data.callerId &&
+          request.resource.data.calleeId == resource.data.calleeId &&
+          request.resource.data.callerAuthUid == resource.data.callerAuthUid &&
+          request.resource.data.calleeAuthUid == resource.data.calleeAuthUid &&
+          request.resource.data.conversationId == resource.data.conversationId;
+    }
+
+    match /porc_webrtc_signaling/{callSessionId} {
+      allow read: if signedIn() && isSignalingParticipant(callSessionId);
+      allow create: if signedIn() && signalingCreateValid();
+      allow update: if signedIn() && signalingUpdateValid();
+      allow delete: if false;
+
+      function candidatePayloadValid() {
+        return request.resource.data.candidate is string &&
+            request.resource.data.sdpMLineIndex is int &&
+            request.resource.data.from is string &&
+            request.resource.data.authUid is string &&
+            request.resource.data.authUid == authUid() &&
+            (
+              (request.resource.data.from == 'caller' &&
+                get(signalingDocPath(callSessionId)).data.callerAuthUid == authUid()) ||
+              (request.resource.data.from == 'callee' &&
+                get(signalingDocPath(callSessionId)).data.calleeAuthUid == authUid())
+            );
+      }
+
+      match /candidates/{candidateId} {
+        allow read: if signedIn() && isSignalingParticipant(callSessionId);
+        allow create: if
+            signedIn() &&
+            isSignalingParticipant(callSessionId) &&
+            candidatePayloadValid();
+        allow update, delete: if false;
+      }
+    }
+
+    match /porc_chat_messages_v1/{messageId} {
+      function realtimeChatPayloadValid() {
+        return request.resource.data.id is string &&
+            request.resource.data.conversationId is string &&
+            request.resource.data.senderId is string &&
+            request.resource.data.senderName is string &&
+            request.resource.data.senderAuthUid is string &&
+            request.resource.data.senderAuthUid == authUid() &&
+            request.resource.data.sentAtMs is int &&
+            request.resource.data.messageType is string;
+      }
+
+      allow read: if signedIn();
+      allow create: if signedIn() && realtimeChatPayloadValid();
+      allow update: if
+          signedIn() &&
+          resource.data.senderAuthUid == authUid() &&
+          realtimeChatPayloadValid() &&
+          request.resource.data.senderAuthUid == resource.data.senderAuthUid &&
+          request.resource.data.senderId == resource.data.senderId &&
+          request.resource.data.conversationId == resource.data.conversationId;
+      allow delete: if false;
+    }
+
+    match /porc_presence_v1/{appUserId} {
+      allow read: if signedIn();
+      allow create, update: if
+          signedIn() &&
+          request.resource.data.appUserId == appUserId &&
+          request.resource.data.authUid == authUid() &&
+          request.resource.data.online is bool;
+      allow delete: if false;
+    }
+
+    match /porc_device_tokens_v1/{tokenHash} {
+      allow read: if signedIn();
+      allow create: if
+          signedIn() &&
+          request.resource.data.tokenHash == tokenHash &&
+          request.resource.data.token is string &&
+          request.resource.data.authUid == authUid() &&
+          request.resource.data.appUserId is string &&
+          request.resource.data.active is bool;
+      allow update: if
+          signedIn() &&
+          resource.data.authUid == authUid() &&
+          request.resource.data.authUid == authUid() &&
+          request.resource.data.active is bool;
+      allow delete: if false;
+    }
+
+    function userRecordValid(userId) {
+      return request.resource.data.id == userId &&
+          request.resource.data.code is string &&
+          request.resource.data.name is string &&
+          request.resource.data.role is string &&
+          request.resource.data.avatar is string &&
+          request.resource.data.address is string &&
+          request.resource.data.contact is string &&
+          request.resource.data.fokontany is string &&
+          request.resource.data.commune is string &&
+          request.resource.data.district is string &&
+          request.resource.data.region is string &&
+          request.resource.data.bio is string &&
+          request.resource.data.profileImageBase64 is string &&
+          request.resource.data.coverImageBase64 is string &&
+          request.resource.data.login is string &&
+          request.resource.data.password is string &&
+          request.resource.data.updatedByAuthUid is string &&
+          request.resource.data.updatedByAuthUid == authUid() &&
+          request.resource.data.updatedByUserId is string &&
+          request.resource.data.clientId is string;
+    }
+
+    match /porc_users_v1/{userId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && userRecordValid(userId);
+      allow delete: if signedIn();
+    }
+
+    function inseminationRecordValid(recordId) {
+      return request.resource.data.id == recordId &&
+          request.resource.data.sowCode is string &&
+          request.resource.data.boarCode is string &&
+          request.resource.data.semenLot is string &&
+          request.resource.data.inseminator is string &&
+          request.resource.data.status is string &&
+          request.resource.data.dose1Date is string &&
+          request.resource.data.dose1DateMs is int &&
+          request.resource.data.updatedByAuthUid is string &&
+          request.resource.data.updatedByAuthUid == authUid() &&
+          request.resource.data.appUserId is string &&
+          request.resource.data.clientId is string;
+    }
+
+    match /porc_inseminations_v1/{recordId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && inseminationRecordValid(recordId);
+      allow delete: if signedIn();
+    }
+
+    function healthRecordValid(recordId) {
+      return request.resource.data.id == recordId &&
+          request.resource.data.animalType is string &&
+          request.resource.data.animalCode is string &&
+          request.resource.data.eventType is string &&
+          request.resource.data.eventDate is string &&
+          request.resource.data.eventDateMs is int &&
+          request.resource.data.product is string &&
+          request.resource.data.dose is string &&
+          request.resource.data.reason is string &&
+          request.resource.data.responsible is string &&
+          request.resource.data.updatedByAuthUid is string &&
+          request.resource.data.updatedByAuthUid == authUid() &&
+          request.resource.data.appUserId is string &&
+          request.resource.data.clientId is string;
+    }
+
+    match /porc_health_records_v1/{recordId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && healthRecordValid(recordId);
+      allow delete: if signedIn();
+    }
+
+    match /porc_field_events_v1/{eventId} {
+      allow read: if signedIn();
+      allow create: if
+          signedIn() &&
+          request.resource.data.id == eventId &&
+          request.resource.data.authUid == authUid() &&
+          request.resource.data.appUserId is string &&
+          request.resource.data.actorCode is string &&
+          request.resource.data.actorName is string &&
+          request.resource.data.actorRole is string &&
+          request.resource.data.module is string &&
+          request.resource.data.action is string &&
+          request.resource.data.detail is string &&
+          request.resource.data.severity is string &&
+          request.resource.data.clientId is string;
+      allow update, delete: if false;
     }
 
     match /{document=**} {
