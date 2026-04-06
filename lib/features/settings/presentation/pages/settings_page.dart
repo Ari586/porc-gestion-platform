@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/providers/session_provider.dart';
+import '../../../../core/providers/language_provider.dart';
 import '../../../../core/widgets/section_card.dart';
 import '../../../../theme/app_colors.dart';
 
@@ -20,7 +21,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _autoSync = true;
   bool _darkMode = false;
   bool _offlineMode = false;
-  String _language = 'Français';
   String _syncInterval = '5 min';
 
   @override
@@ -157,12 +157,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Widget _buildAppearanceSection() {
+    final language = ref.watch(languageProvider);
     return SectionCard(
       title: 'Apparence',
       child: Column(
         children: [
           _buildSwitchTile('Mode sombre', 'Interface en mode nuit', LucideIcons.moon, _darkMode, (v) => setState(() => _darkMode = v)),
-          _buildDropdownTile('Langue', _language, LucideIcons.globe, ['Français', 'Malagasy', 'English'], (v) => setState(() => _language = v)),
+          _buildDropdownTile('Langue', language, LucideIcons.globe, ['Français', 'Malagasy'], (v) {
+            ref.read(languageProvider.notifier).setLanguage(v);
+          }),
         ],
       ),
     );

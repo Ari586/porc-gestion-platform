@@ -7,6 +7,7 @@ import '../../../../core/models/boar.dart';
 import '../../../../core/widgets/confirm_dialog.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../theme/app_colors.dart';
+import '../../../../core/providers/language_provider.dart';
 import '../../domain/providers.dart';
 import '../widgets/boar_card.dart';
 import '../widgets/boar_form_dialog.dart';
@@ -20,6 +21,9 @@ class BoarListPage extends ConsumerStatefulWidget {
 
 class _BoarListPageState extends ConsumerState<BoarListPage> {
   String _searchQuery = '';
+  
+  bool get _isMg => ref.watch(languageProvider) == 'Malagasy';
+  String _t(String fr, String mg) => _isMg ? mg : fr;
 
   List<Boar> _filter(List<Boar> boars) {
     if (_searchQuery.isEmpty) return boars;
@@ -41,10 +45,11 @@ class _BoarListPageState extends ConsumerState<BoarListPage> {
   Future<void> _deleteBoar(Boar boar) async {
     final confirmed = await ConfirmDialog.show(
       context,
-      title: 'Supprimer le verrat',
-      message:
+      title: _t('Supprimer le verrat', 'Fafao ny kisoa lahy'),
+      message: _t(
           'Voulez-vous vraiment supprimer le verrat "${boar.name}" (${boar.code}) ? Cette action est irréversible.',
-      confirmLabel: 'Supprimer',
+          'Vonona hamafa tokoa ve ianao ny kisoa lahy "${boar.name}" (${boar.code}) ? Tsy azo averina intsony ity hetsika ity.'),
+      confirmLabel: _t('Supprimer', 'Fafao'),
       isDestructive: true,
     );
     if (confirmed) {
@@ -52,13 +57,11 @@ class _BoarListPageState extends ConsumerState<BoarListPage> {
     }
   }
 
-  void _showDetail(Boar boar) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Detail de ${boar.name} (${boar.code})'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+  Future<void> _editBoar(Boar boar) async {
+    final result = await BoarFormDialog.show(context, boar: boar);
+    if (result != null) {
+      await ref.read(boarRepositoryProvider).update(result);
+    }
   }
 
   @override
@@ -98,10 +101,10 @@ class _BoarListPageState extends ConsumerState<BoarListPage> {
                     return EmptyState(
                       icon: LucideIcons.piggyBank,
                       message: _searchQuery.isNotEmpty
-                          ? 'Aucun verrat ne correspond à votre recherche.'
-                          : 'Aucun verrat enregistré.\nCommencez par en ajouter un.',
+                          ? _t('Aucun verrat ne correspond à votre recherche.', 'Tsy misy kisoa lahy mifanaraka amin\'ny fikarohana.')
+                          : _t('Aucun verrat enregistré.\nCommencez par en ajouter un.', 'Tsy misy kisoa lahy voasoratra.\nAtombohy amin\'ny fampidirana iray.'),
                       actionLabel:
-                          _searchQuery.isEmpty ? 'Ajouter un verrat' : null,
+                          _searchQuery.isEmpty ? _t('Ajouter un verrat', 'Manampy kisoa lahy') : null,
                       onAction: _searchQuery.isEmpty ? _addBoar : null,
                     );
                   }
@@ -126,7 +129,7 @@ class _BoarListPageState extends ConsumerState<BoarListPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Gestion des verrats',
+                _t('Gestion des verrats', 'Fitantanana kisoa lahy'),
                 style: textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.w900,
                   color: AppColors.textPrimary,
@@ -134,7 +137,7 @@ class _BoarListPageState extends ConsumerState<BoarListPage> {
               ),
               const SizedBox(height: AppSpacing.s4),
               Text(
-                '$count verrat${count > 1 ? 's' : ''} enregistre${count > 1 ? 's' : ''}',
+                '$count ${_t('verrat', 'kisoa lahy')}${count > 1 ? (_isMg ? '' : 's') : ''} ${_t('enregistré', 'voasoratra')}${count > 1 ? (_isMg ? '' : 's') : ''}',
                 style: textTheme.bodyMedium?.copyWith(color: AppColors.textMuted),
               ),
             ],
@@ -143,7 +146,7 @@ class _BoarListPageState extends ConsumerState<BoarListPage> {
         FilledButton.icon(
           onPressed: _addBoar,
           icon: const Icon(LucideIcons.plus, size: 16),
-          label: const Text('Ajouter'),
+          label: Text(_t('Ajouter', 'Manampy')),
         ),
       ],
     );
@@ -159,7 +162,7 @@ class _BoarListPageState extends ConsumerState<BoarListPage> {
       child: TextField(
         onChanged: (v) => setState(() => _searchQuery = v),
         decoration: InputDecoration(
-          hintText: 'Rechercher par code ou nom...',
+          hintText: _t('Rechercher par code ou nom...', 'Mikaroka amin\'ny laharana na anarana...'),
           hintStyle: textTheme.bodyMedium?.copyWith(color: AppColors.textMuted),
           prefixIcon:
               const Icon(LucideIcons.search, size: 18, color: AppColors.textMuted),
@@ -202,7 +205,7 @@ class _BoarListPageState extends ConsumerState<BoarListPage> {
             final boar = boars[index];
             return BoarCard(
               boar: boar,
-              onDetail: () => _showDetail(boar),
+              onDetail: () => _editBoar(boar),
               onDelete: () => _deleteBoar(boar),
             );
           },

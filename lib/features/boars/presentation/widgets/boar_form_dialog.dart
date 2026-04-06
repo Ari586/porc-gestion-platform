@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../../theme/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/models/boar.dart';
+import '../../../../core/utils/image_picker_helper.dart';
 
 class BoarFormDialog extends StatefulWidget {
   final Boar? boar;
@@ -38,6 +39,7 @@ class _BoarFormDialogState extends State<BoarFormDialog> {
 
   DateTime? _birthDate;
   String _semenType = 'Fraiche';
+  late String _imageBase64;
 
   static const _semenTypes = ['Fraiche', 'Congelee', 'Preparee'];
   static const _semenLabels = {
@@ -61,6 +63,7 @@ class _BoarFormDialogState extends State<BoarFormDialog> {
     _notesCtrl = TextEditingController(text: b?.notes ?? '');
     _birthDate = b?.birthDate;
     _semenType = b?.semenType ?? 'Fraiche';
+    _imageBase64 = b?.imageBase64 ?? '';
     // Normalise legacy values
     if (!_semenTypes.contains(_semenType)) {
       _semenType = 'Fraiche';
@@ -114,6 +117,7 @@ class _BoarFormDialogState extends State<BoarFormDialog> {
       damCode: _damCodeCtrl.text.trim(),
       semenType: _semenType,
       notes: _notesCtrl.text.trim(),
+      imageBase64: _imageBase64,
     );
 
     Navigator.of(context).pop(boar);
@@ -169,6 +173,52 @@ class _BoarFormDialogState extends State<BoarFormDialog> {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.s20),
+
+                // Photo
+                Center(
+                  child: Column(
+                    children: [
+                      buildAnimalPhoto(
+                        imageBase64: _imageBase64,
+                        size: 80,
+                        fallbackIcon: LucideIcons.piggyBank,
+                        borderRadius: 14,
+                      ),
+                      const SizedBox(height: AppSpacing.s8),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextButton.icon(
+                            onPressed: () async {
+                              final b64 = await pickImageAsBase64(context);
+                              if (b64 != null) {
+                                setState(() => _imageBase64 = b64);
+                              }
+                            },
+                            icon: const Icon(LucideIcons.camera, size: 14),
+                            label: Text(
+                              _imageBase64.isEmpty
+                                  ? 'Ajouter une photo'
+                                  : 'Changer la photo',
+                            ),
+                          ),
+                          if (_imageBase64.isNotEmpty)
+                            TextButton.icon(
+                              onPressed: () {
+                                setState(() => _imageBase64 = '');
+                              },
+                              icon: const Icon(LucideIcons.trash2, size: 14),
+                              label: const Text('Supprimer'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.error,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.s14),
 
                 // Code
                 _buildLabel('Code *'),
@@ -276,7 +326,8 @@ class _BoarFormDialogState extends State<BoarFormDialog> {
                 _buildLabel('Type de semence'),
                 const SizedBox(height: AppSpacing.s4),
                 DropdownButtonFormField<String>(
-                  initialValue: _semenType,
+                  // ignore: deprecated_member_use
+                  value: _semenType,
                   decoration: _inputDecoration(null),
                   items: _semenTypes
                       .map(

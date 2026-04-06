@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../../theme/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/models/boar.dart';
+import '../../../../core/utils/image_picker_helper.dart';
 
 class BoarCard extends StatelessWidget {
   final Boar boar;
@@ -46,7 +47,7 @@ class BoarCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Photo placeholder
+          // Photo
           Container(
             height: 120,
             decoration: const BoxDecoration(
@@ -54,22 +55,11 @@ class BoarCard extends StatelessWidget {
               borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             ),
             child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    LucideIcons.piggyBank,
-                    size: 36,
-                    color: AppColors.textMuted.withAlpha(120),
-                  ),
-                  const SizedBox(height: AppSpacing.s4),
-                  Text(
-                    'Photo',
-                    style: textTheme.labelSmall?.copyWith(
-                      color: AppColors.textMuted.withAlpha(120),
-                    ),
-                  ),
-                ],
+              child: buildAnimalPhoto(
+                imageBase64: boar.imageBase64,
+                size: 120,
+                fallbackIcon: LucideIcons.piggyBank,
+                borderRadius: 20,
               ),
             ),
           ),

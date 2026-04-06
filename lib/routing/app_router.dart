@@ -7,6 +7,7 @@ import '../core/providers/session_provider.dart';
 import '../features/auth/presentation/pages/login_page.dart';
 import '../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../features/boars/presentation/pages/boar_list_page.dart';
+import '../features/boars/presentation/pages/semen_quality_page.dart';
 import '../features/sows/presentation/pages/sow_list_page.dart';
 import '../features/insemination/presentation/pages/insemination_page.dart';
 import '../features/health/presentation/pages/health_page.dart';
@@ -16,6 +17,7 @@ import '../features/pedigree/presentation/pages/pedigree_page.dart';
 import '../features/messenger/presentation/pages/messenger_page.dart';
 import '../features/news/presentation/pages/news_page.dart';
 import '../features/admin/presentation/pages/admin_page.dart';
+import '../features/piglets/presentation/pages/piglet_care_page.dart';
 import '../features/settings/presentation/pages/settings_page.dart';
 import 'app_shell.dart';
 
@@ -43,6 +45,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final onLogin = state.matchedLocation == '/login';
       if (session == null && !onLogin) return '/login';
       if (session != null && onLogin) return '/dashboard';
+      if (session != null && state.matchedLocation == '/admin' && !session.role.toLowerCase().contains('responsable')) {
+        return '/dashboard';
+      }
       return null;
     },
     routes: [
@@ -64,6 +69,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/boars',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: BoarListPage()),
+          ),
+          GoRoute(
+            path: '/semen-quality',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: SemenQualityPage()),
           ),
           GoRoute(
             path: '/sows',
@@ -104,6 +114,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/news',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: NewsPage()),
+          ),
+          GoRoute(
+            path: '/piglets',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: PigletCarePage()),
           ),
           GoRoute(
             path: '/admin',

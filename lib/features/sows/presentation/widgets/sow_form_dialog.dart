@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/models/sow.dart';
+import '../../../../core/utils/image_picker_helper.dart';
 import '../../../../theme/app_colors.dart';
 
 class SowFormDialog extends StatefulWidget {
@@ -33,6 +34,7 @@ class _SowFormDialogState extends State<SowFormDialog> {
   late final TextEditingController _damCodeCtrl;
   late final TextEditingController _notesCtrl;
   DateTime? _birthDate;
+  late String _imageBase64;
 
   bool get _isEditing => widget.sow != null;
 
@@ -50,6 +52,7 @@ class _SowFormDialogState extends State<SowFormDialog> {
     _damCodeCtrl = TextEditingController(text: s?.damCode ?? '');
     _notesCtrl = TextEditingController(text: s?.notes ?? '');
     _birthDate = s?.birthDate;
+    _imageBase64 = s?.imageBase64 ?? '';
   }
 
   @override
@@ -99,6 +102,7 @@ class _SowFormDialogState extends State<SowFormDialog> {
       sireCode: _sireCodeCtrl.text.trim(),
       damCode: _damCodeCtrl.text.trim(),
       notes: _notesCtrl.text.trim(),
+      imageBase64: _imageBase64,
     );
 
     Navigator.of(context).pop(sow);
@@ -143,6 +147,52 @@ class _SowFormDialogState extends State<SowFormDialog> {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.s20),
+
+                // Photo
+                Center(
+                  child: Column(
+                    children: [
+                      buildAnimalPhoto(
+                        imageBase64: _imageBase64,
+                        size: 80,
+                        fallbackIcon: LucideIcons.piggyBank,
+                        borderRadius: AppUiTokens.detailRowRadius,
+                      ),
+                      const SizedBox(height: AppSpacing.s8),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextButton.icon(
+                            onPressed: () async {
+                              final b64 = await pickImageAsBase64(context);
+                              if (b64 != null) {
+                                setState(() => _imageBase64 = b64);
+                              }
+                            },
+                            icon: const Icon(LucideIcons.camera, size: 14),
+                            label: Text(
+                              _imageBase64.isEmpty
+                                  ? 'Ajouter une photo'
+                                  : 'Changer la photo',
+                            ),
+                          ),
+                          if (_imageBase64.isNotEmpty)
+                            TextButton.icon(
+                              onPressed: () {
+                                setState(() => _imageBase64 = '');
+                              },
+                              icon: const Icon(LucideIcons.trash2, size: 14),
+                              label: const Text('Supprimer'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.error,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.s12),
 
                 // Code
                 _buildField(

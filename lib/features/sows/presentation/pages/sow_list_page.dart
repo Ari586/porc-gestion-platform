@@ -7,6 +7,7 @@ import '../../../../core/models/sow.dart';
 import '../../../../core/widgets/confirm_dialog.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../theme/app_colors.dart';
+import '../../../../core/providers/language_provider.dart';
 import '../../domain/providers.dart';
 import '../widgets/sow_card.dart';
 import '../widgets/sow_form_dialog.dart';
@@ -21,6 +22,9 @@ class SowListPage extends ConsumerStatefulWidget {
 class _SowListPageState extends ConsumerState<SowListPage> {
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchQuery = '';
+  
+  bool get _isMg => ref.watch(languageProvider) == 'Malagasy';
+  String _t(String fr, String mg) => _isMg ? mg : fr;
 
   @override
   void dispose() {
@@ -55,11 +59,11 @@ class _SowListPageState extends ConsumerState<SowListPage> {
   Future<void> _deleteSow(Sow sow) async {
     final confirmed = await ConfirmDialog.show(
       context,
-      title: 'Supprimer la truie',
-      message:
-          'Voulez-vous vraiment supprimer ${sow.name} (${sow.code}) ? '
-          'Cette action est irréversible.',
-      confirmLabel: 'Supprimer',
+      title: _t('Supprimer la truie', 'Fafao ny kisoa vavy'),
+      message: _t(
+          'Voulez-vous vraiment supprimer ${sow.name} (${sow.code}) ? Cette action est irréversible.',
+          'Vonona hamafa tokoa ve ianao ${sow.name} (${sow.code}) ? Tsy azo averina intsony ity hetsika ity.'),
+      confirmLabel: _t('Supprimer', 'Fafao'),
       isDestructive: true,
     );
     if (confirmed) {
@@ -96,10 +100,10 @@ class _SowListPageState extends ConsumerState<SowListPage> {
                       return EmptyState(
                         icon: LucideIcons.piggyBank,
                         message: _searchQuery.isNotEmpty
-                            ? 'Aucune truie ne correspond à votre recherche.'
-                            : 'Aucune truie enregistrée.\nCommencez par en ajouter une.',
+                            ? _t('Aucune truie ne correspond à votre recherche.', 'Tsy misy kisoa vavy mifanaraka amin\'ny fikarohana.')
+                            : _t('Aucune truie enregistrée.\nCommencez par en ajouter une.', 'Tsy misy kisoa vavy voasoratra.\nAtombohy amin\'ny fampidirana iray.'),
                         actionLabel:
-                            _searchQuery.isEmpty ? 'Ajouter une truie' : null,
+                            _searchQuery.isEmpty ? _t('Ajouter une truie', 'Manampy kisoa vavy') : null,
                         onAction: _searchQuery.isEmpty ? _addSow : null,
                       );
                     }
@@ -150,7 +154,7 @@ class _SowListPageState extends ConsumerState<SowListPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Gestion des truies',
+                _t('Gestion des truies', 'Fitantanana kisoa vavy'),
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w900,
                       color: AppColors.textPrimary,
@@ -158,7 +162,7 @@ class _SowListPageState extends ConsumerState<SowListPage> {
               ),
               const SizedBox(height: AppSpacing.s4),
               Text(
-                '$count truie${count > 1 ? 's' : ''} enregistree${count > 1 ? 's' : ''}',
+                '$count ${_t('truie', 'kisoa vavy')}${count > 1 ? (_isMg ? '' : 's') : ''} ${_t('enregistrée', 'voasoratra')}${count > 1 ? (_isMg ? '' : 's') : ''}',
                 style: Theme.of(context)
                     .textTheme
                     .bodyMedium
@@ -170,7 +174,7 @@ class _SowListPageState extends ConsumerState<SowListPage> {
         FilledButton.icon(
           onPressed: _addSow,
           icon: const Icon(LucideIcons.plus, size: 16),
-          label: const Text('Ajouter'),
+          label: Text(_t('Ajouter', 'Manampy')),
         ),
       ],
     );
@@ -181,7 +185,7 @@ class _SowListPageState extends ConsumerState<SowListPage> {
       controller: _searchCtrl,
       onChanged: (v) => setState(() => _searchQuery = v),
       decoration: InputDecoration(
-        hintText: 'Rechercher par code ou nom...',
+        hintText: _t('Rechercher par code ou nom...', 'Mikaroka amin\'ny laharana na anarana...'),
         prefixIcon: const Icon(LucideIcons.search, size: 18),
         suffixIcon: _searchQuery.isNotEmpty
             ? IconButton(

@@ -1,11 +1,14 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import '../../../core/models/sow.dart';
 import '../../../core/services/cloud_sync_service.dart';
 
 class SowRepository {
   final CloudSyncService _sync;
   List<Sow> _cache = [];
+  final _localController = StreamController<List<Sow>>.broadcast();
 
   SowRepository(this._sync);
 
@@ -14,9 +17,15 @@ class SowRepository {
   Future<void> load() async {
     final data = await _sync.fetchLivestock();
     _cache = _parseSows(data);
+    _localController.add(_cache);
   }
 
   Stream<List<Sow>> watch() {
+    if (!_sync.available) {
+      debugPrint('[SowRepo] Firebase unavailable – using local-only mode');
+      Future.microtask(() => _localController.add(_cache));
+      return _localController.stream;
+    }
     return _sync.watchLivestock().map(_parseSows);
   }
 
@@ -34,16 +43,19 @@ class SowRepository {
 
   Future<void> add(Sow sow) async {
     _cache = [..._cache, sow];
+    _localController.add(_cache);
     await _persist();
   }
 
   Future<void> update(Sow sow) async {
     _cache = _cache.map((s) => s.id == sow.id ? sow : s).toList();
+    _localController.add(_cache);
     await _persist();
   }
 
   Future<void> delete(String id) async {
     _cache = _cache.where((s) => s.id != id).toList();
+    _localController.add(_cache);
     await _persist();
   }
 

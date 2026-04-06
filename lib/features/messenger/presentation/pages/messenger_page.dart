@@ -1,306 +1,569 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:socket_io_client/socket_io_client.dart' as io;
+import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:record/record.dart';
 
-import '../../../../theme/app_colors.dart';
-import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/providers/session_provider.dart';
+import '../../data/chat_persistence_service.dart';
 
-class _Conversation {
+// --- Modèles Restaurés ---
+
+class ChatMessage {
   final String id;
-  final String name;
-  final String lastMessage;
-  final DateTime lastMessageTime;
-  final int unreadCount;
-  final bool isOnline;
-  final String? avatarInitials;
-
-  const _Conversation({
-    required this.id,
-    required this.name,
-    required this.lastMessage,
-    required this.lastMessageTime,
-    this.unreadCount = 0,
-    this.isOnline = false,
-    this.avatarInitials,
-  });
-}
-
-class _ChatMessage {
-  final String id;
+  final String conversationId;
   final String senderId;
   final String senderName;
   final String text;
-  final DateTime time;
-  final bool isMe;
+  final DateTime sentAt;
+  final List<String> readByUserIds;
+  final String messageType;
+  final String mediaBase64;
+  final String mediaName;
+  final String mediaMimeType;
+  final int mediaSizeBytes;
+  final String? audioPath;
+  final int? audioDuration;
 
-  const _ChatMessage({
+  const ChatMessage({
     required this.id,
+    required this.conversationId,
     required this.senderId,
     required this.senderName,
     required this.text,
-    required this.time,
-    this.isMe = false,
+    required this.sentAt,
+    this.readByUserIds = const [],
+    this.messageType = 'text',
+    this.mediaBase64 = '',
+    this.mediaName = '',
+    this.mediaMimeType = '',
+    this.mediaSizeBytes = 0,
+    this.audioPath,
+    this.audioDuration,
   });
 }
 
-class MessengerPage extends StatefulWidget {
+class ChatConversationSummary {
+  final String id;
+  final String title;
+  final String subtitle;
+  final String preview;
+  final DateTime? lastMessageAt;
+  final int unreadCount;
+  final String avatarLabel;
+  final Color avatarColor;
+  final bool isGroup;
+
+  const ChatConversationSummary({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.preview,
+    required this.lastMessageAt,
+    required this.unreadCount,
+    required this.avatarLabel,
+    required this.avatarColor,
+    this.isGroup = false,
+  });
+}
+
+// --- Page Messenger Restaurée ---
+
+class MessengerPage extends ConsumerStatefulWidget {
   const MessengerPage({super.key});
 
   @override
-  State<MessengerPage> createState() => _MessengerPageState();
+  ConsumerState<MessengerPage> createState() => _MessengerPageState();
 }
 
-class _MessengerPageState extends State<MessengerPage> {
-  String? _activeConversationId;
-  final _messageController = TextEditingController();
-  final _timeFormat = DateFormat('HH:mm');
-  final _dateFormat = DateFormat('dd/MM');
+class _MessengerPageState extends ConsumerState<MessengerPage>
+    with SingleTickerProviderStateMixin {
+  final TextEditingController _chatComposerController = TextEditingController();
+  final TextEditingController _messengerSearchController =
+      TextEditingController();
+  final ScrollController _scrollController = ScrollController();
 
-  final _conversations = <_Conversation>[
-    _Conversation(id: '1', name: 'Équipe Élevage', lastMessage: 'La truie T-003 montre des signes de chaleur', lastMessageTime: DateTime(2026, 4, 1, 9, 15), unreadCount: 3, isOnline: true, avatarInitials: 'EE'),
-    _Conversation(id: '2', name: 'Dr Rakoto', lastMessage: 'Vaccination prévue demain à 8h', lastMessageTime: DateTime(2026, 4, 1, 8, 30), isOnline: true, avatarInitials: 'DR'),
-    _Conversation(id: '3', name: 'Fournisseur Aliment', lastMessage: 'Livraison confirmée pour vendredi', lastMessageTime: DateTime(2026, 3, 31, 16, 45), avatarInitials: 'FA'),
-    _Conversation(id: '4', name: 'Jean Inséminateur', lastMessage: 'IA réalisée sur T-001 ce matin', lastMessageTime: DateTime(2026, 3, 31, 10, 20), isOnline: false, avatarInitials: 'JI'),
+  String _activeChatConversationId = 'thread-public-1';
+  bool _isMobileMessengerThreadOpen = false;
+  String _messengerConversationFilter = '';
+
+  // Socket & WebRTC State
+  io.Socket? _socket;
+  bool _socketConnected = false;
+  final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
+  final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
+  // Audio Recording
+  final AudioRecorder _audioRecorder = AudioRecorder();
+
+  // Functional Services
+  final ChatPersistenceService _persistenceService = ChatPersistenceService();
+  
+  // Constants (Restored)
+  static const int _chatImageMaxBytes = 320 * 1024;
+  static const int _chatAudioMaxBytes = 600 * 1024;
+  static const int _chatVideoMaxBytes = 900 * 1024;
+  static const int _messageLimit = 2500;
+
+  // Mock Conversations (Basées sur l'ancien design)
+  final List<ChatConversationSummary> _conversations = [
+    const ChatConversationSummary(
+      id: 'thread-public-1',
+      title: 'Équipe Élevage',
+      subtitle: 'Conversation générale',
+      preview: 'Connecté au serveur en temps réel',
+      lastMessageAt: null,
+      unreadCount: 0,
+      avatarLabel: 'EE',
+      avatarColor: Color(0xFF0F766E),
+      isGroup: true,
+    ),
+    ChatConversationSummary(
+      id: 'thread-dr-rakoto',
+      title: 'Dr Rakoto',
+      subtitle: 'Vétérinaire conseil',
+      preview: 'Vaccination prévue demain à 8h',
+      lastMessageAt: DateTime.now().subtract(const Duration(hours: 5)),
+      unreadCount: 1,
+      avatarLabel: 'DR',
+      avatarColor: const Color(0xFF1D4ED8),
+    ),
   ];
 
-  final _messages = <String, List<_ChatMessage>>{
-    '1': [
-      _ChatMessage(id: 'm1', senderId: 'u2', senderName: 'Paul', text: 'Bonjour, la truie T-003 montre des signes de chaleur depuis ce matin.', time: DateTime(2026, 4, 1, 8, 45)),
-      _ChatMessage(id: 'm2', senderId: 'u1', senderName: 'Moi', text: 'Merci Paul. On prépare l\'IA pour demain matin ?', time: DateTime(2026, 4, 1, 8, 50), isMe: true),
-      _ChatMessage(id: 'm3', senderId: 'u3', senderName: 'Marie', text: 'Je peux préparer la dose de V-001 ce soir.', time: DateTime(2026, 4, 1, 9, 10)),
-      _ChatMessage(id: 'm4', senderId: 'u2', senderName: 'Paul', text: 'La truie T-003 montre des signes de chaleur', time: DateTime(2026, 4, 1, 9, 15)),
-    ],
-    '2': [
-      _ChatMessage(id: 'm5', senderId: 'u4', senderName: 'Dr Rakoto', text: 'Les résultats du contrôle sanitaire sont bons.', time: DateTime(2026, 4, 1, 8, 0)),
-      _ChatMessage(id: 'm6', senderId: 'u1', senderName: 'Moi', text: 'Super ! Quand est prévue la prochaine vaccination ?', time: DateTime(2026, 4, 1, 8, 15), isMe: true),
-      _ChatMessage(id: 'm7', senderId: 'u4', senderName: 'Dr Rakoto', text: 'Vaccination prévue demain à 8h', time: DateTime(2026, 4, 1, 8, 30)),
-    ],
+  final Map<String, List<ChatMessage>> _messagesByThread = {
+    'thread-public-1': [],
+    'thread-dr-rakoto': [],
   };
 
   @override
-  void dispose() {
-    _messageController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    // Pre-initialize empty thread lists for known threads
+    for (var conv in _conversations) {
+      _messagesByThread[conv.id] = [];
+    }
+    _loadPersistedMessages();
+    _initializeWebRTC();
+    _connectSocket();
+  }
+
+  Future<void> _loadPersistedMessages() async {
+    try {
+      final messages = await _persistenceService.loadMessages();
+      if (messages.isNotEmpty && mounted) {
+        setState(() {
+          for (var msg in messages) {
+            _messagesByThread.putIfAbsent(msg.conversationId, () => []);
+            _messagesByThread[msg.conversationId]!.add(msg);
+          }
+        });
+        debugPrint('Loaded ${messages.length} messages from persistence');
+        _scrollToBottom();
+      }
+    } catch (e) {
+      debugPrint('Persistence failure: $e');
+    }
+  }
+
+  Future<void> _initializeWebRTC() async {
+    await _localRenderer.initialize();
+    await _remoteRenderer.initialize();
+  }
+
+  void _connectSocket() {
+    _socket = io.io(
+      'https://porc-socket-signaling-520994990737.us-central1.run.app',
+      <String, dynamic>{
+        'transports': ['websocket'],
+        'autoConnect': true,
+      },
+    );
+
+    _socket?.onConnect((_) {
+      if (mounted) setState(() => _socketConnected = true);
+      _socket?.emit('join_room', _activeChatConversationId);
+    });
+
+    _socket?.onReceiveMessage((data) {
+      if (mounted) {
+        final msg = ChatMessage(
+          id: DateTime.now().toIso8601String(),
+          conversationId: _activeChatConversationId,
+          senderId: data['senderId'] ?? 'unknown',
+          senderName: data['senderName'] ?? 'Utilisateur',
+          text: data['text'] ?? '',
+          sentAt: DateTime.now(),
+        );
+        setState(() {
+          _messagesByThread.putIfAbsent(_activeChatConversationId, () => []);
+          final threadMessages = _messagesByThread[_activeChatConversationId]!;
+          threadMessages.add(msg);
+          if (threadMessages.length > _messageLimit) {
+            threadMessages.removeRange(0, threadMessages.length - _messageLimit);
+          }
+        });
+        _persistenceService.saveMessages(_messagesByThread.values.expand((x) => x).toList());
+        _scrollToBottom();
+      }
+    });
+
+    _socket?.onDisconnect((_) {
+      if (mounted) setState(() => _socketConnected = false);
+    });
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   @override
+  void dispose() {
+    _socket?.dispose();
+    _localRenderer.dispose();
+    _remoteRenderer.dispose();
+    _chatComposerController.dispose();
+    _messengerSearchController.dispose();
+    _scrollController.dispose();
+    _audioRecorder.dispose();
+    super.dispose();
+  }
+
+  // --- Widgets Restaurés ---
+
+  @override
   Widget build(BuildContext context) {
+    final bool isMobile = MediaQuery.of(context).size.width < 900;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, c) {
-            final isWide = c.maxWidth > 700;
-            if (isWide) {
-              return Row(
-                children: [
-                  SizedBox(width: 320, child: _buildConversationList()),
-                  const VerticalDivider(width: 1, color: AppColors.borderLight),
-                  Expanded(
-                    child: _activeConversationId != null
-                        ? _buildChatView()
-                        : _buildEmptyChat(),
-                  ),
-                ],
-              );
-            }
-            if (_activeConversationId != null) {
-              return _buildChatView(showBack: true);
-            }
-            return _buildConversationList();
-          },
+      backgroundColor: const Color(0xFFF1F5F9),
+      body: _buildMessengerHub(isMobile),
+    );
+  }
+
+  Widget _buildMessengerHub(bool mobile) {
+    if (mobile && _isMobileMessengerThreadOpen) {
+      return _buildMessengerThread(mobile: true);
+    }
+
+    return Row(
+      children: [
+        // Liste des Conversations
+        SizedBox(
+          width: mobile ? double.infinity : 350,
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(right: BorderSide(color: Color(0xFFE2E8F0))),
+            ),
+            child: Column(
+              children: [
+                _buildMessengerHeader(),
+                _buildMessengerConversationSearchField(),
+                Expanded(child: _buildMessengerConversationList(mobile)),
+              ],
+            ),
+          ),
+        ),
+        // Thread (Desktop)
+        if (!mobile)
+          Expanded(
+            child: _activeChatConversationId.isEmpty
+                ? _buildMessengerEmptyState()
+                : _buildMessengerThread(mobile: false),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildMessengerHeader() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text(
+            'Messages',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF0F172A),
+              letterSpacing: -0.5,
+            ),
+          ),
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: _socketConnected ? Colors.green : Colors.grey,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _socketConnected ? 'Connecté' : 'Hors ligne',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessengerConversationSearchField() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: TextField(
+        controller: _messengerSearchController,
+        onChanged: (val) => setState(() => _messengerConversationFilter = val),
+        decoration: InputDecoration(
+          hintText: 'Rechercher...',
+          prefixIcon: const Icon(Icons.search, size: 20),
+          filled: true,
+          fillColor: const Color(0xFFF1F5F9),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: EdgeInsets.zero,
         ),
       ),
     );
   }
 
-  Widget _buildConversationList() {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(AppSpacing.s16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Messages', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
-              const SizedBox(height: AppSpacing.s4),
-              Text('${_conversations.length} conversation(s)', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textMuted)),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ListView.builder(
-            itemCount: _conversations.length,
-            itemBuilder: (_, i) => _buildConversationTile(_conversations[i]),
-          ),
-        ),
-      ],
+  Widget _buildMessengerConversationList(bool mobile) {
+    final filtered = _conversations.where((c) =>
+        c.title.toLowerCase().contains(_messengerConversationFilter.toLowerCase())).toList();
+
+    return ListView.builder(
+      itemCount: filtered.length,
+      itemBuilder: (context, index) {
+        final conv = filtered[index];
+        final isActive = _activeChatConversationId == conv.id;
+
+        return _buildMessengerConversationTile(conv, isActive, mobile);
+      },
     );
   }
 
-  Widget _buildConversationTile(_Conversation conv) {
-    final isActive = _activeConversationId == conv.id;
-    return Material(
-      color: isActive ? AppColors.primaryPale : Colors.transparent,
-      child: InkWell(
-        onTap: () => setState(() => _activeConversationId = conv.id),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s16, vertical: AppSpacing.s12),
-          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.borderLight.withAlpha(80)))),
-          child: Row(
-            children: [
-              Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 22,
-                    backgroundColor: AppColors.primary.withAlpha(20),
-                    child: Text(conv.avatarInitials ?? conv.name[0], style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.primary)),
-                  ),
-                  if (conv.isOnline)
-                    Positioned(
-                      bottom: 0, right: 0,
-                      child: Container(
-                        width: 12, height: 12,
-                        decoration: BoxDecoration(color: AppColors.success, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
-                      ),
-                    ),
-                ],
+  Widget _buildMessengerConversationTile(
+      ChatConversationSummary conv, bool isActive, bool mobile) {
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _activeChatConversationId = conv.id;
+          if (mobile) _isMobileMessengerThreadOpen = true;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isActive ? const Color(0xFFF1F5F9) : Colors.transparent,
+          border: isActive
+              ? const Border(left: BorderSide(color: Color(0xFF0F766E), width: 4))
+              : null,
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: conv.avatarColor,
+              child: Text(
+                conv.avatarLabel,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
               ),
-              const SizedBox(width: AppSpacing.s12),
-              Expanded(child: Column(
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(child: Text(conv.name, style: TextStyle(fontWeight: conv.unreadCount > 0 ? FontWeight.w900 : FontWeight.w700, fontSize: 14, color: AppColors.textPrimary))),
-                      Text(_dateFormat.format(conv.lastMessageTime), style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Expanded(child: Text(conv.lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: conv.unreadCount > 0 ? AppColors.textPrimary : AppColors.textMuted, fontWeight: conv.unreadCount > 0 ? FontWeight.w700 : FontWeight.w500))),
-                      if (conv.unreadCount > 0)
-                        Container(
-                          margin: const EdgeInsets.only(left: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(999)),
-                          child: Text('${conv.unreadCount}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white)),
+                      Text(
+                        conv.title,
+                        style: TextStyle(
+                          fontWeight: conv.unreadCount > 0 ? FontWeight.w800 : FontWeight.w600,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                      if (conv.lastMessageAt != null)
+                        Text(
+                          DateFormat('HH:mm').format(conv.lastMessageAt!),
+                          style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
                         ),
                     ],
                   ),
+                  const SizedBox(height: 2),
+                  Text(
+                    conv.preview,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: conv.unreadCount > 0 ? const Color(0xFF0F172A) : const Color(0xFF64748B),
+                    ),
+                  ),
                 ],
-              )),
-            ],
-          ),
+              ),
+            ),
+            if (conv.unreadCount > 0)
+              Container(
+                margin: const EdgeInsets.only(left: 8),
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(color: Color(0xFF0F766E), shape: BoxShape.circle),
+                child: Text(
+                  '${conv.unreadCount}',
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildChatView({bool showBack = false}) {
-    final conv = _conversations.where((c) => c.id == _activeConversationId).firstOrNull;
-    if (conv == null) return _buildEmptyChat();
-    final messages = _messages[conv.id] ?? [];
+  Widget _buildMessengerEmptyState() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.chat_bubble_outline, size: 64, color: Color(0xFFCBD5E1)),
+          SizedBox(height: 16),
+          Text(
+            'Sélectionnez une conversation',
+            style: TextStyle(color: Color(0xFF64748B), fontSize: 16),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessengerThread({required bool mobile}) {
+    final activeConv = _conversations.firstWhere((c) => c.id == _activeChatConversationId);
+    final messages = _messagesByThread[_activeChatConversationId] ?? [];
 
     return Column(
       children: [
+        // Thread Header
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s16, vertical: AppSpacing.s12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [AppColors.chatHeader, AppColors.chatHeaderSoft],
-            ),
+            color: Colors.white,
+            border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
           ),
           child: Row(
             children: [
-              if (showBack)
+              if (mobile)
                 IconButton(
-                  icon: const Icon(LucideIcons.arrowLeft, size: 20),
-                  onPressed: () => setState(() => _activeConversationId = null),
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => setState(() => _isMobileMessengerThreadOpen = false),
                 ),
               CircleAvatar(
                 radius: 18,
-                backgroundColor: Colors.white.withAlpha(30),
-                child: Text(conv.avatarInitials ?? conv.name[0], style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: Colors.white)),
+                backgroundColor: activeConv.avatarColor,
+                child: Text(activeConv.avatarLabel, style: const TextStyle(color: Colors.white, fontSize: 12)),
               ),
-              const SizedBox(width: AppSpacing.s10),
-              Expanded(child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(conv.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Colors.white)),
-                  if (conv.isOnline) Row(
-                    children: [
-                      Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
-                      const SizedBox(width: 4),
-                      const Text('En ligne', style: TextStyle(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ],
-              )),
-              IconButton(icon: const Icon(LucideIcons.phone, size: 20, color: Colors.white70), onPressed: () {}),
-              IconButton(icon: const Icon(LucideIcons.video, size: 20, color: Colors.white70), onPressed: () {}),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      activeConv.title,
+                      style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                    ),
+                    Text(
+                      activeConv.subtitle,
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.phone_outlined, color: Color(0xFF64748B)),
+                onPressed: () => _startCall(activeConv, false),
+              ),
+              IconButton(
+                icon: const Icon(Icons.videocam_outlined, color: Color(0xFF64748B)),
+                onPressed: () => _startCall(activeConv, true),
+              ),
             ],
           ),
         ),
+        // Message List
         Expanded(
-          child: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [AppColors.chatBackgroundTop, AppColors.chatBackgroundBottom],
-              ),
-            ),
-            child: ListView.builder(
-              reverse: true,
-              padding: const EdgeInsets.all(AppSpacing.s16),
-              itemCount: messages.length,
-              itemBuilder: (_, i) {
-                final msg = messages[messages.length - 1 - i];
-                return _buildMessageBubble(msg);
-              },
-            ),
+          child: ListView.builder(
+            controller: _scrollController,
+            padding: const EdgeInsets.all(16),
+            itemCount: messages.length,
+            itemBuilder: (context, index) {
+              final msg = messages[index];
+              final isMe = msg.senderId == ref.read(sessionProvider)?.id;
+              return _buildMessageBubble(msg, isMe);
+            },
           ),
         ),
-        _buildMessageInput(),
+        // Composer
+        _buildMessageComposer(mobile),
       ],
     );
   }
 
-  Widget _buildMessageBubble(_ChatMessage msg) {
+  Widget _buildMessageBubble(ChatMessage msg, bool isMe) {
     return Align(
-      alignment: msg.isMe ? Alignment.centerRight : Alignment.centerLeft,
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.only(bottom: AppSpacing.s8),
-        constraints: const BoxConstraints(maxWidth: 320),
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s14, vertical: AppSpacing.s10),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        constraints: const BoxConstraints(maxWidth: 400),
         decoration: BoxDecoration(
-          color: msg.isMe ? AppColors.chatOutgoingBubble : AppColors.chatIncomingBubble,
+          color: isMe ? const Color(0xFF0F766E) : Colors.white,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(msg.isMe ? 16 : 4),
-            bottomRight: Radius.circular(msg.isMe ? 4 : 16),
+            bottomLeft: Radius.circular(isMe ? 16 : 0),
+            bottomRight: Radius.circular(isMe ? 0 : 16),
           ),
-          border: Border.all(color: msg.isMe ? AppColors.primaryLight.withAlpha(80) : AppColors.borderLight),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(4),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2)),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (!msg.isMe) Text(msg.senderName, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.primary)),
-            Text(msg.text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
-            const SizedBox(height: 2),
-            Align(
-              alignment: Alignment.bottomRight,
-              child: Text(_timeFormat.format(msg.time), style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
+            if (!isMe)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  msg.senderName,
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0F766E)),
+                ),
+              ),
+            Text(
+              msg.text,
+              style: TextStyle(color: isMe ? Colors.white : const Color(0xFF0F172A), fontSize: 14),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              DateFormat('HH:mm').format(msg.sentAt),
+              style: TextStyle(fontSize: 10, color: isMe ? Colors.white70 : const Color(0xFF94A3B8)),
             ),
           ],
         ),
@@ -308,48 +571,181 @@ class _MessengerPageState extends State<MessengerPage> {
     );
   }
 
-  Widget _buildMessageInput() {
+  Widget _buildMessageComposer(bool mobile) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s12, vertical: AppSpacing.s10),
-      decoration: BoxDecoration(color: AppColors.chatInputSurface, border: const Border(top: BorderSide(color: AppColors.borderLight))),
+      padding: const EdgeInsets.all(16),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+      ),
       child: Row(
         children: [
-          IconButton(icon: const Icon(LucideIcons.paperclip, size: 20, color: AppColors.textMuted), onPressed: () {}),
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline, color: Color(0xFF64748B)),
+            onPressed: () => _openMessengerAttachmentSheet(_activeChatConversationId),
+          ),
           Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s14),
-              decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(999)),
-              child: TextField(
-                controller: _messageController,
-                decoration: const InputDecoration(border: InputBorder.none, hintText: 'Message...', hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 14)),
-                style: const TextStyle(fontSize: 14),
+            child: TextField(
+              controller: _chatComposerController,
+              decoration: InputDecoration(
+                hintText: 'Écrire un message...',
+                filled: true,
+                fillColor: const Color(0xFFF1F5F9),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               ),
+              onSubmitted: (_) => _sendChatMessage(),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
           Container(
-            decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(999)),
-            child: IconButton(icon: const Icon(LucideIcons.send, size: 18, color: Colors.white), onPressed: () {}),
+            decoration: const BoxDecoration(color: Color(0xFF0F766E), shape: BoxShape.circle),
+            child: IconButton(
+              icon: const Icon(Icons.send, color: Colors.white, size: 20),
+              onPressed: _sendChatMessage,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildEmptyChat() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(color: AppColors.surfaceContainer, shape: BoxShape.circle),
-            child: const Icon(LucideIcons.messageSquare, size: 40, color: AppColors.textMuted),
-          ),
-          const SizedBox(height: AppSpacing.s16),
-          const Text('Sélectionnez une conversation', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textMuted)),
-        ],
+  Future<void> _pickAndSendChatAttachment(String conversationId, String type) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: type == 'image' ? FileType.image : (type == 'video' ? FileType.video : FileType.any),
+    );
+
+    if (result != null && result.files.single.bytes != null) {
+      final file = result.files.single;
+      int maxBytes = _chatImageMaxBytes;
+      if (type == 'video') maxBytes = _chatVideoMaxBytes;
+      if (type == 'audio') maxBytes = _chatAudioMaxBytes;
+
+      if (file.size > maxBytes) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Fichier trop lourd. Limite pour $type : ${maxBytes ~/ 1024} KB')),
+          );
+        }
+        return;
+      }
+
+      // Envoi simulé pour la restauration
+      _sendChatMessage(customText: '📎 Envoyé $type : ${file.name}');
+    }
+  }
+
+  void _sendChatMessage({String? customText}) {
+    final text = customText ?? _chatComposerController.text.trim();
+    if (text.isEmpty) return;
+    
+    final activeConv = _conversations.firstWhere((c) => c.id == _activeChatConversationId);
+    final user = ref.read(sessionProvider);
+    final msg = ChatMessage(
+      id: DateTime.now().toIso8601String(),
+      conversationId: _activeChatConversationId,
+      senderId: user?.id ?? 'me',
+      senderName: user?.name ?? 'Moi',
+      text: text,
+      sentAt: DateTime.now(),
+    );
+
+    _socket?.emit('send_message', {
+      'roomId': _activeChatConversationId,
+      'senderId': user?.id,
+      'senderName': user?.name,
+      'text': text,
+    });
+
+    setState(() {
+      _messagesByThread.putIfAbsent(_activeChatConversationId, () => []);
+      final threadMessages = _messagesByThread[_activeChatConversationId]!;
+      threadMessages.add(msg);
+      if (threadMessages.length > _messageLimit) {
+        threadMessages.removeRange(0, threadMessages.length - _messageLimit);
+      }
+    });
+
+    // Save ALL messages across ALL threads to ensure global persistence
+    final allMessages = _messagesByThread.values.expand((x) => x).toList();
+    _persistenceService.saveMessages(allMessages).then((_) {
+      debugPrint('Saved ${allMessages.length} messages globally');
+    });
+    
+    // Audit Log Restoration
+    _addAuditLog(
+      module: 'MESSAGERIE',
+      action: 'SEND_MESSAGE',
+      detail: 'Message envoyé dans ${activeConv.title}',
+    );
+
+    _chatComposerController.clear();
+    _scrollToBottom();
+  }
+
+  void _addAuditLog({
+    required String module,
+    required String action,
+    required String detail,
+  }) {
+    final user = ref.read(sessionProvider);
+    // In a real app, this would call a global Audit service or provider.
+    // For restoration, we ensure it's called to trace activity.
+    debugPrint('[AUDIT] $module | $action | $detail by ${user?.name}');
+  }
+
+  void _startCall(ChatConversationSummary conv, bool video) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Appel ${video ? "vidéo" : "vocal"} vers ${conv.title} (Simulé)')),
+      );
+    }
+  }
+
+  void _openMessengerAttachmentSheet(String conversationId) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.image),
+              title: const Text('Image (Max 320 KB)'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickAndSendChatAttachment(conversationId, 'image');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.videocam),
+              title: const Text('Vidéo (Max 900 KB)'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickAndSendChatAttachment(conversationId, 'video');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.audiotrack),
+              title: const Text('Audio (Max 600 KB)'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickAndSendChatAttachment(conversationId, 'audio');
+              },
+            ),
+          ],
+        ),
       ),
     );
+  }
+}
+
+// --- Extensions & Helpers ---
+extension SocketExtension on io.Socket {
+  void onReceiveMessage(Function(dynamic) handler) {
+    on('receive_message', (data) => handler(data));
   }
 }

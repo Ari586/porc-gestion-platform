@@ -2,52 +2,52 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../../../core/models/insemination_record.dart';
+import '../../../core/models/semen_quality_record.dart';
 import '../../../core/services/cloud_sync_service.dart';
 
-class InseminationRepository {
+class SemenQualityRepository {
   final CloudSyncService _sync;
-  List<InseminationRecord> _cache = [];
-  final _localController = StreamController<List<InseminationRecord>>.broadcast();
+  List<SemenQualityRecord> _cache = [];
+  final _localController = StreamController<List<SemenQualityRecord>>.broadcast();
 
-  InseminationRepository(this._sync);
+  SemenQualityRepository(this._sync);
 
-  List<InseminationRecord> get records => List.unmodifiable(_cache);
+  List<SemenQualityRecord> get records => List.unmodifiable(_cache);
 
   Future<void> load() async {
-    final data = await _sync.fetchOperations();
+    final data = await _sync.fetchLivestock();
     _cache = _parseRecords(data);
     _localController.add(_cache);
   }
 
-  Stream<List<InseminationRecord>> watch() {
+  Stream<List<SemenQualityRecord>> watch() {
     if (!_sync.available) {
-      debugPrint('[InseminationRepo] Firebase unavailable – using local-only mode');
+      debugPrint('[SemenQualityRepo] Firebase unavailable – using local-only mode');
       Future.microtask(() => _localController.add(_cache));
       return _localController.stream;
     }
-    return _sync.watchOperations().map(_parseRecords);
+    return _sync.watchLivestock().map(_parseRecords);
   }
 
-  List<InseminationRecord> _parseRecords(Map<String, dynamic> data) {
-    final raw = data['inseminations'];
+  List<SemenQualityRecord> _parseRecords(Map<String, dynamic> data) {
+    final raw = data['semenQualityRecords'];
     if (raw is! List) return _cache;
     final parsed = raw
         .whereType<Map<String, dynamic>>()
-        .map((j) => InseminationRecord.fromJson(j))
-        .whereType<InseminationRecord>()
+        .map((j) => SemenQualityRecord.fromJson(j))
+        .whereType<SemenQualityRecord>()
         .toList();
     _cache = parsed;
     return parsed;
   }
 
-  Future<void> add(InseminationRecord record) async {
+  Future<void> add(SemenQualityRecord record) async {
     _cache = [..._cache, record];
     _localController.add(_cache);
     await _persist();
   }
 
-  Future<void> update(InseminationRecord record) async {
+  Future<void> update(SemenQualityRecord record) async {
     _cache = _cache.map((r) => r.id == record.id ? record : r).toList();
     _localController.add(_cache);
     await _persist();
@@ -60,8 +60,8 @@ class InseminationRepository {
   }
 
   Future<void> _persist() async {
-    await _sync.saveOperations({
-      'inseminations': _cache.map((r) => r.toJson()).toList(),
+    await _sync.saveLivestock({
+      'semenQualityRecords': _cache.map((r) => r.toJson()).toList(),
     });
   }
 }

@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/models/sow.dart';
+import '../../../../core/utils/image_picker_helper.dart';
 import '../../../../theme/app_colors.dart';
 
 class SowCard extends StatelessWidget {
@@ -31,7 +32,7 @@ class SowCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Photo placeholder
+          // Photo
           Container(
             height: 120,
             decoration: BoxDecoration(
@@ -41,10 +42,11 @@ class SowCard extends StatelessWidget {
               ),
             ),
             child: Center(
-              child: Icon(
-                LucideIcons.piggyBank,
-                size: 40,
-                color: AppColors.textMuted.withAlpha(100),
+              child: buildAnimalPhoto(
+                imageBase64: sow.imageBase64,
+                size: 120,
+                fallbackIcon: LucideIcons.piggyBank,
+                borderRadius: AppUiTokens.entityRadius,
               ),
             ),
           ),

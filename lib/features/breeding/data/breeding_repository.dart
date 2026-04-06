@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import '../../../core/models/building_record.dart';
 import '../../../core/models/batch_record.dart';
 import '../../../core/models/growth_record.dart';
@@ -10,6 +12,7 @@ class BreedingRepository {
   List<BuildingRecord> _buildings = [];
   List<BatchRecord> _batches = [];
   List<GrowthRecord> _growths = [];
+  final _localController = StreamController<Map<String, dynamic>>.broadcast();
 
   BreedingRepository(this._sync);
 
@@ -20,9 +23,20 @@ class BreedingRepository {
   Future<void> load() async {
     final data = await _sync.fetchLivestock();
     _parseAll(data);
+    _localController.add(_buildLocalMap());
   }
 
-  Stream<Map<String, dynamic>> watch() => _sync.watchLivestock();
+  Stream<Map<String, dynamic>> watch() {
+    if (!_sync.available) {
+      debugPrint('[BreedingRepo] Firebase unavailable – using local-only mode');
+      Future.microtask(() => _localController.add(_buildLocalMap()));
+      return _localController.stream;
+    }
+    return _sync.watchLivestock().map((data) {
+      _parseAll(data);
+      return data;
+    });
+  }
 
   void _parseAll(Map<String, dynamic> data) {
     final rawBuildings = data['buildings'];
@@ -39,26 +53,33 @@ class BreedingRepository {
     }
   }
 
+  Map<String, dynamic> _buildLocalMap() {
+    return {
+      'buildings': _buildings.map((b) => b.toJson()).toList(),
+      'batches': _batches.map((b) => b.toJson()).toList(),
+      'growths': _growths.map((g) => g.toJson()).toList(),
+    };
+  }
+
   Future<void> addBuilding(BuildingRecord building) async {
     _buildings = [..._buildings, building];
+    _localController.add(_buildLocalMap());
     await _persist();
   }
 
   Future<void> addBatch(BatchRecord batch) async {
     _batches = [..._batches, batch];
+    _localController.add(_buildLocalMap());
     await _persist();
   }
 
   Future<void> addGrowth(GrowthRecord growth) async {
     _growths = [..._growths, growth];
+    _localController.add(_buildLocalMap());
     await _persist();
   }
 
   Future<void> _persist() async {
-    await _sync.saveLivestock({
-      'buildings': _buildings.map((b) => b.toJson()).toList(),
-      'batches': _batches.map((b) => b.toJson()).toList(),
-      'growths': _growths.map((g) => g.toJson()).toList(),
-    });
+    await _sync.saveLivestock(_buildLocalMap());
   }
 }

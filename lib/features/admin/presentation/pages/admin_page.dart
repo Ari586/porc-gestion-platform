@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
-import '../../../../theme/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/models/user_profile.dart';
+import '../../../../core/widgets/confirm_dialog.dart';
 import '../../../../core/widgets/section_card.dart';
 import '../../../../core/widgets/stat_mini_card.dart';
+import '../../../../theme/app_colors.dart';
+import '../widgets/change_password_dialog.dart';
+import '../widgets/user_form_dialog.dart';
 
 class _UserAccount {
   final String id;
@@ -72,6 +76,92 @@ class _AdminPageState extends State<AdminPage> {
     _AuditEntry(timestamp: DateTime(2026, 3, 30, 14, 30), actorName: 'Luc Hery', module: 'Utilisateurs', action: 'Désactivation', detail: 'Compte luc@pigia.mg désactivé', severity: 'warning'),
   ];
 
+  // ---------------------------------------------------------------------------
+  // User management actions
+  // ---------------------------------------------------------------------------
+
+  Future<void> _createUser() async {
+    final profile = await UserFormDialog.show(context);
+    if (profile == null || !mounted) return;
+    setState(() {
+      _users.add(_UserAccount(
+        id: profile.id,
+        name: profile.name,
+        role: profile.role,
+        email: profile.login,
+        lastLogin: DateTime.now(),
+      ));
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Utilisateur "${profile.name}" créé')),
+      );
+    }
+  }
+
+  Future<void> _editUser(_UserAccount account) async {
+    // Build a lightweight UserProfile so the dialog can pre-fill fields.
+    final seed = UserProfile(
+      id: account.id,
+      code: account.id,
+      name: account.name,
+      role: account.role,
+      avatar: account.name.isNotEmpty ? account.name[0] : '?',
+      contact: '',
+      login: account.email,
+      password: '', // not used in edit mode
+    );
+    final updated = await UserFormDialog.show(context, user: seed);
+    if (updated == null || !mounted) return;
+    setState(() {
+      final idx = _users.indexWhere((u) => u.id == account.id);
+      if (idx != -1) {
+        _users[idx] = _UserAccount(
+          id: updated.id,
+          name: updated.name,
+          role: updated.role,
+          email: updated.login,
+          isActive: account.isActive,
+          lastLogin: account.lastLogin,
+        );
+      }
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Utilisateur "${updated.name}" modifié')),
+      );
+    }
+  }
+
+  Future<void> _changePassword(_UserAccount account) async {
+    final hashed = await ChangePasswordDialog.show(context);
+    if (hashed == null || !mounted) return;
+    // In a real app you would persist `hashed` via your repository.
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Mot de passe de "${account.name}" mis à jour')),
+    );
+  }
+
+  Future<void> _deleteUser(_UserAccount account) async {
+    final confirmed = await ConfirmDialog.show(
+      context,
+      title: 'Supprimer l\'utilisateur',
+      message:
+          'Voulez-vous vraiment supprimer le compte de ${account.name} ?',
+      confirmLabel: 'Supprimer',
+      isDestructive: true,
+    );
+    if (!confirmed || !mounted) return;
+    setState(() {
+      _users.removeWhere((u) => u.id == account.id);
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Utilisateur "${account.name}" supprimé')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -117,7 +207,7 @@ class _AdminPageState extends State<AdminPage> {
           ),
         ),
         FilledButton.icon(
-          onPressed: () {},
+          onPressed: _createUser,
           icon: const Icon(LucideIcons.userPlus, size: 16),
           label: const Text('Inviter'),
         ),
@@ -213,10 +303,48 @@ class _AdminPageState extends State<AdminPage> {
                   decoration: BoxDecoration(color: roleColor.withAlpha(20), borderRadius: BorderRadius.circular(999)),
                   child: Text(u.role, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: roleColor)),
                 ),
+                const SizedBox(width: AppSpacing.s8),
+                _buildRowAction(
+                  icon: LucideIcons.edit3,
+                  color: AppColors.info,
+                  tooltip: 'Modifier',
+                  onTap: () => _editUser(u),
+                ),
+                _buildRowAction(
+                  icon: LucideIcons.key,
+                  color: AppColors.warning,
+                  tooltip: 'Mot de passe',
+                  onTap: () => _changePassword(u),
+                ),
+                _buildRowAction(
+                  icon: LucideIcons.trash2,
+                  color: AppColors.error,
+                  tooltip: 'Supprimer',
+                  onTap: () => _deleteUser(u),
+                ),
               ],
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildRowAction({
+    required IconData icon,
+    required Color color,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(icon, size: 16, color: color),
+        ),
       ),
     );
   }

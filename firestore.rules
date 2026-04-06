@@ -23,64 +23,48 @@ service cloud.firestore {
     }
 
     function hasSyncEnvelope() {
-      return request.resource.data.version is int &&
-          request.resource.data.updatedAtMsClient is int &&
-          request.resource.data.updatedByUserId is string &&
-          request.resource.data.updatedByAuthUid is string &&
-          request.resource.data.updatedByAuthUid == authUid() &&
-          request.resource.data.updatedByClientId is string;
+      return request.resource.data.lastModifiedBy is string &&
+          request.resource.data.lastModifiedBy == authUid() &&
+          request.resource.data.lastModifiedAt is timestamp;
     }
 
     function usersPayloadValid() {
-      return request.resource.data.users is list &&
-          request.resource.data.users.size() <= 800;
+      let data = request.resource.data;
+      return (!('users' in data) || (data.users is list && data.users.size() <= 800));
     }
 
     function livestockPayloadValid() {
-      return request.resource.data.boars is list &&
-          request.resource.data.sows is list &&
-          request.resource.data.inseminations is list &&
-          request.resource.data.healthRecords is list &&
-          request.resource.data.semenQualityRecords is list &&
-          request.resource.data.boars.size() <= 3000 &&
-          request.resource.data.sows.size() <= 5000 &&
-          request.resource.data.inseminations.size() <= 12000 &&
-          request.resource.data.healthRecords.size() <= 12000 &&
-          request.resource.data.semenQualityRecords.size() <= 6000;
+      let data = request.resource.data;
+      return (!('boars' in data) || (data.boars is list && data.boars.size() <= 3000)) &&
+             (!('sows' in data) || (data.sows is list && data.sows.size() <= 5000)) &&
+             (!('inseminations' in data) || (data.inseminations is list && data.inseminations.size() <= 12000)) &&
+             (!('healthRecords' in data) || (data.healthRecords is list && data.healthRecords.size() <= 12000)) &&
+             (!('semenQualityRecords' in data) || (data.semenQualityRecords is list && data.semenQualityRecords.size() <= 6000));
     }
 
     function commercialPayloadValid() {
-      return request.resource.data.clients is list &&
-          request.resource.data.suppliers is list &&
-          request.resource.data.salesRecords is list &&
-          request.resource.data.animalSaleListings is list &&
-          request.resource.data.supplyRecords is list &&
-          request.resource.data.clients.size() <= 6000 &&
-          request.resource.data.suppliers.size() <= 6000 &&
-          request.resource.data.salesRecords.size() <= 15000 &&
-          request.resource.data.animalSaleListings.size() <= 6000 &&
-          request.resource.data.supplyRecords.size() <= 12000;
+      let data = request.resource.data;
+      return (!('clients' in data) || (data.clients is list && data.clients.size() <= 6000)) &&
+             (!('suppliers' in data) || (data.suppliers is list && data.suppliers.size() <= 6000)) &&
+             (!('salesRecords' in data) || (data.salesRecords is list && data.salesRecords.size() <= 15000)) &&
+             (!('animalSaleListings' in data) || (data.animalSaleListings is list && data.animalSaleListings.size() <= 6000)) &&
+             (!('supplyRecords' in data) || (data.supplyRecords is list && data.supplyRecords.size() <= 12000));
     }
 
     function operationsPayloadValid() {
-      return request.resource.data.buildings is list &&
-          request.resource.data.batchRecords is list &&
-          request.resource.data.growthRecords is list &&
-          request.resource.data.pigletCareRecords is list &&
-          request.resource.data.farrowingRecords is list &&
-          request.resource.data.auditLogs is list &&
-          request.resource.data.taskDoneById is map &&
-          request.resource.data.buildings.size() <= 3000 &&
-          request.resource.data.batchRecords.size() <= 6000 &&
-          request.resource.data.growthRecords.size() <= 18000 &&
-          request.resource.data.pigletCareRecords.size() <= 18000 &&
-          request.resource.data.farrowingRecords.size() <= 12000 &&
-          request.resource.data.auditLogs.size() <= 240;
+      let data = request.resource.data;
+      return (!('buildings' in data) || (data.buildings is list && data.buildings.size() <= 3000)) &&
+             (!('batchRecords' in data) || (data.batchRecords is list && data.batchRecords.size() <= 6000)) &&
+             (!('growthRecords' in data) || (data.growthRecords is list && data.growthRecords.size() <= 18000)) &&
+             (!('pigletCareRecords' in data) || (data.pigletCareRecords is list && data.pigletCareRecords.size() <= 18000)) &&
+             (!('farrowingRecords' in data) || (data.farrowingRecords is list && data.farrowingRecords.size() <= 12000)) &&
+             (!('auditLogs' in data) || (data.auditLogs is list && data.auditLogs.size() <= 240)) &&
+             (!('taskDoneById' in data) || (data.taskDoneById is map));
     }
 
     function chatPayloadValid() {
-      return request.resource.data.chatMessages is list &&
-          request.resource.data.chatMessages.size() <= 180;
+      let data = request.resource.data;
+      return (!('chatMessages' in data) || (data.chatMessages is list && data.chatMessages.size() <= 180));
     }
 
     function newsPayloadValid() {

@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import '../../../core/models/sale_record.dart';
 import '../../../core/models/stock_item.dart';
 import '../../../core/models/client.dart';
@@ -12,6 +14,7 @@ class CommercialRepository {
   List<StockItem> _stocks = [];
   List<Client> _clients = [];
   List<Supplier> _suppliers = [];
+  final _localController = StreamController<Map<String, dynamic>>.broadcast();
 
   CommercialRepository(this._sync);
 
@@ -23,9 +26,20 @@ class CommercialRepository {
   Future<void> load() async {
     final data = await _sync.fetchCommercial();
     _parseAll(data);
+    _localController.add(_buildLocalMap());
   }
 
-  Stream<Map<String, dynamic>> watch() => _sync.watchCommercial();
+  Stream<Map<String, dynamic>> watch() {
+    if (!_sync.available) {
+      debugPrint('[CommercialRepo] Firebase unavailable – using local-only mode');
+      Future.microtask(() => _localController.add(_buildLocalMap()));
+      return _localController.stream;
+    }
+    return _sync.watchCommercial().map((data) {
+      _parseAll(data);
+      return data;
+    });
+  }
 
   void _parseAll(Map<String, dynamic> data) {
     final rawSales = data['sales'];
@@ -46,32 +60,40 @@ class CommercialRepository {
     }
   }
 
+  Map<String, dynamic> _buildLocalMap() {
+    return {
+      'sales': _sales.map((s) => s.toJson()).toList(),
+      'stocks': _stocks.map((s) => s.toJson()).toList(),
+      'clients': _clients.map((c) => c.toJson()).toList(),
+      'suppliers': _suppliers.map((s) => s.toJson()).toList(),
+    };
+  }
+
   Future<void> addSale(SaleRecord sale) async {
     _sales = [..._sales, sale];
+    _localController.add(_buildLocalMap());
     await _persist();
   }
 
   Future<void> addClient(Client client) async {
     _clients = [..._clients, client];
+    _localController.add(_buildLocalMap());
     await _persist();
   }
 
   Future<void> addSupplier(Supplier supplier) async {
     _suppliers = [..._suppliers, supplier];
+    _localController.add(_buildLocalMap());
     await _persist();
   }
 
   Future<void> updateStock(StockItem item) async {
     _stocks = _stocks.map((s) => s.id == item.id ? item : s).toList();
+    _localController.add(_buildLocalMap());
     await _persist();
   }
 
   Future<void> _persist() async {
-    await _sync.saveCommercial({
-      'sales': _sales.map((s) => s.toJson()).toList(),
-      'stocks': _stocks.map((s) => s.toJson()).toList(),
-      'clients': _clients.map((c) => c.toJson()).toList(),
-      'suppliers': _suppliers.map((s) => s.toJson()).toList(),
-    });
+    await _sync.saveCommercial(_buildLocalMap());
   }
 }

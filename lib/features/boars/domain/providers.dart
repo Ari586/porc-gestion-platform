@@ -1,8 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/boar.dart';
+import '../../../core/models/semen_quality_record.dart';
 import '../../../core/services/service_locator.dart';
 import '../data/boar_repository.dart';
+import '../data/semen_quality_repository.dart';
 
 final boarRepositoryProvider = Provider<BoarRepository>((_) => getIt<BoarRepository>());
 
@@ -19,4 +21,14 @@ final filteredBoarsProvider = Provider<List<Boar>>((ref) {
   final boars = boarsAsync.valueOrNull ?? [];
   if (query.isEmpty) return boars;
   return boars.where((b) => b.code.toLowerCase().contains(query) || b.name.toLowerCase().contains(query)).toList();
+});
+
+// ── Semen Quality ───────────────────────────────────────────────────────
+
+final semenQualityRepositoryProvider =
+    Provider<SemenQualityRepository>((_) => getIt<SemenQualityRepository>());
+
+final semenQualityListProvider = StreamProvider<List<SemenQualityRecord>>((ref) {
+  final repo = ref.watch(semenQualityRepositoryProvider);
+  return repo.watch();
 });

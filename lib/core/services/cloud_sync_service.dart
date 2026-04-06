@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 
 import '../constants/firestore_paths.dart';
 import 'auth_service.dart';
@@ -12,7 +13,7 @@ class CloudSyncService {
 
   CloudSyncService(this._auth);
 
-  bool get _available => Firebase.apps.isNotEmpty && _auth.hasAuthSession;
+  bool get available => Firebase.apps.isNotEmpty && _auth.hasAuthSession;
   String get _uid => _auth.firebaseAuthUid;
 
   FirebaseFirestore get _db => FirebaseFirestore.instance;
@@ -23,18 +24,27 @@ class CloudSyncService {
 
   /// Fetch a full sync document and return its parsed JSON map.
   Future<Map<String, dynamic>> fetchDocument(String docId) async {
-    if (!_available) return {};
+    if (!available) {
+      debugPrint('[CloudSync] Firebase unavailable – fetchDocument($docId) returning empty map');
+      return {};
+    }
     try {
       final snap = await _syncDoc(docId).get();
       return snap.data() as Map<String, dynamic>? ?? {};
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[CloudSync] fetchDocument($docId) error: $e');
       return {};
     }
   }
 
   /// Listen to realtime updates on a sync document.
+  /// Returns a single empty-map emission when Firebase is not available,
+  /// so StreamProviders resolve to `data` instead of staying in `loading`.
   Stream<Map<String, dynamic>> watchDocument(String docId) {
-    if (!_available) return const Stream.empty();
+    if (!available) {
+      debugPrint('[CloudSync] Firebase unavailable – watchDocument($docId) emitting empty seed');
+      return Stream.value(<String, dynamic>{});
+    }
     return _syncDoc(docId)
         .snapshots()
         .map((snap) => snap.data() as Map<String, dynamic>? ?? {});
@@ -44,13 +54,16 @@ class CloudSyncService {
 
   /// Merge-update a sync document with the given payload.
   Future<void> mergeDocument(String docId, Map<String, dynamic> data) async {
-    if (!_available) return;
+    if (!available) {
+      debugPrint('[CloudSync] Firebase unavailable – mergeDocument($docId) skipped (local-only mode)');
+      return;
+    }
     try {
       data['lastModifiedBy'] = _uid;
       data['lastModifiedAt'] = FieldValue.serverTimestamp();
       await _syncDoc(docId).set(data, SetOptions(merge: true));
-    } catch (_) {
-      // Queue for retry in offline mode (future enhancement).
+    } catch (e) {
+      debugPrint('[CloudSync] mergeDocument($docId) error: $e');
     }
   }
 

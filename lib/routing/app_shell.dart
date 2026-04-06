@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../core/constants/app_spacing.dart';
 import '../core/providers/session_provider.dart';
+import '../core/providers/language_provider.dart';
 import '../theme/app_colors.dart';
 
 class _NavItem {
@@ -13,27 +14,29 @@ class _NavItem {
   final String path;
   const _NavItem(this.label, this.icon, this.path);
 }
-
-const _sidebarItems = [
-  _NavItem('Dashboard', LucideIcons.layoutDashboard, '/dashboard'),
-  _NavItem('Actualités', LucideIcons.newspaper, '/news'),
-  _NavItem('Messenger', LucideIcons.messageCircle, '/messenger'),
-  _NavItem('Élevage', LucideIcons.warehouse, '/breeding'),
-  _NavItem('Inséminations', LucideIcons.syringe, '/inseminations'),
-  _NavItem('Verrats', LucideIcons.beef, '/boars'),
-  _NavItem('Truies', LucideIcons.heart, '/sows'),
-  _NavItem('Pédigrée', LucideIcons.gitBranch, '/pedigree'),
-  _NavItem('Santé', LucideIcons.stethoscope, '/health'),
-  _NavItem('Commercial', LucideIcons.shoppingCart, '/commercial'),
-  _NavItem('Administration', LucideIcons.shield, '/admin'),
-  _NavItem('Paramètres', LucideIcons.settings, '/settings'),
-];
-
-const _bottomNavItems = [
+List<_NavItem> _getSidebarItems(bool isMg) {
+  return [
+    _NavItem(isMg ? 'Topy maso' : 'Dashboard', LucideIcons.layoutDashboard, '/dashboard'),
+    _NavItem(isMg ? 'Vaovao' : 'Actualités', LucideIcons.newspaper, '/news'),
+    _NavItem('Messenger', LucideIcons.messageCircle, '/messenger'),
+    _NavItem(isMg ? 'Fiompiana' : 'Élevage', LucideIcons.warehouse, '/breeding'),
+    _NavItem(isMg ? 'Insémination' : 'Inséminations', LucideIcons.syringe, '/inseminations'),
+    _NavItem(isMg ? 'Kisoa lahy' : 'Verrats', LucideIcons.beef, '/boars'),
+    _NavItem(isMg ? 'Kalitaon\'ny tsirinaina' : 'Qualité semence', LucideIcons.testTube, '/semen-quality'),
+    _NavItem(isMg ? 'Kisoa vavy' : 'Truies', LucideIcons.heart, '/sows'),
+    _NavItem('Pédigrée', LucideIcons.gitBranch, '/pedigree'),
+    _NavItem(isMg ? 'Fahasalamana' : 'Santé', LucideIcons.stethoscope, '/health'),
+    _NavItem(isMg ? 'Zanakisoa' : 'Porcelets', LucideIcons.baby, '/piglets'),
+    _NavItem('Commercial', LucideIcons.shoppingCart, '/commercial'),
+    _NavItem('Administration', LucideIcons.shield, '/admin'),
+    _NavItem(isMg ? 'Fikirakirana' : 'Paramètres', LucideIcons.settings, '/settings'),
+  ];
+}
+List<_NavItem> _getBottomNavItems(bool isMg) => [
   _NavItem('Accueil', LucideIcons.layoutDashboard, '/dashboard'),
-  _NavItem('Élevage', LucideIcons.warehouse, '/breeding'),
-  _NavItem('IA', LucideIcons.syringe, '/inseminations'),
-  _NavItem('Santé', LucideIcons.stethoscope, '/health'),
+  _NavItem(isMg ? 'Fiompiana' : 'Élevage', LucideIcons.warehouse, '/breeding'),
+  _NavItem(isMg ? 'Insémination' : 'Inséminations', LucideIcons.syringe, '/inseminations'),
+  _NavItem(isMg ? 'Kisoa lahy' : 'Verrats', LucideIcons.beef, '/boars'),
   _NavItem('Plus', LucideIcons.menu, ''),
 ];
 
@@ -42,16 +45,18 @@ class AppShell extends ConsumerWidget {
 
   const AppShell({super.key, required this.child});
 
-  int _currentIndex(String location) {
-    for (var i = 0; i < _bottomNavItems.length - 1; i++) {
-      if (location.startsWith(_bottomNavItems[i].path)) return i;
+  int _currentIndex(String location, bool isMg) {
+    var items = _getBottomNavItems(isMg);
+    for (var i = 0; i < items.length - 1; i++) {
+      if (location.startsWith(items[i].path)) return i;
     }
     return 4;
   }
 
-  int _sidebarIndex(String location) {
-    for (var i = 0; i < _sidebarItems.length; i++) {
-      if (location.startsWith(_sidebarItems[i].path)) return i;
+  int _sidebarIndex(String location, String userRole, bool isMg) {
+    var navigableItems = _getSidebarItems(isMg).where((i) => i.path != '/admin' || userRole.toLowerCase().contains('responsable')).toList();
+    for (var i = 0; i < navigableItems.length; i++) {
+      if (location.startsWith(navigableItems[i].path)) return i;
     }
     return 0;
   }
@@ -62,16 +67,18 @@ class AppShell extends ConsumerWidget {
     final isDesktop = width >= 980;
     final location = GoRouterState.of(context).uri.toString();
     final session = ref.watch(sessionProvider);
+    final isMg = ref.watch(languageProvider) == 'Malagasy';
 
     if (isDesktop) {
       return Scaffold(
         body: Row(
           children: [
             _DesktopSidebar(
-              currentIndex: _sidebarIndex(location),
+              currentIndex: _sidebarIndex(location, session?.role ?? '', isMg),
               userName: session?.name ?? '',
               userRole: session?.role ?? '',
               userAvatar: session?.avatar ?? '?',
+              isMg: isMg,
               onLogout: () => ref.read(sessionProvider.notifier).logout(),
             ),
             Expanded(child: child),
@@ -83,15 +90,18 @@ class AppShell extends ConsumerWidget {
     return Scaffold(
       body: child,
       bottomNavigationBar: _MobileBottomNav(
-        currentIndex: _currentIndex(location),
-        onMoreTapped: () => _showMoreSheet(context),
+        currentIndex: _currentIndex(location, isMg),
+        isMg: isMg,
+        onMoreTapped: () => _showMoreSheet(context, session?.role ?? '', isMg),
       ),
     );
   }
 
-  void _showMoreSheet(BuildContext context) {
-    final moreItems = _sidebarItems.where((item) {
-      return !_bottomNavItems.any((bn) => bn.path == item.path);
+  void _showMoreSheet(BuildContext context, String userRole, bool isMg) {
+    final bottomPathList = _getBottomNavItems(isMg).map((e) => e.path).toList();
+    final moreItems = _getSidebarItems(isMg).where((item) {
+      if (item.path == '/admin' && !userRole.toLowerCase().contains('responsable')) return false;
+      return !bottomPathList.contains(item.path);
     }).toList();
 
     showModalBottomSheet(
@@ -139,27 +149,30 @@ class AppShell extends ConsumerWidget {
 
 class _MobileBottomNav extends StatelessWidget {
   final int currentIndex;
+  final bool isMg;
   final VoidCallback onMoreTapped;
 
   const _MobileBottomNav({
     required this.currentIndex,
+    required this.isMg,
     required this.onMoreTapped,
   });
 
   @override
   Widget build(BuildContext context) {
+    final items = _getBottomNavItems(isMg);
     return NavigationBar(
       selectedIndex: currentIndex,
       backgroundColor: AppColors.surface,
       indicatorColor: AppColors.primaryPale,
       onDestinationSelected: (index) {
-        if (index == _bottomNavItems.length - 1) {
+        if (index == items.length - 1) {
           onMoreTapped();
           return;
         }
-        context.go(_bottomNavItems[index].path);
+        context.go(items[index].path);
       },
-      destinations: _bottomNavItems
+      destinations: items
           .map((item) => NavigationDestination(
                 icon: Icon(item.icon),
                 selectedIcon:
@@ -176,6 +189,7 @@ class _DesktopSidebar extends StatelessWidget {
   final String userName;
   final String userRole;
   final String userAvatar;
+  final bool isMg;
   final VoidCallback onLogout;
 
   const _DesktopSidebar({
@@ -183,8 +197,138 @@ class _DesktopSidebar extends StatelessWidget {
     required this.userName,
     required this.userRole,
     required this.userAvatar,
+    required this.isMg,
     required this.onLogout,
   });
+
+  void _showProfileMenu(BuildContext context, Offset position) {
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy - 220,
+        position.dx + 240,
+        position.dy,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      color: AppColors.cardSurface,
+      elevation: 8,
+      items: [
+        // Profile header
+        PopupMenuItem<String>(
+          enabled: false,
+          padding: EdgeInsets.zero,
+          child: Container(
+            padding: const EdgeInsets.all(AppSpacing.s14),
+            decoration: const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: AppColors.borderLight),
+              ),
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: AppColors.primary,
+                  child: Text(
+                    userAvatar,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.s12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        userName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        userRole,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Profile / Settings
+        PopupMenuItem<String>(
+          value: 'profile',
+          child: Row(
+            children: [
+              const Icon(LucideIcons.user, size: 18, color: AppColors.textSecondary),
+              const SizedBox(width: AppSpacing.s10),
+              Text(isMg ? 'Ny mombamomba ahy' : 'Mon profil'),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'settings',
+          child: Row(
+            children: [
+              const Icon(LucideIcons.settings, size: 18, color: AppColors.textSecondary),
+              const SizedBox(width: AppSpacing.s10),
+              Text(isMg ? 'Fikirakirana' : 'Paramètres'),
+            ],
+          ),
+        ),
+        if (userRole.toLowerCase().contains('responsable'))
+          PopupMenuItem<String>(
+            value: 'admin',
+            child: Row(
+              children: [
+                const Icon(LucideIcons.shield, size: 18, color: AppColors.textSecondary),
+                const SizedBox(width: AppSpacing.s10),
+                const Text('Administration'),
+              ],
+            ),
+          ),
+        const PopupMenuDivider(),
+          PopupMenuItem<String>(
+          value: 'logout',
+          child: Row(
+            children: [
+              Icon(LucideIcons.logOut, size: 18, color: AppColors.error),
+              const SizedBox(width: AppSpacing.s10),
+              Text(
+                isMg ? 'Hivoaka' : 'Déconnexion',
+                style: const TextStyle(color: AppColors.error, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value == null || !context.mounted) return;
+      switch (value) {
+        case 'profile':
+        case 'settings':
+          context.go('/settings');
+        case 'admin':
+          context.go('/admin');
+        case 'logout':
+          onLogout();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -237,9 +381,10 @@ class _DesktopSidebar extends StatelessWidget {
             child: ListView.builder(
               padding:
                   const EdgeInsets.symmetric(horizontal: AppSpacing.s10),
-              itemCount: _sidebarItems.length,
+              itemCount: _getSidebarItems(isMg).length,
               itemBuilder: (context, index) {
-                final item = _sidebarItems[index];
+                final item = _getSidebarItems(isMg)[index];
+                if (item.path == '/admin' && !userRole.toLowerCase().contains('responsable')) return const SizedBox.shrink();
                 final isActive = index == currentIndex;
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2),
@@ -284,68 +429,73 @@ class _DesktopSidebar extends StatelessWidget {
               },
             ),
           ),
-          // User footer
+          // User footer with Facebook-style profile menu
           Padding(
             padding: const EdgeInsets.all(AppSpacing.s12),
-            child: Container(
-              padding: const EdgeInsets.all(AppSpacing.s10),
-              decoration: BoxDecoration(
-                color: AppColors.sidebarUserCardBg,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.sidebarUserCardBorder),
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 18,
-                    backgroundColor: AppColors.primary,
-                    child: Text(
-                      userAvatar,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 14,
-                        color: Colors.white,
-                      ),
-                    ),
+            child: GestureDetector(
+              onTapUp: (details) {
+                final box = context.findRenderObject() as RenderBox;
+                final position = box.localToGlobal(details.localPosition);
+                _showProfileMenu(context, position);
+              },
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpacing.s10),
+                  decoration: BoxDecoration(
+                    color: AppColors.sidebarUserCardBg,
+                    borderRadius: BorderRadius.circular(14),
+                    border:
+                        Border.all(color: AppColors.sidebarUserCardBorder),
                   ),
-                  const SizedBox(width: AppSpacing.s10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          userName,
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: AppColors.primary,
+                        child: Text(
+                          userAvatar,
                           style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                            color: AppColors.sidebarTextActive,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 14,
+                            color: Colors.white,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
-                        Text(
-                          userRole,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color:
-                                AppColors.sidebarText.withAlpha(180),
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(width: AppSpacing.s10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              userName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                                color: AppColors.sidebarTextActive,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              userRole,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color:
+                                    AppColors.sidebarText.withAlpha(180),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                      Icon(
+                        LucideIcons.chevronUp,
+                        size: 16,
+                        color: AppColors.sidebarText,
+                      ),
+                    ],
                   ),
-                  IconButton(
-                    icon: const Icon(
-                      LucideIcons.logOut,
-                      size: 16,
-                      color: AppColors.sidebarText,
-                    ),
-                    tooltip: 'Déconnexion',
-                    onPressed: onLogout,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
+                ),
               ),
             ),
           ),

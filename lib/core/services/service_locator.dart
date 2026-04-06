@@ -9,6 +9,7 @@ import '../../features/insemination/data/insemination_repository.dart';
 import '../../features/health/data/health_repository.dart';
 import '../../features/commercial/data/commercial_repository.dart';
 import '../../features/breeding/data/breeding_repository.dart';
+import '../../features/boars/data/semen_quality_repository.dart';
 
 final getIt = GetIt.instance;
 
@@ -32,4 +33,6 @@ Future<void> setupServiceLocator() async {
       () => CommercialRepository(getIt<CloudSyncService>()));
   getIt.registerLazySingleton<BreedingRepository>(
       () => BreedingRepository(getIt<CloudSyncService>()));
+  getIt.registerLazySingleton<SemenQualityRepository>(
+      () => SemenQualityRepository(getIt<CloudSyncService>()));
 }

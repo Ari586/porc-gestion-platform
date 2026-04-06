@@ -1,158 +1,74 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../theme/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/models/health_record.dart';
+import '../../../../core/models/calendar_event.dart';
+import '../../../../core/utils/gestation_calendar_builder.dart';
+import '../../../../core/widgets/month_calendar_grid.dart';
 import '../../../../core/widgets/section_card.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/stat_mini_card.dart';
 import '../widgets/health_record_form_dialog.dart';
 import '../widgets/health_record_tile.dart';
+import '../../../../core/providers/language_provider.dart';
+import '../../domain/providers.dart';
 
-class HealthPage extends StatefulWidget {
+class HealthPage extends ConsumerStatefulWidget {
   const HealthPage({super.key});
 
   @override
-  State<HealthPage> createState() => _HealthPageState();
+  ConsumerState<HealthPage> createState() => _HealthPageState();
 }
 
-class _HealthPageState extends State<HealthPage> {
-  String _selectedFilter = 'Tous';
+class _HealthPageState extends ConsumerState<HealthPage> {
+  bool _showCalendar = false;
+  DateTime _calendarMonth = DateTime(DateTime.now().year, DateTime.now().month, 1);
+  DateTime? _selectedDate;
 
-  static final _filters = ['Tous', 'Vaccination', 'Traitement'];
+  bool get _isMg => ref.watch(languageProvider) == 'Malagasy';
+  String _t(String fr, String mg) => _isMg ? mg : fr;
 
-  // ── Demo data ──────────────────────────────────────────────────────────
+  // ── Derived data using providers ──────────────────────────────────────
 
-  static final _now = DateTime.now();
+  int _getEventCount(List<HealthRecord> records, String type) =>
+      records.where((r) => r.eventType == type).length;
 
-  static final List<HealthRecord> _demoRecords = [
-    HealthRecord(
-      id: 'H-001',
-      animalType: 'Truie',
-      animalCode: 'T-042',
-      eventType: 'Vaccination',
-      eventDate: _now.subtract(const Duration(days: 10)),
-      product: 'Parvo/Erysipele',
-      dose: '2 mL',
-      reason: 'Protocole reproductrice',
-      nextDate: _now.add(const Duration(days: 5)),
-      responsible: 'Dr. Rabe',
-    ),
-    HealthRecord(
-      id: 'H-002',
-      animalType: 'Truie',
-      animalCode: 'T-015',
-      eventType: 'Traitement',
-      eventDate: _now.subtract(const Duration(days: 3)),
-      product: 'Amoxicilline',
-      dose: '10 mg/kg',
-      reason: 'Infection urinaire',
-      responsible: 'Dr. Rabe',
-    ),
-    HealthRecord(
-      id: 'H-003',
-      animalType: 'Verrat',
-      animalCode: 'V-008',
-      eventType: 'Vaccination',
-      eventDate: _now.subtract(const Duration(days: 15)),
-      product: 'PCV2',
-      dose: '2 mL',
-      reason: 'Rappel annuel',
-      nextDate: _now.add(const Duration(days: 10)),
-      responsible: 'Dr. Rabe',
-    ),
-    HealthRecord(
-      id: 'H-004',
-      animalType: 'Truie',
-      animalCode: 'T-028',
-      eventType: 'Traitement',
-      eventDate: _now.subtract(const Duration(days: 1)),
-      product: 'Fer injectable',
-      dose: '200 mg',
-      reason: 'Anemie post-mise-bas',
-      responsible: 'Marie L.',
-    ),
-    HealthRecord(
-      id: 'H-005',
-      animalType: 'Truie',
-      animalCode: 'T-056',
-      eventType: 'Vaccination',
-      eventDate: _now.subtract(const Duration(days: 20)),
-      product: 'E. coli / Clostridium',
-      dose: '2 mL',
-      reason: 'Pre-mise-bas',
-      nextDate: _now.add(const Duration(days: 3)),
-      responsible: 'Dr. Rabe',
-    ),
-    HealthRecord(
-      id: 'H-006',
-      animalType: 'Porcelet',
-      animalCode: 'P-112',
-      eventType: 'Vaccination',
-      eventDate: _now.subtract(const Duration(days: 7)),
-      product: 'Mycoplasme',
-      dose: '1 mL',
-      reason: 'Primo-vaccination',
-      nextDate: _now.add(const Duration(days: 14)),
-      responsible: 'Jean R.',
-    ),
-    HealthRecord(
-      id: 'H-007',
-      animalType: 'Truie',
-      animalCode: 'T-033',
-      eventType: 'Traitement',
-      eventDate: _now,
-      product: 'Oxytocine',
-      dose: '2 mL',
-      reason: 'Assistance mise-bas',
-      responsible: 'Dr. Rabe',
-    ),
-  ];
+  // ── Calendar events ──────────────────────────────────────────────────
 
-  // ── Derived data ──────────────────────────────────────────────────────
-
-  List<HealthRecord> get _filteredRecords {
-    if (_selectedFilter == 'Tous') return _demoRecords;
-    return _demoRecords
-        .where((r) => r.eventType == _selectedFilter)
-        .toList();
+  Map<DateTime, List<CalendarEvent>> _getCalendarEvents(List<HealthRecord> records) {
+    final events = buildHealthEvents(records);
+    return groupEventsByDate(events);
   }
-
-  List<HealthRecord> get _upcomingVaccinations {
-    final cutoff = _now.add(const Duration(days: 14));
-    return _demoRecords.where((r) {
-      if (r.nextDate == null) return false;
-      return r.nextDate!.isAfter(_now.subtract(const Duration(days: 1))) &&
-          r.nextDate!.isBefore(cutoff);
-    }).toList();
-  }
-
-  int get _vaccinationCount =>
-      _demoRecords.where((r) => r.eventType == 'Vaccination').length;
-
-  int get _traitementCount =>
-      _demoRecords.where((r) => r.eventType == 'Traitement').length;
 
   // ── Actions ───────────────────────────────────────────────────────────
 
   Future<void> _addRecord() async {
     final result = await HealthRecordFormDialog.show(context);
-    if (result != null) setState(() => _demoRecords.add(result));
+    if (result != null) {
+      await ref.read(healthRepositoryProvider).add(result);
+    }
   }
 
   // ── Build ─────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    final recordsAsync = ref.watch(healthRecordListProvider);
+    final filteredRecords = ref.watch(filteredHealthRecordsProvider);
+    final upcomingVaccinations = ref.watch(upcomingVaccinationsProvider);
+    final filter = ref.watch(healthFilterProvider);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _addRecord,
         backgroundColor: AppColors.primary,
         icon: const Icon(LucideIcons.plus, color: Colors.white),
-        label: const Text('Ajouter', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        label: Text(_t('Ajouter', 'Manampy'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -165,13 +81,28 @@ class _HealthPageState extends State<HealthPage> {
                 children: [
                   _buildHeader(context),
                   const SizedBox(height: AppSpacing.s16),
-                  _buildSummaryCards(context),
+                  _buildViewToggle(context),
                   const SizedBox(height: AppSpacing.s16),
-                  _buildUpcomingVaccinations(context),
-                  const SizedBox(height: AppSpacing.s16),
-                  _buildFilterChips(context),
-                  const SizedBox(height: AppSpacing.s12),
-                  _buildRecordsList(context),
+                  recordsAsync.when(
+                    loading: () => const Center(child: CircularProgressIndicator()),
+                    error: (e, _) => Center(child: Text('Erreur: $e')),
+                    data: (allRecords) {
+                      if (_showCalendar) {
+                        return _buildCalendarView(context, allRecords);
+                      }
+                      return Column(
+                        children: [
+                          _buildSummaryCards(context, allRecords),
+                          const SizedBox(height: AppSpacing.s16),
+                          _buildUpcomingVaccinations(context, upcomingVaccinations),
+                          const SizedBox(height: AppSpacing.s16),
+                          _buildFilterChips(context, filter),
+                          const SizedBox(height: AppSpacing.s12),
+                          _buildRecordsList(context, filteredRecords),
+                        ],
+                      );
+                    },
+                  ),
                   const SizedBox(height: AppSpacing.s16),
                 ],
               ),
@@ -179,6 +110,90 @@ class _HealthPageState extends State<HealthPage> {
           ),
         ),
       ),
+    );
+  }
+
+  // ── View toggle ──────────────────────────────────────────────────────
+
+  Widget _buildViewToggle(BuildContext context) {
+    return Row(
+      children: [
+        _buildToggleButton(
+          icon: LucideIcons.list,
+          label: _t('Liste', 'Lisitra'),
+          isActive: !_showCalendar,
+          onTap: () => setState(() => _showCalendar = false),
+        ),
+        const SizedBox(width: AppSpacing.s8),
+        _buildToggleButton(
+          icon: LucideIcons.calendar,
+          label: _t('Calendrier', 'Tetiandro'),
+          isActive: _showCalendar,
+          onTap: () => setState(() => _showCalendar = true),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildToggleButton({
+    required IconData icon,
+    required String label,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: isActive ? AppColors.primaryPale : AppColors.surface,
+      borderRadius: BorderRadius.circular(AppUiTokens.chipRadius),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppUiTokens.chipRadius),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.s14,
+            vertical: AppSpacing.s8,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppUiTokens.chipRadius),
+            border: Border.all(
+              color: isActive ? AppColors.primary : AppColors.borderLight,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: isActive ? AppColors.primaryDark : AppColors.textMuted),
+              const SizedBox(width: AppSpacing.s6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                  color: isActive ? AppColors.primaryDark : AppColors.textSecondary,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Calendar view ────────────────────────────────────────────────────
+
+  Widget _buildCalendarView(BuildContext context, List<HealthRecord> records) {
+    return MonthCalendarGrid(
+      title: _t('Calendrier santé', 'Tetiandro fahasalamana'),
+      subtitle: _t('Vaccinations, traitements et rappels', 'Vaksiny, fitsaboana ary fampahatsiahivana'),
+      currentMonth: _calendarMonth,
+      selectedDate: _selectedDate,
+      events: _getCalendarEvents(records),
+      onMonthChanged: (m) => setState(() => _calendarMonth = m),
+      onDaySelected: (d) => setState(() => _selectedDate = d),
+      legend: [
+        CalendarLegendItem(label: _t('Vaccination', 'Vaksiny'), color: const Color(0xFF0891B2)),
+        CalendarLegendItem(label: _t('Traitement', 'Fitsaboana'), color: const Color(0xFFD97706)),
+        CalendarLegendItem(label: _t('Rappel', 'Fampahatsiahivana'), color: const Color(0xFFDC2626)),
+      ],
     );
   }
 
@@ -192,7 +207,7 @@ class _HealthPageState extends State<HealthPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Suivi santé',
+                _t('Suivi santé', 'Fanaraha-maso fahasalamana'),
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w900,
                       color: AppColors.textPrimary,
@@ -200,7 +215,7 @@ class _HealthPageState extends State<HealthPage> {
               ),
               const SizedBox(height: AppSpacing.s4),
               Text(
-                'Vaccinations et traitements',
+                _t('Vaccinations et traitements', 'Vaksiny sy fitsaboana'),
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppColors.textMuted,
                     ),
@@ -209,11 +224,9 @@ class _HealthPageState extends State<HealthPage> {
           ),
         ),
         FilledButton.icon(
-          onPressed: () {
-            // TODO: open new health record form
-          },
+          onPressed: _addRecord,
           icon: const Icon(LucideIcons.plus, size: 16),
-          label: const Text('Ajouter'),
+          label: Text(_t('Ajouter', 'Manampy')),
           style: FilledButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: AppColors.textOnPrimary,
@@ -228,7 +241,10 @@ class _HealthPageState extends State<HealthPage> {
 
   // ── Summary cards ─────────────────────────────────────────────────────
 
-  Widget _buildSummaryCards(BuildContext context) {
+  Widget _buildSummaryCards(BuildContext context, List<HealthRecord> records) {
+    final vaccCount = _getEventCount(records, 'Vaccination');
+    final treatCount = _getEventCount(records, 'Traitement');
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final crossAxisCount = constraints.maxWidth > 600 ? 3 : 1;
@@ -237,21 +253,21 @@ class _HealthPageState extends State<HealthPage> {
             children: [
               StatMiniCard(
                 label: 'Total événements',
-                value: '${_demoRecords.length}',
+                value: '${records.length}',
                 icon: LucideIcons.activity,
                 iconColor: AppColors.primary,
               ),
               const SizedBox(height: AppSpacing.s8),
               StatMiniCard(
                 label: 'Vaccinations',
-                value: '$_vaccinationCount',
+                value: '$vaccCount',
                 icon: LucideIcons.syringe,
                 iconColor: AppColors.info,
               ),
               const SizedBox(height: AppSpacing.s8),
               StatMiniCard(
                 label: 'Traitements',
-                value: '$_traitementCount',
+                value: '$treatCount',
                 icon: LucideIcons.pill,
                 iconColor: AppColors.warning,
               ),
@@ -263,7 +279,7 @@ class _HealthPageState extends State<HealthPage> {
             Expanded(
               child: StatMiniCard(
                 label: 'Total événements',
-                value: '${_demoRecords.length}',
+                value: '${records.length}',
                 icon: LucideIcons.activity,
                 iconColor: AppColors.primary,
               ),
@@ -272,7 +288,7 @@ class _HealthPageState extends State<HealthPage> {
             Expanded(
               child: StatMiniCard(
                 label: 'Vaccinations',
-                value: '$_vaccinationCount',
+                value: '$vaccCount',
                 icon: LucideIcons.syringe,
                 iconColor: AppColors.info,
               ),
@@ -281,7 +297,7 @@ class _HealthPageState extends State<HealthPage> {
             Expanded(
               child: StatMiniCard(
                 label: 'Traitements',
-                value: '$_traitementCount',
+                value: '$treatCount',
                 icon: LucideIcons.pill,
                 iconColor: AppColors.warning,
               ),
@@ -294,22 +310,22 @@ class _HealthPageState extends State<HealthPage> {
 
   // ── Upcoming vaccinations ─────────────────────────────────────────────
 
-  Widget _buildUpcomingVaccinations(BuildContext context) {
-    final upcoming = _upcomingVaccinations;
+  Widget _buildUpcomingVaccinations(BuildContext context, List<HealthRecord> upcoming) {
+    final now = DateTime.now();
     final dateFmt = DateFormat('dd/MM/yyyy');
 
     return SectionCard(
-      title: 'Vaccinations à venir',
-      subtitle: '${upcoming.length} rappel(s) dans les 14 prochains jours',
+      title: _t('Vaccinations à venir', 'Vaksiny ho avy'),
+      subtitle: '${upcoming.length} ${_t('rappel(s) dans les prochaines semaines', 'fampahatsiahivana ato anatin\'ny herinandro vitsivitsy')}',
       child: upcoming.isEmpty
-          ? const EmptyState(
+          ? EmptyState(
               icon: LucideIcons.calendarCheck,
-              message: 'Aucun rappel de vaccination prévu',
+              message: _t('Aucun rappel de vaccination prévu', 'Tsy misy fampahatsiahivana vaksiny voalahatra'),
             )
           : Column(
               children: upcoming.map((r) {
                 final daysUntil =
-                    r.nextDate!.difference(_now).inDays;
+                    r.nextDate!.difference(now).inDays;
                 final urgencyColor =
                     daysUntil <= 3 ? AppColors.error : AppColors.info;
 
@@ -365,7 +381,7 @@ class _HealthPageState extends State<HealthPage> {
                         ),
                         child: Text(
                           daysUntil <= 0
-                              ? "Aujourd'hui"
+                              ? _t("Aujourd'hui", "Anio")
                               : 'J+$daysUntil (${dateFmt.format(r.nextDate!)})',
                           style: Theme.of(context)
                               .textTheme
@@ -386,16 +402,19 @@ class _HealthPageState extends State<HealthPage> {
 
   // ── Filter chips ──────────────────────────────────────────────────────
 
-  Widget _buildFilterChips(BuildContext context) {
+  Widget _buildFilterChips(BuildContext context, String currentFilter) {
+    final filters = ['Tous', 'Vaccination', 'Traitement'];
     return Wrap(
       spacing: AppSpacing.s8,
-      children: _filters.map((filter) {
-        final isSelected = _selectedFilter == filter;
+      children: filters.map((filter) {
+        final isSelected = currentFilter == filter;
+        final label = filter == 'Tous' ? _t('Tous', 'Rehetra') :
+                      filter == 'Vaccination' ? _t('Vaccination', 'Vaksiny') : _t('Traitement', 'Fitsaboana');
         return FilterChip(
-          label: Text(filter),
+          label: Text(label),
           selected: isSelected,
           onSelected: (selected) {
-            setState(() => _selectedFilter = filter);
+            ref.read(healthFilterProvider.notifier).state = filter;
           },
           selectedColor: AppColors.primaryPale,
           checkmarkColor: AppColors.primaryDark,
@@ -419,13 +438,11 @@ class _HealthPageState extends State<HealthPage> {
 
   // ── Records list ──────────────────────────────────────────────────────
 
-  Widget _buildRecordsList(BuildContext context) {
-    final records = _filteredRecords;
-
+  Widget _buildRecordsList(BuildContext context, List<HealthRecord> records) {
     if (records.isEmpty) {
-      return const EmptyState(
+      return EmptyState(
         icon: LucideIcons.shieldCheck,
-        message: 'Aucun événement santé pour ce filtre',
+        message: _t('Aucun événement santé pour ce filtre', 'Tsy misy tranga fahasalamana amin\'ity sivana ity'),
       );
     }
 
@@ -439,3 +456,4 @@ class _HealthPageState extends State<HealthPage> {
     );
   }
 }
+
